@@ -1,1 +1,7 @@
 project_id = "hcdwbpbvuvbrozttahfz"
+
+[functions.vapi-voice-call]
+verify_jwt = true
+
+[functions.whatsapp-ai-chat]
+verify_jwt = true

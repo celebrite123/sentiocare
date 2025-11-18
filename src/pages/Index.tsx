@@ -99,12 +99,17 @@ const Index = () => {
               <Button
                 size="lg"
                 className="bg-gradient-primary hover:opacity-90 text-lg"
+                onClick={() => navigate("/auth")}
+              >
+                Get Started Free
+              </Button>
+              <Button 
+                size="lg" 
+                variant="outline" 
+                className="text-lg"
                 onClick={() => navigate("/dashboard")}
               >
-                View Demo Dashboard
-              </Button>
-              <Button size="lg" variant="outline" className="text-lg">
-                Learn More
+                View Demo
               </Button>
             </div>
           </div>
