@@ -6,6 +6,9 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
 import Auth from "./pages/Auth";
+import Elders from "./pages/Elders";
+import AddElder from "./pages/AddElder";
+import ManageMedicines from "./pages/ManageMedicines";
 import NotFound from "./pages/NotFound";
 import { AuthProvider } from "./contexts/AuthContext";
 import { ProtectedRoute } from "./components/ProtectedRoute";
@@ -27,6 +30,30 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <Dashboard />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/elders" 
+              element={
+                <ProtectedRoute>
+                  <Elders />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/elders/add" 
+              element={
+                <ProtectedRoute>
+                  <AddElder />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/elders/:elderId/medicines" 
+              element={
+                <ProtectedRoute>
+                  <ManageMedicines />
                 </ProtectedRoute>
               } 
             />

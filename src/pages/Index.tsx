@@ -107,9 +107,9 @@ const Index = () => {
                 size="lg" 
                 variant="outline" 
                 className="text-lg"
-                onClick={() => navigate("/dashboard")}
+                onClick={() => navigate("/elders")}
               >
-                View Demo
+                View Elders
               </Button>
             </div>
           </div>

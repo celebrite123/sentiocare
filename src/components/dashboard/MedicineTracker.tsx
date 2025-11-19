@@ -1,42 +1,49 @@
+import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Pill, Clock, CheckCircle } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { supabase } from "@/integrations/supabase/client";
 
-const medicines = [
-  {
-    id: 1,
-    name: "Metformin",
-    dosage: "500mg",
-    frequency: "Twice daily",
-    time: "8:00 AM, 8:00 PM",
-    status: "taken",
-    lastTaken: "2 hours ago",
-    purpose: "Blood sugar control",
-  },
-  {
-    id: 2,
-    name: "Amlodipine",
-    dosage: "5mg",
-    frequency: "Once daily",
-    time: "8:00 AM",
-    status: "taken",
-    lastTaken: "2 hours ago",
-    purpose: "Blood pressure",
-  },
-  {
-    id: 3,
-    name: "Atorvastatin",
-    dosage: "10mg",
-    frequency: "Once daily",
-    time: "9:00 PM",
-    status: "scheduled",
-    lastTaken: "Yesterday",
-    purpose: "Cholesterol management",
-  },
-];
+interface Medicine {
+  id: string;
+  name: string;
+  dosage: string;
+  frequency: string;
+  timing: string;
+  purpose: string | null;
+}
 
 const MedicineTracker = () => {
+  const [searchParams] = useSearchParams();
+  const elderId = searchParams.get("elder");
+  const [medicines, setMedicines] = useState<Medicine[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (elderId) {
+      loadMedicines();
+    }
+  }, [elderId]);
+
+  const loadMedicines = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("medicines")
+        .select("*")
+        .eq("elder_id", elderId!)
+        .eq("active", true);
+
+      if (error) throw error;
+      setMedicines(data || []);
+    } catch (error) {
+      console.error("Error loading medicines:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -45,41 +52,27 @@ const MedicineTracker = () => {
       </CardHeader>
       <CardContent>
         <ScrollArea className="h-[500px] pr-4">
-          <div className="space-y-4">
-            {medicines.map((medicine) => (
+          {loading ? (
+            <p className="text-center text-muted-foreground py-8">Loading...</p>
+          ) : medicines.length === 0 ? (
+            <p className="text-center text-muted-foreground py-8">No medicines added yet</p>
+          ) : (
+            <div className="space-y-4">
+              {medicines.map((medicine) => (
               <div
                 key={medicine.id}
                 className="p-4 rounded-lg border bg-card hover:bg-muted/50 transition-colors"
               >
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-start gap-3">
-                    <div
-                      className={`h-10 w-10 rounded-full flex items-center justify-center ${
-                        medicine.status === "taken"
-                          ? "bg-success/10"
-                          : "bg-warning/10"
-                      }`}
-                    >
-                      {medicine.status === "taken" ? (
-                        <CheckCircle className="h-5 w-5 text-success" />
-                      ) : (
-                        <Clock className="h-5 w-5 text-warning" />
-                      )}
+                    <div className="h-10 w-10 rounded-full flex items-center justify-center bg-primary/10">
+                      <Pill className="h-5 w-5 text-primary" />
                     </div>
                     <div>
                       <h4 className="font-semibold">{medicine.name}</h4>
-                      <p className="text-sm text-muted-foreground">{medicine.purpose}</p>
+                      <p className="text-sm text-muted-foreground">{medicine.purpose || "No purpose specified"}</p>
                     </div>
                   </div>
-                  <Badge
-                    className={
-                      medicine.status === "taken"
-                        ? "bg-success/10 text-success border-success/20"
-                        : "bg-warning/10 text-warning border-warning/20"
-                    }
-                  >
-                    {medicine.status === "taken" ? "Taken" : "Scheduled"}
-                  </Badge>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4 text-sm">
@@ -93,16 +86,13 @@ const MedicineTracker = () => {
                   </div>
                   <div>
                     <p className="text-muted-foreground">Timing</p>
-                    <p className="font-medium">{medicine.time}</p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground">Last Taken</p>
-                    <p className="font-medium">{medicine.lastTaken}</p>
+                    <p className="font-medium">{medicine.timing}</p>
                   </div>
                 </div>
               </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </ScrollArea>
       </CardContent>
     </Card>
