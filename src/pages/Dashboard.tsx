@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { Activity, Bell, Heart, Phone, Pill, Loader2, BookHeart } from "lucide-react";
+import { Activity, Bell, Heart, Phone, Pill, Loader2, BookHeart, PlayCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
@@ -44,6 +44,7 @@ const Dashboard = () => {
   });
   const [loading, setLoading] = useState(true);
   const [calling, setCalling] = useState(false);
+  const [simulating, setSimulating] = useState(false);
 
   useEffect(() => {
     if (elderId) {
@@ -166,6 +167,39 @@ const Dashboard = () => {
     }
   };
 
+  const simulateCheckIn = async () => {
+    if (!elder) return;
+
+    setSimulating(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("simulate-checkin", {
+        body: {
+          elderId: elder.id,
+          elderName: elder.full_name,
+        },
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Simulation Complete",
+        description: `Check-in simulated for ${elder.full_name}. Scenario: ${data.scenario}`,
+      });
+
+      // Refresh stats
+      loadDashboardStats();
+    } catch (error: any) {
+      console.error("Error simulating check-in:", error);
+      toast({
+        title: "Simulation Failed",
+        description: error.message || "Failed to simulate check-in",
+        variant: "destructive",
+      });
+    } finally {
+      setSimulating(false);
+    }
+  };
+
   if (!elderId) {
     return (
       <>
@@ -219,11 +253,11 @@ const Dashboard = () => {
         <DashboardHeader elderName={elder.full_name} />
 
         <main className="container mx-auto px-4 py-8">
-          {/* Call Button */}
-          <div className="mb-6 flex justify-center gap-4">
+          {/* Call Buttons */}
+          <div className="mb-6 flex flex-wrap justify-center gap-4">
             <Button
               onClick={initiateCall}
-              disabled={calling}
+              disabled={calling || simulating}
               size="lg"
               className="gap-2 bg-gradient-primary hover:opacity-90"
             >
@@ -233,6 +267,20 @@ const Dashboard = () => {
                 <Phone className="h-5 w-5" />
               )}
               {calling ? "Calling..." : `Call ${elder.full_name}`}
+            </Button>
+            <Button
+              onClick={simulateCheckIn}
+              disabled={calling || simulating}
+              variant="secondary"
+              size="lg"
+              className="gap-2"
+            >
+              {simulating ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                <PlayCircle className="h-5 w-5" />
+              )}
+              {simulating ? "Simulating..." : "Demo Check-in"}
             </Button>
             <Button
               onClick={() => navigate(`/elders/${elderId}/health-book`)}
