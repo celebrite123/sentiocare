@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { useSearchParams } from "react-router-dom";
-import { Activity, Bell, Heart, Phone, Pill, Loader2 } from "lucide-react";
+import { useSearchParams, useNavigate } from "react-router-dom";
+import { Activity, Bell, Heart, Phone, Pill, Loader2, BookHeart } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
@@ -32,6 +32,7 @@ interface DashboardStats {
 
 const Dashboard = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const elderId = searchParams.get("elder");
   const [elder, setElder] = useState<Elder | null>(null);
@@ -219,7 +220,7 @@ const Dashboard = () => {
 
         <main className="container mx-auto px-4 py-8">
           {/* Call Button */}
-          <div className="mb-6 flex justify-center">
+          <div className="mb-6 flex justify-center gap-4">
             <Button
               onClick={initiateCall}
               disabled={calling}
@@ -232,6 +233,15 @@ const Dashboard = () => {
                 <Phone className="h-5 w-5" />
               )}
               {calling ? "Calling..." : `Call ${elder.full_name}`}
+            </Button>
+            <Button
+              onClick={() => navigate(`/elders/${elderId}/health-book`)}
+              variant="outline"
+              size="lg"
+              className="gap-2"
+            >
+              <BookHeart className="h-5 w-5" />
+              Health Book
             </Button>
           </div>
 

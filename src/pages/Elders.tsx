@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Phone, Settings, User } from "lucide-react";
+import { Plus, Phone, Settings, User, BookHeart } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -172,9 +172,18 @@ const Elders = () => {
                         Dashboard
                       </Button>
                       <Button
+                        onClick={() => navigate(`/elders/${elder.id}/health-book`)}
+                        variant="outline"
+                        size="icon"
+                        title="Health Book"
+                      >
+                        <BookHeart className="h-4 w-4" />
+                      </Button>
+                      <Button
                         onClick={() => navigate(`/elders/${elder.id}/medicines`)}
                         variant="outline"
                         size="icon"
+                        title="Manage Medicines"
                       >
                         <Settings className="h-4 w-4" />
                       </Button>
