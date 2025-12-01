@@ -5,9 +5,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import Navbar from "@/components/Navbar";
 
 interface Medicine {
   id: string;
@@ -131,146 +131,149 @@ const ManageMedicines = () => {
   };
 
   return (
-    <div className="min-h-screen bg-muted/30">
-      <div className="border-b bg-background">
-        <div className="container mx-auto px-4 py-6">
-          <Button variant="ghost" onClick={() => navigate("/elders")} className="gap-2 mb-4">
-            <ArrowLeft className="h-4 w-4" />
-            Back to Elders
-          </Button>
-          <h1 className="text-3xl font-bold">Manage Medicines</h1>
-          <p className="text-muted-foreground mt-1">
-            {elderName ? `For ${elderName}` : "Loading..."}
-          </p>
-        </div>
-      </div>
-
-      <div className="container mx-auto px-4 py-8 max-w-4xl">
-        <div className="mb-6">
-          <Button onClick={() => setShowForm(!showForm)} className="gap-2">
-            <Plus className="h-4 w-4" />
-            {showForm ? "Hide Form" : "Add Medicine"}
-          </Button>
+    <>
+      <Navbar />
+      <div className="min-h-screen bg-muted/30">
+        <div className="border-b bg-background">
+          <div className="container mx-auto px-4 py-6">
+            <Button variant="ghost" onClick={() => navigate("/elders")} className="gap-2 mb-4">
+              <ArrowLeft className="h-4 w-4" />
+              Back to Elders
+            </Button>
+            <h1 className="text-3xl font-bold">Manage Medicines</h1>
+            <p className="text-muted-foreground mt-1">
+              {elderName ? `For ${elderName}` : "Loading..."}
+            </p>
+          </div>
         </div>
 
-        {showForm && (
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle>Add New Medicine</CardTitle>
-              <CardDescription>Enter medicine details</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="name">Medicine Name *</Label>
-                    <Input
-                      id="name"
-                      required
-                      value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      placeholder="e.g., Metformin"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="dosage">Dosage *</Label>
-                    <Input
-                      id="dosage"
-                      required
-                      value={formData.dosage}
-                      onChange={(e) => setFormData({ ...formData, dosage: e.target.value })}
-                      placeholder="e.g., 500mg"
-                    />
-                  </div>
-                </div>
+        <div className="container mx-auto px-4 py-8 max-w-4xl">
+          <div className="mb-6">
+            <Button onClick={() => setShowForm(!showForm)} className="gap-2">
+              <Plus className="h-4 w-4" />
+              {showForm ? "Hide Form" : "Add Medicine"}
+            </Button>
+          </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="frequency">Frequency *</Label>
-                    <Input
-                      id="frequency"
-                      required
-                      value={formData.frequency}
-                      onChange={(e) => setFormData({ ...formData, frequency: e.target.value })}
-                      placeholder="e.g., Twice daily"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="timing">Timing *</Label>
-                    <Input
-                      id="timing"
-                      required
-                      value={formData.timing}
-                      onChange={(e) => setFormData({ ...formData, timing: e.target.value })}
-                      placeholder="e.g., 8:00 AM, 8:00 PM"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="purpose">Purpose</Label>
-                  <Input
-                    id="purpose"
-                    value={formData.purpose}
-                    onChange={(e) => setFormData({ ...formData, purpose: e.target.value })}
-                    placeholder="e.g., Blood sugar control"
-                  />
-                </div>
-
-                <Button type="submit">Add Medicine</Button>
-              </form>
-            </CardContent>
-          </Card>
-        )}
-
-        <div className="space-y-4">
-          {medicines.length === 0 ? (
-            <Card className="text-center py-12">
+          {showForm && (
+            <Card className="mb-6">
+              <CardHeader>
+                <CardTitle>Add New Medicine</CardTitle>
+                <CardDescription>Enter medicine details</CardDescription>
+              </CardHeader>
               <CardContent>
-                <p className="text-muted-foreground">No medicines added yet</p>
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="name">Medicine Name *</Label>
+                      <Input
+                        id="name"
+                        required
+                        value={formData.name}
+                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                        placeholder="e.g., Metformin"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="dosage">Dosage *</Label>
+                      <Input
+                        id="dosage"
+                        required
+                        value={formData.dosage}
+                        onChange={(e) => setFormData({ ...formData, dosage: e.target.value })}
+                        placeholder="e.g., 500mg"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="frequency">Frequency *</Label>
+                      <Input
+                        id="frequency"
+                        required
+                        value={formData.frequency}
+                        onChange={(e) => setFormData({ ...formData, frequency: e.target.value })}
+                        placeholder="e.g., Twice daily"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="timing">Timing *</Label>
+                      <Input
+                        id="timing"
+                        required
+                        value={formData.timing}
+                        onChange={(e) => setFormData({ ...formData, timing: e.target.value })}
+                        placeholder="e.g., 8:00 AM, 8:00 PM"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="purpose">Purpose</Label>
+                    <Input
+                      id="purpose"
+                      value={formData.purpose}
+                      onChange={(e) => setFormData({ ...formData, purpose: e.target.value })}
+                      placeholder="e.g., Blood sugar control"
+                    />
+                  </div>
+
+                  <Button type="submit">Add Medicine</Button>
+                </form>
               </CardContent>
             </Card>
-          ) : (
-            medicines.map((medicine) => (
-              <Card key={medicine.id}>
-                <CardContent className="pt-6">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <h3 className="text-lg font-semibold">{medicine.name}</h3>
-                      {medicine.purpose && (
-                        <p className="text-sm text-muted-foreground">{medicine.purpose}</p>
-                      )}
-                      <div className="grid grid-cols-3 gap-4 mt-4">
-                        <div>
-                          <p className="text-xs text-muted-foreground">Dosage</p>
-                          <p className="text-sm font-medium">{medicine.dosage}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground">Frequency</p>
-                          <p className="text-sm font-medium">{medicine.frequency}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground">Timing</p>
-                          <p className="text-sm font-medium">{medicine.timing}</p>
-                        </div>
-                      </div>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => deleteMedicine(medicine.id)}
-                      className="text-destructive"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
+          )}
+
+          <div className="space-y-4">
+            {medicines.length === 0 ? (
+              <Card className="text-center py-12">
+                <CardContent>
+                  <p className="text-muted-foreground">No medicines added yet</p>
                 </CardContent>
               </Card>
-            ))
-          )}
+            ) : (
+              medicines.map((medicine) => (
+                <Card key={medicine.id}>
+                  <CardContent className="pt-6">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <h3 className="text-lg font-semibold">{medicine.name}</h3>
+                        {medicine.purpose && (
+                          <p className="text-sm text-muted-foreground">{medicine.purpose}</p>
+                        )}
+                        <div className="grid grid-cols-3 gap-4 mt-4">
+                          <div>
+                            <p className="text-xs text-muted-foreground">Dosage</p>
+                            <p className="text-sm font-medium">{medicine.dosage}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Frequency</p>
+                            <p className="text-sm font-medium">{medicine.frequency}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Timing</p>
+                            <p className="text-sm font-medium">{medicine.timing}</p>
+                          </div>
+                        </div>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => deleteMedicine(medicine.id)}
+                        className="text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
+            )}
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 };
 

@@ -1,8 +1,6 @@
 import { useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Pill, Clock, CheckCircle } from "lucide-react";
+import { Pill } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -15,9 +13,11 @@ interface Medicine {
   purpose: string | null;
 }
 
-const MedicineTracker = () => {
-  const [searchParams] = useSearchParams();
-  const elderId = searchParams.get("elder");
+interface MedicineTrackerProps {
+  elderId: string;
+}
+
+const MedicineTracker = ({ elderId }: MedicineTrackerProps) => {
   const [medicines, setMedicines] = useState<Medicine[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -32,7 +32,7 @@ const MedicineTracker = () => {
       const { data, error } = await supabase
         .from("medicines")
         .select("*")
-        .eq("elder_id", elderId!)
+        .eq("elder_id", elderId)
         .eq("active", true);
 
       if (error) throw error;
@@ -48,7 +48,7 @@ const MedicineTracker = () => {
     <Card>
       <CardHeader>
         <CardTitle>Medicine Schedule</CardTitle>
-        <CardDescription>Current medication routine and compliance</CardDescription>
+        <CardDescription>Current medication routine</CardDescription>
       </CardHeader>
       <CardContent>
         <ScrollArea className="h-[500px] pr-4">

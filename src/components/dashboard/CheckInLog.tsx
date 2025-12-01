@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { MessageSquare, Phone } from "lucide-react";
@@ -16,9 +15,11 @@ interface CheckIn {
   status: string;
 }
 
-const CheckInLog = () => {
-  const [searchParams] = useSearchParams();
-  const elderId = searchParams.get("elder");
+interface CheckInLogProps {
+  elderId: string;
+}
+
+const CheckInLog = ({ elderId }: CheckInLogProps) => {
   const [checkIns, setCheckIns] = useState<CheckIn[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -33,7 +34,7 @@ const CheckInLog = () => {
       const { data, error } = await supabase
         .from("check_ins")
         .select("*")
-        .eq("elder_id", elderId!)
+        .eq("elder_id", elderId)
         .order("created_at", { ascending: false })
         .limit(10);
 
@@ -57,7 +58,7 @@ const CheckInLog = () => {
           {loading ? (
             <p className="text-center text-muted-foreground py-8">Loading...</p>
           ) : checkIns.length === 0 ? (
-            <p className="text-center text-muted-foreground py-8">No check-ins yet</p>
+            <p className="text-center text-muted-foreground py-8">No check-ins yet. Initiate a call to start.</p>
           ) : (
             <div className="space-y-4">
               {checkIns.map((checkIn) => (
@@ -103,11 +104,11 @@ const CheckInLog = () => {
                         variant="secondary"
                         className={
                           checkIn.sentiment === "positive"
-                            ? "bg-success/10 text-success border-success/20"
-                            : "bg-info/10 text-info border-info/20"
+                            ? "bg-accent/10 text-accent border-accent/20"
+                            : "bg-muted text-muted-foreground"
                         }
                       >
-                        {checkIn.sentiment === "positive" ? "All Good" : "Normal"}
+                        {checkIn.sentiment === "positive" ? "All Good" : checkIn.sentiment}
                       </Badge>
                     )}
                   </div>
