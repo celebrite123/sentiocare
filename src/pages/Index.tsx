@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Heart, Phone, MessageSquare, Brain, Shield, Clock, Check } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import Navbar from "@/components/Navbar";
 
 const Index = () => {
   const navigate = useNavigate();
@@ -74,6 +75,8 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background">
+      <Navbar />
+
       {/* Hero Section */}
       <section className="relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-hero opacity-5" />
@@ -202,6 +205,7 @@ const Index = () => {
                     }`}
                     variant={plan.popular ? "default" : "outline"}
                     size="lg"
+                    onClick={() => navigate("/auth")}
                   >
                     Get Started
                   </Button>
@@ -226,6 +230,7 @@ const Index = () => {
             <Button
               size="lg"
               className="bg-gradient-primary hover:opacity-90 text-lg"
+              onClick={() => navigate("/auth")}
             >
               Start Free Trial
             </Button>
