@@ -8,3 +8,6 @@ verify_jwt = true
 
 [functions.vapi-webhook]
 verify_jwt = false
+
+[functions.simulate-checkin]
+verify_jwt = true
