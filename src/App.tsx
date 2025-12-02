@@ -10,6 +10,7 @@ import Elders from "./pages/Elders";
 import AddElder from "./pages/AddElder";
 import ManageMedicines from "./pages/ManageMedicines";
 import HealthBook from "./pages/HealthBook";
+import ElderSettings from "./pages/ElderSettings";
 import NotFound from "./pages/NotFound";
 import { AuthProvider } from "./contexts/AuthContext";
 import { ProtectedRoute } from "./components/ProtectedRoute";
@@ -63,6 +64,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <HealthBook />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/elders/:elderId/settings" 
+              element={
+                <ProtectedRoute>
+                  <ElderSettings />
                 </ProtectedRoute>
               } 
             />

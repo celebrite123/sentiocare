@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Phone, Settings, User, BookHeart } from "lucide-react";
+import { Plus, Phone, Settings, User, BookHeart, Cog } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -186,6 +186,14 @@ const Elders = () => {
                         title="Manage Medicines"
                       >
                         <Settings className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        onClick={() => navigate(`/elders/${elder.id}/settings`)}
+                        variant="outline"
+                        size="icon"
+                        title="Schedules & Notifications"
+                      >
+                        <Cog className="h-4 w-4" />
                       </Button>
                     </div>
                   </CardContent>

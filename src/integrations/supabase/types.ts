@@ -55,6 +55,50 @@ export type Database = {
           },
         ]
       }
+      check_in_schedules: {
+        Row: {
+          active: boolean | null
+          created_at: string | null
+          days_of_week: number[] | null
+          elder_id: string
+          id: string
+          last_run_at: string | null
+          schedule_type: string
+          time_of_day: string
+          updated_at: string | null
+        }
+        Insert: {
+          active?: boolean | null
+          created_at?: string | null
+          days_of_week?: number[] | null
+          elder_id: string
+          id?: string
+          last_run_at?: string | null
+          schedule_type: string
+          time_of_day?: string
+          updated_at?: string | null
+        }
+        Update: {
+          active?: boolean | null
+          created_at?: string | null
+          days_of_week?: number[] | null
+          elder_id?: string
+          id?: string
+          last_run_at?: string | null
+          schedule_type?: string
+          time_of_day?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "check_in_schedules_elder_id_fkey"
+            columns: ["elder_id"]
+            isOneToOne: false
+            referencedRelation: "elders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       check_ins: {
         Row: {
           alert_reason: string | null
@@ -264,6 +308,53 @@ export type Database = {
             foreignKeyName: "medicines_elder_id_fkey"
             columns: ["elder_id"]
             isOneToOne: false
+            referencedRelation: "elders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notification_settings: {
+        Row: {
+          created_at: string | null
+          elder_id: string
+          email_address: string | null
+          id: string
+          notify_email: boolean | null
+          notify_on_alert: boolean | null
+          notify_on_low_wellbeing: boolean | null
+          notify_on_missed_checkin: boolean | null
+          updated_at: string | null
+          wellbeing_threshold: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          elder_id: string
+          email_address?: string | null
+          id?: string
+          notify_email?: boolean | null
+          notify_on_alert?: boolean | null
+          notify_on_low_wellbeing?: boolean | null
+          notify_on_missed_checkin?: boolean | null
+          updated_at?: string | null
+          wellbeing_threshold?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          elder_id?: string
+          email_address?: string | null
+          id?: string
+          notify_email?: boolean | null
+          notify_on_alert?: boolean | null
+          notify_on_low_wellbeing?: boolean | null
+          notify_on_missed_checkin?: boolean | null
+          updated_at?: string | null
+          wellbeing_threshold?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_settings_elder_id_fkey"
+            columns: ["elder_id"]
+            isOneToOne: true
             referencedRelation: "elders"
             referencedColumns: ["id"]
           },
