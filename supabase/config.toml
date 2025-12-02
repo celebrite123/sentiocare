@@ -11,3 +11,9 @@ verify_jwt = false
 
 [functions.simulate-checkin]
 verify_jwt = true
+
+[functions.send-notification]
+verify_jwt = true
+
+[functions.run-scheduled-checkins]
+verify_jwt = false
