@@ -7,56 +7,56 @@ import {
 
 const faqs = [
   {
-    question: "How does the AI voice call work?",
-    answer: "Sentio AI makes automated voice calls at scheduled times. The AI speaks naturally in Hindi or English, asks about medicines and well-being, and records responses. If any concern is detected, you're immediately alerted.",
+    question: "How does the AI make phone calls?",
+    answer: "Our AI uses advanced voice synthesis to make natural-sounding calls. The voice is warm and conversational, specifically designed to put elderly users at ease. Calls typically last 2-5 minutes and cover health, medication, and general wellbeing.",
+  },
+  {
+    question: "What languages are supported?",
+    answer: "Currently, we support English and Hindi for both voice calls and WhatsApp messages. We're working on adding more regional Indian languages soon, including Tamil, Telugu, and Bengali.",
   },
   {
     question: "What if my parent doesn't answer the call?",
-    answer: "If a call is missed, the AI will retry after 15 minutes. If still no answer, you'll receive an alert so you can follow up. We also support WhatsApp as a backup channel.",
+    answer: "If a call isn't answered, we'll try again after 30 minutes. If still no response, we send a WhatsApp message. After 3 missed attempts, you'll receive an alert so you can check in personally.",
   },
   {
     question: "Is my family's health data secure?",
-    answer: "Absolutely. All data is encrypted and stored securely. We're HIPAA-compliant and never share your data with third parties. You can delete all data anytime.",
+    answer: "Absolutely. We're HIPAA-compliant and use end-to-end encryption for all data. Health information is never shared with third parties and you can request complete data deletion at any time.",
   },
   {
-    question: "Can I customize the check-in schedule?",
-    answer: "Yes! You can set specific times for calls and WhatsApp messages, choose which days, and even set different schedules for medicines vs general wellness checks.",
+    question: "Can I customize the check-in questions?",
+    answer: "Yes! You can set specific health conditions to monitor, add custom questions, and adjust the check-in schedule. The AI adapts its conversation based on your loved one's profile.",
   },
   {
-    question: "Do you support multiple languages?",
-    answer: "Currently we support English and Hindi. We're actively working on adding Tamil, Telugu, Marathi, Bengali, and other Indian languages.",
-  },
-  {
-    question: "What happens during the free trial?",
-    answer: "You get full access to all Premium features for 14 days. No credit card required. After the trial, you can choose a plan that fits your needs or continue with basic free features.",
+    question: "How do I cancel my subscription?",
+    answer: "You can cancel anytime from your account settings. There are no cancellation fees. If you cancel, you'll retain access until the end of your billing period.",
   },
 ];
 
 const FAQSection = () => {
   return (
-    <section className="py-24 bg-muted/30">
+    <section className="py-20">
       <div className="container mx-auto px-4">
-        <div className="text-center mb-16">
-          <h2 className="text-3xl md:text-5xl font-bold mb-4">
-            Frequently Asked <span className="text-primary">Questions</span>
+        <div className="text-center mb-12">
+          <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">
+            Frequently Asked Questions
           </h2>
-          <p className="text-muted-foreground text-lg">
+          <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
             Everything you need to know about Sentio AI
           </p>
         </div>
 
-        <div className="max-w-3xl mx-auto">
-          <Accordion type="single" collapsible className="space-y-4">
+        <div className="max-w-2xl mx-auto">
+          <Accordion type="single" collapsible className="space-y-3">
             {faqs.map((faq, index) => (
               <AccordionItem
                 key={index}
                 value={`item-${index}`}
-                className="border-2 rounded-xl px-6 bg-card data-[state=open]:border-primary/50 transition-colors"
+                className="bg-card border border-border rounded-lg px-4 data-[state=open]:border-primary/30"
               >
-                <AccordionTrigger className="text-left text-lg font-medium hover:no-underline py-6">
+                <AccordionTrigger className="text-left text-foreground hover:no-underline py-4">
                   {faq.question}
                 </AccordionTrigger>
-                <AccordionContent className="text-muted-foreground pb-6 text-base leading-relaxed">
+                <AccordionContent className="text-muted-foreground pb-4">
                   {faq.answer}
                 </AccordionContent>
               </AccordionItem>

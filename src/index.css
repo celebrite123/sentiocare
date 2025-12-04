@@ -2,107 +2,118 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
+/* Design System - Professional Elder Care Theme
+   Colors: Deep Slate + Indigo Primary + Rose Accent + Emerald Success
+   All colors MUST be HSL.
 */
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 210 15% 20%;
+    --background: 220 20% 98%;
+    --foreground: 222 47% 11%;
 
     --card: 0 0% 100%;
-    --card-foreground: 210 15% 20%;
+    --card-foreground: 222 47% 11%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 210 15% 20%;
+    --popover-foreground: 222 47% 11%;
 
-    --primary: 186 85% 40%;
+    --primary: 239 84% 67%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 14 95% 68%;
+    --secondary: 347 77% 50%;
     --secondary-foreground: 0 0% 100%;
 
-    --muted: 210 15% 96%;
-    --muted-foreground: 210 10% 50%;
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 9% 46%;
 
-    --accent: 142 76% 45%;
+    --accent: 160 84% 39%;
     --accent-foreground: 0 0% 100%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 210 15% 90%;
-    --input: 210 15% 90%;
-    --ring: 186 85% 40%;
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 239 84% 67%;
 
     --radius: 0.75rem;
 
-    --success: 142 76% 45%;
+    --success: 160 84% 39%;
     --success-foreground: 0 0% 100%;
     
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 100%;
     
-    --info: 210 85% 55%;
+    --info: 217 91% 60%;
     --info-foreground: 0 0% 100%;
 
-    --gradient-primary: linear-gradient(135deg, hsl(186 85% 40%), hsl(186 85% 50%));
-    --gradient-secondary: linear-gradient(135deg, hsl(14 95% 68%), hsl(14 95% 75%));
-    --gradient-hero: linear-gradient(135deg, hsl(186 85% 40%) 0%, hsl(186 85% 50%) 50%, hsl(142 76% 45%) 100%);
-    
-    --shadow-sm: 0 1px 2px 0 hsl(210 15% 20% / 0.05);
-    --shadow-md: 0 4px 6px -1px hsl(210 15% 20% / 0.1);
-    --shadow-lg: 0 10px 15px -3px hsl(210 15% 20% / 0.1);
-    --shadow-xl: 0 20px 25px -5px hsl(210 15% 20% / 0.1);
+    /* WhatsApp colors */
+    --whatsapp: 142 70% 45%;
+    --whatsapp-light: 142 70% 95%;
+    --whatsapp-bubble: 142 70% 90%;
 
-    --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 210 15% 30%;
-    --sidebar-primary: 186 85% 40%;
+    --gradient-primary: linear-gradient(135deg, hsl(239 84% 67%), hsl(239 84% 57%));
+    --gradient-secondary: linear-gradient(135deg, hsl(347 77% 50%), hsl(347 77% 60%));
+    --gradient-hero: linear-gradient(135deg, hsl(239 84% 67%) 0%, hsl(280 70% 60%) 50%, hsl(347 77% 50%) 100%);
+    --gradient-subtle: linear-gradient(180deg, hsl(220 20% 98%) 0%, hsl(220 14% 96%) 100%);
+    
+    --shadow-sm: 0 1px 2px 0 hsl(222 47% 11% / 0.03);
+    --shadow-md: 0 4px 6px -1px hsl(222 47% 11% / 0.07);
+    --shadow-lg: 0 10px 15px -3px hsl(222 47% 11% / 0.08);
+    --shadow-xl: 0 20px 25px -5px hsl(222 47% 11% / 0.1);
+
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 222 47% 20%;
+    --sidebar-primary: 239 84% 67%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 210 15% 95%;
-    --sidebar-accent-foreground: 210 15% 30%;
-    --sidebar-border: 210 15% 90%;
-    --sidebar-ring: 186 85% 40%;
+    --sidebar-accent: 220 14% 96%;
+    --sidebar-accent-foreground: 222 47% 20%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 239 84% 67%;
   }
 
   .dark {
-    --background: 210 20% 10%;
-    --foreground: 210 10% 95%;
+    --background: 222 47% 8%;
+    --foreground: 220 14% 96%;
 
-    --card: 210 20% 12%;
-    --card-foreground: 210 10% 95%;
+    --card: 222 47% 11%;
+    --card-foreground: 220 14% 96%;
 
-    --popover: 210 20% 12%;
-    --popover-foreground: 210 10% 95%;
+    --popover: 222 47% 11%;
+    --popover-foreground: 220 14% 96%;
 
-    --primary: 186 85% 50%;
+    --primary: 239 84% 67%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 14 95% 65%;
+    --secondary: 347 77% 55%;
     --secondary-foreground: 0 0% 100%;
 
-    --muted: 210 20% 18%;
-    --muted-foreground: 210 10% 60%;
+    --muted: 222 47% 15%;
+    --muted-foreground: 220 9% 60%;
 
-    --accent: 142 76% 50%;
+    --accent: 160 84% 45%;
     --accent-foreground: 0 0% 100%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 210 20% 20%;
-    --input: 210 20% 20%;
-    --ring: 186 85% 50%;
+    --border: 222 47% 18%;
+    --input: 222 47% 18%;
+    --ring: 239 84% 67%;
+
+    --whatsapp: 142 70% 50%;
+    --whatsapp-light: 142 70% 15%;
+    --whatsapp-bubble: 142 70% 20%;
     
-    --sidebar-background: 210 20% 12%;
-    --sidebar-foreground: 210 10% 90%;
-    --sidebar-primary: 186 85% 50%;
+    --sidebar-background: 222 47% 11%;
+    --sidebar-foreground: 220 14% 90%;
+    --sidebar-primary: 239 84% 67%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 210 20% 18%;
-    --sidebar-accent-foreground: 210 10% 90%;
-    --sidebar-border: 210 20% 20%;
-    --sidebar-ring: 186 85% 50%;
+    --sidebar-accent: 222 47% 15%;
+    --sidebar-accent-foreground: 220 14% 90%;
+    --sidebar-border: 222 47% 18%;
+    --sidebar-ring: 239 84% 67%;
   }
 }
 
@@ -112,7 +123,7 @@ All colors MUST be HSL.
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
   }
 }
 
@@ -136,6 +147,19 @@ All colors MUST be HSL.
 
   .animate-gradient {
     background-size: 200% 200%;
-    animation: gradient 3s ease infinite;
+    animation: gradient 6s ease infinite;
+  }
+
+  /* Dot pattern background */
+  .dot-pattern {
+    background-image: radial-gradient(hsl(var(--muted-foreground) / 0.15) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+
+  /* Glass effect */
+  .glass {
+    background: hsl(var(--card) / 0.8);
+    backdrop-filter: blur(12px);
+    border: 1px solid hsl(var(--border) / 0.5);
   }
 }

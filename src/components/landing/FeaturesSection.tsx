@@ -1,77 +1,86 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Heart, Phone, MessageSquare, Brain, Shield, Clock } from "lucide-react";
+import { Card } from "@/components/ui/card";
+import { Phone, MessageCircle, Bell, Brain, Heart, Shield } from "lucide-react";
 
 const features = [
   {
     icon: Phone,
-    title: "AI Voice Calls",
-    description: "Compassionate voice conversations that feel human to check on medicine intake and well-being",
-    gradient: "from-primary/20 to-primary/5",
+    title: "Voice Calls",
+    description: "Natural AI conversations in English and Hindi. Elders feel like they're talking to a caring family member.",
+    color: "primary",
   },
   {
-    icon: MessageSquare,
-    title: "WhatsApp Check-ins",
-    description: "Daily text-based health monitoring through the familiar WhatsApp interface they already use",
-    gradient: "from-accent/20 to-accent/5",
+    icon: MessageCircle,
+    title: "WhatsApp Chat",
+    description: "Familiar messaging interface for daily check-ins. Seniors respond at their own pace.",
+    color: "accent",
+  },
+  {
+    icon: Bell,
+    title: "Smart Alerts",
+    description: "Get notified instantly when something needs attention. Never miss an important health signal.",
+    color: "secondary",
   },
   {
     icon: Brain,
-    title: "Context-Aware AI",
-    description: "AI maintains complete patient history and personalizes every conversation based on their needs",
-    gradient: "from-secondary/20 to-secondary/5",
-  },
-  {
-    icon: Shield,
-    title: "Instant Alerts",
-    description: "Family members notified immediately via email or SMS if AI detects any health concerns",
-    gradient: "from-info/20 to-info/5",
+    title: "AI Insights",
+    description: "Track wellbeing trends over time. AI analyzes conversations to detect subtle changes.",
+    color: "primary",
   },
   {
     icon: Heart,
-    title: "Digital Health Book",
-    description: "Complete medical history, check-in logs, and AI insights in one secure, accessible place",
-    gradient: "from-destructive/20 to-destructive/5",
+    title: "Medicine Reminders",
+    description: "Ensure medications are taken on time. Track compliance and get alerts for missed doses.",
+    color: "secondary",
   },
   {
-    icon: Clock,
-    title: "24/7 Monitoring",
-    description: "Continuous AI-powered care without the need for constant family supervision",
-    gradient: "from-warning/20 to-warning/5",
+    icon: Shield,
+    title: "Privacy First",
+    description: "HIPAA-compliant data handling. Your family's health information stays secure and private.",
+    color: "accent",
   },
 ];
 
 const FeaturesSection = () => {
+  const getColorClasses = (color: string) => {
+    switch (color) {
+      case "primary":
+        return "bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground";
+      case "secondary":
+        return "bg-secondary/10 text-secondary group-hover:bg-secondary group-hover:text-secondary-foreground";
+      case "accent":
+        return "bg-accent/10 text-accent group-hover:bg-accent group-hover:text-accent-foreground";
+      default:
+        return "bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground";
+    }
+  };
+
   return (
-    <section className="py-24 bg-muted/30">
+    <section className="py-20 bg-muted/30">
       <div className="container mx-auto px-4">
         <div className="text-center mb-16">
-          <h2 className="text-3xl md:text-5xl font-bold mb-4">
-            Everything You Need for <span className="text-primary">Peace of Mind</span>
+          <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">
+            Everything You Need
           </h2>
           <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-            Advanced AI technology that feels human, ensuring comprehensive care
+            Comprehensive care features designed for Indian families
           </p>
         </div>
 
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 max-w-6xl mx-auto">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
           {features.map((feature, index) => (
             <Card
               key={index}
-              className="group border-2 hover:border-primary/50 transition-all duration-300 hover:shadow-xl hover:-translate-y-1 overflow-hidden animate-fade-in"
-              style={{ animationDelay: `${index * 100}ms` }}
+              className="group p-6 bg-card border border-border hover:border-primary/30 hover:shadow-lg transition-all duration-300"
             >
-              <div className={`absolute inset-0 bg-gradient-to-br ${feature.gradient} opacity-0 group-hover:opacity-100 transition-opacity`} />
-              <CardHeader className="relative">
-                <div className="h-14 w-14 rounded-2xl bg-gradient-primary flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                  <feature.icon className="h-7 w-7 text-primary-foreground" />
-                </div>
-                <CardTitle className="text-xl">{feature.title}</CardTitle>
-              </CardHeader>
-              <CardContent className="relative">
-                <CardDescription className="text-base leading-relaxed">
-                  {feature.description}
-                </CardDescription>
-              </CardContent>
+              <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-4 transition-all duration-300 ${getColorClasses(feature.color)}`}>
+                <feature.icon className="h-6 w-6" />
+              </div>
+              <h3 className="text-lg font-semibold text-foreground mb-2">
+                {feature.title}
+              </h3>
+              <p className="text-muted-foreground text-sm leading-relaxed">
+                {feature.description}
+              </p>
             </Card>
           ))}
         </div>
