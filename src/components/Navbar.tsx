@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Heart, Menu, X, Bell, LogOut, User, Home, Users } from "lucide-react";
+import { Heart, Menu, X, Bell, LogOut, User, LayoutDashboard } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,11 +20,6 @@ const Navbar = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [alertsOpen, setAlertsOpen] = useState(false);
 
-  const navLinks = [
-    { href: "/", label: "Home", icon: Home },
-    { href: "/elders", label: "Elders", icon: Users },
-  ];
-
   const isActive = (path: string) => location.pathname === path;
 
   return (
@@ -36,27 +30,28 @@ const Navbar = () => {
             {/* Logo */}
             <div
               className="flex items-center gap-2 cursor-pointer"
-              onClick={() => navigate("/")}
+              onClick={() => navigate(user ? "/elders" : "/")}
             >
-              <div className="h-9 w-9 rounded-lg bg-gradient-primary flex items-center justify-center">
+              <div className="h-9 w-9 rounded-lg bg-primary flex items-center justify-center">
                 <Heart className="h-5 w-5 text-primary-foreground" />
               </div>
-              <span className="text-xl font-bold">Sentio AI</span>
+              <span className="text-xl font-bold text-foreground">Sentio AI</span>
             </div>
 
             {/* Desktop Navigation */}
-            <nav className="hidden md:flex items-center gap-6">
-              {navLinks.map((link) => (
-                <Button
-                  key={link.href}
-                  variant="ghost"
-                  className={isActive(link.href) ? "bg-muted" : ""}
-                  onClick={() => navigate(link.href)}
-                >
-                  <link.icon className="h-4 w-4 mr-2" />
-                  {link.label}
-                </Button>
-              ))}
+            <nav className="hidden md:flex items-center gap-4">
+              {user ? (
+                <>
+                  <Button
+                    variant="ghost"
+                    className={isActive("/elders") ? "bg-muted" : ""}
+                    onClick={() => navigate("/elders")}
+                  >
+                    <LayoutDashboard className="h-4 w-4 mr-2" />
+                    Dashboard
+                  </Button>
+                </>
+              ) : null}
             </nav>
 
             {/* Right side */}
@@ -91,8 +86,8 @@ const Navbar = () => {
                       </div>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem onClick={() => navigate("/elders")}>
-                        <Users className="h-4 w-4 mr-2" />
-                        My Elders
+                        <LayoutDashboard className="h-4 w-4 mr-2" />
+                        Dashboard
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem onClick={signOut} className="text-destructive">
@@ -103,7 +98,14 @@ const Navbar = () => {
                   </DropdownMenu>
                 </>
               ) : (
-                <Button onClick={() => navigate("/auth")}>Sign In</Button>
+                <div className="flex items-center gap-2">
+                  <Button variant="ghost" onClick={() => navigate("/auth")}>
+                    Log In
+                  </Button>
+                  <Button onClick={() => navigate("/auth")} className="bg-primary hover:bg-primary/90">
+                    Sign Up
+                  </Button>
+                </div>
               )}
 
               {/* Mobile menu button */}
@@ -122,20 +124,41 @@ const Navbar = () => {
           {mobileMenuOpen && (
             <div className="md:hidden py-4 border-t">
               <nav className="flex flex-col gap-2">
-                {navLinks.map((link) => (
+                {user ? (
                   <Button
-                    key={link.href}
                     variant="ghost"
-                    className={`justify-start ${isActive(link.href) ? "bg-muted" : ""}`}
+                    className={`justify-start ${isActive("/elders") ? "bg-muted" : ""}`}
                     onClick={() => {
-                      navigate(link.href);
+                      navigate("/elders");
                       setMobileMenuOpen(false);
                     }}
                   >
-                    <link.icon className="h-4 w-4 mr-2" />
-                    {link.label}
+                    <LayoutDashboard className="h-4 w-4 mr-2" />
+                    Dashboard
                   </Button>
-                ))}
+                ) : (
+                  <>
+                    <Button
+                      variant="ghost"
+                      className="justify-start"
+                      onClick={() => {
+                        navigate("/auth");
+                        setMobileMenuOpen(false);
+                      }}
+                    >
+                      Log In
+                    </Button>
+                    <Button
+                      className="justify-start bg-primary hover:bg-primary/90"
+                      onClick={() => {
+                        navigate("/auth");
+                        setMobileMenuOpen(false);
+                      }}
+                    >
+                      Sign Up
+                    </Button>
+                  </>
+                )}
               </nav>
             </div>
           )}
