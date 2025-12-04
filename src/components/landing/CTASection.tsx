@@ -30,9 +30,9 @@ const CTASection = () => {
               size="lg"
               variant="outline"
               className="text-base h-12 px-8 rounded-full border-border hover:bg-muted"
-              onClick={() => navigate("/elders")}
+              onClick={() => document.getElementById('demo')?.scrollIntoView({ behavior: 'smooth' })}
             >
-              View Dashboard Demo
+              See How It Works
             </Button>
           </div>
 
