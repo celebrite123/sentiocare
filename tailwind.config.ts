@@ -59,6 +59,11 @@ export default {
           DEFAULT: "hsl(var(--info))",
           foreground: "hsl(var(--info-foreground))",
         },
+        whatsapp: {
+          DEFAULT: "hsl(var(--whatsapp))",
+          light: "hsl(var(--whatsapp-light))",
+          bubble: "hsl(var(--whatsapp-bubble))",
+        },
         sidebar: {
           DEFAULT: "hsl(var(--sidebar-background))",
           foreground: "hsl(var(--sidebar-foreground))",
@@ -74,6 +79,7 @@ export default {
         'gradient-primary': 'var(--gradient-primary)',
         'gradient-secondary': 'var(--gradient-secondary)',
         'gradient-hero': 'var(--gradient-hero)',
+        'gradient-subtle': 'var(--gradient-subtle)',
       },
       boxShadow: {
         'sm': 'var(--shadow-sm)',
@@ -96,49 +102,65 @@ export default {
           to: { height: "0" },
         },
         "fade-in": {
-          "0%": { opacity: "0", transform: "translateY(20px)" },
+          "0%": { opacity: "0", transform: "translateY(16px)" },
           "100%": { opacity: "1", transform: "translateY(0)" },
         },
-        "float": {
-          "0%, 100%": { transform: "translateY(0)" },
-          "50%": { transform: "translateY(-20px)" },
+        "fade-in-up": {
+          "0%": { opacity: "0", transform: "translateY(24px)" },
+          "100%": { opacity: "1", transform: "translateY(0)" },
         },
-        "float-delayed": {
-          "0%, 100%": { transform: "translateY(0)" },
-          "50%": { transform: "translateY(-15px)" },
+        "slide-up": {
+          "0%": { opacity: "0", transform: "translateY(100%)" },
+          "100%": { opacity: "1", transform: "translateY(0)" },
         },
-        "float-slow": {
-          "0%, 100%": { transform: "translateY(0)" },
-          "50%": { transform: "translateY(-10px)" },
+        "pulse-soft": {
+          "0%, 100%": { opacity: "1" },
+          "50%": { opacity: "0.7" },
         },
         "bounce-gentle": {
           "0%, 100%": { transform: "translateY(0)" },
-          "50%": { transform: "translateY(-5px)" },
+          "50%": { transform: "translateY(-4px)" },
         },
-        "scroll-down": {
+        "scroll-hint": {
           "0%": { opacity: "1", transform: "translateY(0)" },
-          "100%": { opacity: "0", transform: "translateY(8px)" },
+          "50%": { opacity: "0.5", transform: "translateY(6px)" },
+          "100%": { opacity: "1", transform: "translateY(0)" },
         },
-        "audio-wave": {
-          "0%, 100%": { height: "4px" },
-          "50%": { height: "16px" },
+        "wave": {
+          "0%, 100%": { transform: "scaleY(0.5)" },
+          "50%": { transform: "scaleY(1)" },
+        },
+        "typing": {
+          "0%": { width: "0" },
+          "100%": { width: "100%" },
+        },
+        "blink": {
+          "0%, 100%": { opacity: "1" },
+          "50%": { opacity: "0" },
         },
         "gradient": {
           "0%, 100%": { backgroundPosition: "0% 50%" },
           "50%": { backgroundPosition: "100% 50%" },
         },
+        "shimmer": {
+          "0%": { transform: "translateX(-100%)" },
+          "100%": { transform: "translateX(100%)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
-        "fade-in": "fade-in 0.6s ease-out forwards",
-        "float": "float 6s ease-in-out infinite",
-        "float-delayed": "float-delayed 8s ease-in-out infinite 2s",
-        "float-slow": "float-slow 10s ease-in-out infinite 4s",
+        "fade-in": "fade-in 0.5s ease-out forwards",
+        "fade-in-up": "fade-in-up 0.6s ease-out forwards",
+        "slide-up": "slide-up 0.4s ease-out forwards",
+        "pulse-soft": "pulse-soft 2s ease-in-out infinite",
         "bounce-gentle": "bounce-gentle 2s ease-in-out infinite",
-        "scroll-down": "scroll-down 1.5s ease-in-out infinite",
-        "audio-wave": "audio-wave 0.5s ease-in-out infinite",
-        "gradient": "gradient 3s ease infinite",
+        "scroll-hint": "scroll-hint 2s ease-in-out infinite",
+        "wave": "wave 0.8s ease-in-out infinite",
+        "typing": "typing 2s steps(30) forwards",
+        "blink": "blink 1s step-end infinite",
+        "gradient": "gradient 6s ease infinite",
+        "shimmer": "shimmer 2s infinite",
       },
     },
   },
