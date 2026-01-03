@@ -12,15 +12,35 @@ serve(async (req) => {
   }
 
   try {
-    const { elderId, elderName, userMessage, conversationHistory, medicines } = await req.json();
+    const { elderId, elderName, userMessage, conversationHistory, medicines, preferredLanguage = 'english' } = await req.json();
     
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (!LOVABLE_API_KEY) {
       throw new Error('LOVABLE_API_KEY not configured');
     }
 
-    // Build context-aware system prompt
-    const systemPrompt = `You are a caring healthcare assistant for ${elderName} via WhatsApp.
+    const isHindi = preferredLanguage === 'hindi';
+
+    // Build context-aware system prompt based on language
+    const systemPrompt = isHindi
+      ? `आप WhatsApp पर ${elderName} के लिए एक देखभाल करने वाले स्वास्थ्य सहायक हैं।
+
+आपकी भूमिका:
+1. उनकी दवाई लेने की जांच करें
+2. लक्षणों और सेहत के बारे में पूछें
+3. चिंताजनक स्वास्थ्य समस्याओं का पता लगाएं
+4. जवाब छोटे रखें (WhatsApp के लिए 2-3 वाक्य)
+
+वर्तमान दवाइयां:
+${medicines.map((m: any) => `- ${m.name} (${m.dosage})`).join('\n')}
+
+महत्वपूर्ण अलर्ट:
+- यदि वे उल्लेख करें: तेज दर्द, सीने में दर्द, सांस की तकलीफ, चक्कर, गिरना, भ्रम → आपातकालीन के रूप में चिह्नित करें
+- यदि वे कई दवाइयां भूल गए → परिवार को सूचित करें
+- यदि वे अस्वस्थ लगते हैं या बिगड़ते लक्षणों की रिपोर्ट करें → परिवार को सूचित करें
+
+हिंदी में बात करें। गर्मजोशी से और दोस्ताना तरीके से बात करें।`
+      : `You are a caring healthcare assistant for ${elderName} via WhatsApp.
 
 Your role:
 1. Check on their medicine intake
@@ -36,7 +56,7 @@ CRITICAL ALERTS:
 - If they forgot multiple medicines → Alert family
 - If they sound unwell or report worsening symptoms → Alert family
 
-Keep your tone warm, friendly, and conversational. Use their language.`;
+Keep your tone warm, friendly, and conversational. Use English.`;
 
     const messages = [
       { role: 'system', content: systemPrompt },
@@ -66,17 +86,28 @@ Keep your tone warm, friendly, and conversational. Use their language.`;
     const data = await response.json();
     const aiResponse = data.choices[0].message.content;
 
-    // Analyze for emergency keywords
-    const emergencyKeywords = ['severe', 'chest pain', 'can\'t breathe', 'fell down', 'confused', 'dizzy', 'emergency'];
+    // Analyze for emergency keywords (both English and Hindi)
+    const emergencyKeywords = [
+      // English
+      'severe', 'chest pain', 'can\'t breathe', 'fell down', 'confused', 'dizzy', 'emergency',
+      // Hindi
+      'तेज दर्द', 'सीने में दर्द', 'सांस नहीं आ रही', 'गिर गया', 'गिर गई', 'चक्कर', 'आपातकाल', 'बहुत दर्द'
+    ];
     const isEmergency = emergencyKeywords.some(keyword => 
-      userMessage.toLowerCase().includes(keyword) || 
+      userMessage.toLowerCase().includes(keyword.toLowerCase()) || 
       aiResponse.toLowerCase().includes('alert') ||
-      aiResponse.toLowerCase().includes('emergency')
+      aiResponse.toLowerCase().includes('emergency') ||
+      aiResponse.includes('आपातकालीन')
     );
 
-    // Sentiment analysis
-    const negativePhrases = ['not good', 'bad', 'worse', 'pain', 'sick', 'forgot'];
-    const sentiment = negativePhrases.some(phrase => userMessage.toLowerCase().includes(phrase))
+    // Sentiment analysis (both English and Hindi)
+    const negativePhrases = [
+      // English
+      'not good', 'bad', 'worse', 'pain', 'sick', 'forgot',
+      // Hindi
+      'अच्छा नहीं', 'बुरा', 'दर्द', 'बीमार', 'भूल गया', 'भूल गई', 'तकलीफ', 'परेशान'
+    ];
+    const sentiment = negativePhrases.some(phrase => userMessage.toLowerCase().includes(phrase.toLowerCase()))
       ? 'negative'
       : 'positive';
 
@@ -84,6 +115,7 @@ Keep your tone warm, friendly, and conversational. Use their language.`;
       elderId,
       isEmergency,
       sentiment,
+      language: preferredLanguage,
       responseLength: aiResponse.length
     });
 
@@ -92,6 +124,7 @@ Keep your tone warm, friendly, and conversational. Use their language.`;
         response: aiResponse,
         isEmergency,
         sentiment,
+        language: preferredLanguage,
         timestamp: new Date().toISOString()
       }),
       {

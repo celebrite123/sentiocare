@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Check, User, Phone, Heart, Pill } from "lucide-react";
+import { ArrowLeft, Check, User, Phone, Heart, Pill, Globe } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,6 +35,7 @@ const AddElder = () => {
     whatsapp_number: "",
     emergency_contact: "",
     subscription_plan: "premium",
+    preferred_language: "english",
   });
 
   const [medicalConditions, setMedicalConditions] = useState<string[]>([]);
@@ -132,6 +134,7 @@ const AddElder = () => {
           emergency_contact: formData.emergency_contact || null,
           medical_conditions: medicalConditions.length > 0 ? medicalConditions : null,
           subscription_plan: formData.subscription_plan,
+          preferred_language: formData.preferred_language,
         })
         .select()
         .single();
@@ -208,6 +211,28 @@ const AddElder = () => {
                   placeholder="Enter age"
                   className="text-lg"
                 />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="preferred_language" className="flex items-center gap-2">
+                  <Globe className="h-4 w-4" />
+                  Preferred Language
+                </Label>
+                <Select
+                  value={formData.preferred_language}
+                  onValueChange={(value) => setFormData({ ...formData, preferred_language: value })}
+                >
+                  <SelectTrigger className="text-lg">
+                    <SelectValue placeholder="Select language" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="english">English</SelectItem>
+                    <SelectItem value="hindi">हिन्दी (Hindi)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-sm text-muted-foreground">
+                  AI will communicate in this language during check-ins
+                </p>
               </div>
             </div>
           </div>

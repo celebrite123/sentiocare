@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Clock, Bell, Save, Loader2 } from "lucide-react";
+import { ArrowLeft, Clock, Bell, Save, Loader2, Globe } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,6 +31,9 @@ const ElderSettings = () => {
   const [saving, setSaving] = useState(false);
   const [elderName, setElderName] = useState("");
 
+  // Language state
+  const [preferredLanguage, setPreferredLanguage] = useState("english");
+
   // Schedule state
   const [scheduleActive, setScheduleActive] = useState(false);
   const [scheduleType, setScheduleType] = useState<"daily" | "weekly">("daily");
@@ -56,11 +59,14 @@ const ElderSettings = () => {
       // Load elder info
       const { data: elder } = await supabase
         .from("elders")
-        .select("full_name")
+        .select("full_name, preferred_language")
         .eq("id", elderId)
         .single();
 
-      if (elder) setElderName(elder.full_name);
+      if (elder) {
+        setElderName(elder.full_name);
+        setPreferredLanguage(elder.preferred_language || "english");
+      }
 
       // Load schedule
       const { data: schedule } = await supabase
@@ -107,6 +113,12 @@ const ElderSettings = () => {
   const saveSettings = async () => {
     setSaving(true);
     try {
+      // Update elder language preference
+      await supabase
+        .from("elders")
+        .update({ preferred_language: preferredLanguage })
+        .eq("id", elderId);
+
       // Upsert schedule
       const { error: scheduleError } = await supabase
         .from("check_in_schedules")
@@ -259,6 +271,36 @@ const ElderSettings = () => {
         </div>
 
         <div className="container mx-auto px-4 py-8 space-y-6">
+          {/* Language Settings */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Globe className="h-5 w-5 text-primary" />
+                <CardTitle>Communication Preferences</CardTitle>
+              </div>
+              <CardDescription>
+                Set the language for AI check-ins with {elderName}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                <Label>Preferred Language</Label>
+                <Select value={preferredLanguage} onValueChange={setPreferredLanguage}>
+                  <SelectTrigger className="w-full md:w-[300px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="english">English</SelectItem>
+                    <SelectItem value="hindi">हिन्दी (Hindi)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-sm text-muted-foreground">
+                  The AI will speak and understand this language during check-ins
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Schedule Settings */}
           <Card>
             <CardHeader>

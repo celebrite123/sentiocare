@@ -194,6 +194,7 @@ export type Database = {
           id: string
           medical_conditions: string[] | null
           phone_number: string
+          preferred_language: string
           subscription_plan: string
           updated_at: string | null
           whatsapp_number: string | null
@@ -207,6 +208,7 @@ export type Database = {
           id?: string
           medical_conditions?: string[] | null
           phone_number: string
+          preferred_language?: string
           subscription_plan: string
           updated_at?: string | null
           whatsapp_number?: string | null
@@ -220,6 +222,7 @@ export type Database = {
           id?: string
           medical_conditions?: string[] | null
           phone_number?: string
+          preferred_language?: string
           subscription_plan?: string
           updated_at?: string | null
           whatsapp_number?: string | null
