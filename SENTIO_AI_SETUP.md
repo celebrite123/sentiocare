@@ -23,8 +23,8 @@ Sentio AI is an AI-powered elder healthcare management system that monitors elde
 
 ### ✅ AI Integrations
 
-#### 1. **Vapi AI Voice Calls** (Premium Plan - ₹999/month)
-**Edge Function:** `vapi-voice-call`
+#### 1. **Bolna AI Voice Calls** (Premium Plan - ₹999/month)
+**Edge Function:** `bolna-voice-call`
 - Makes actual phone calls to elders
 - Context-aware conversations (remembers patient history)
 - Checks medicine intake and symptoms
@@ -34,7 +34,7 @@ Sentio AI is an AI-powered elder healthcare management system that monitors elde
 **How It Works:**
 ```typescript
 // Frontend calls the edge function
-const response = await supabase.functions.invoke('vapi-voice-call', {
+const response = await supabase.functions.invoke('bolna-voice-call', {
   body: {
     elderId: 'uuid',
     elderName: 'Rajesh Kumar',
@@ -46,10 +46,17 @@ const response = await supabase.functions.invoke('vapi-voice-call', {
 ```
 
 **Setup Required:**
-1. Get Vapi API key from https://vapi.ai
-2. Add `VAPI_API_KEY` (✅ Already added)
-3. Add `VAPI_PHONE_NUMBER_ID` (✅ Already added)
-4. In Vapi dashboard, purchase a phone number
+1. Create account at https://platform.bolna.ai
+2. Create a voice agent with your desired persona
+3. Add `BOLNA_API_KEY` (✅ Already added)
+4. Add `BOLNA_AGENT_ID` (✅ Already added)
+5. Configure webhook URL in Bolna dashboard: `https://hcdwbpbvuvbrozttahfz.supabase.co/functions/v1/bolna-webhook`
+
+**Bolna Agent Configuration Tips:**
+- Configure the agent with healthcare check-in prompts
+- Set up extraction for sentiment, symptoms, and medicine adherence
+- Enable Hindi language support if needed
+- Use ElevenLabs or similar for natural voice synthesis
 
 #### 2. **Lovable AI WhatsApp Chat** (Both Plans)
 **Edge Function:** `whatsapp-ai-chat`
@@ -82,7 +89,7 @@ const response = await supabase.functions.invoke('whatsapp-ai-chat', {
 - Family dashboard UI
 - Authentication system
 - Database schema with RLS
-- Vapi AI voice call integration
+- Bolna AI voice call integration
 - Lovable AI WhatsApp chat
 - Edge functions ready to use
 
@@ -124,8 +131,8 @@ All secrets are securely stored in Lovable Cloud:
 | Secret Name | Purpose | Status |
 |------------|---------|--------|
 | `LOVABLE_API_KEY` | Lovable AI (Gemini) | ✅ Auto-configured |
-| `VAPI_API_KEY` | Vapi voice calls | ✅ Added |
-| `VAPI_PHONE_NUMBER_ID` | Vapi phone number | ✅ Added |
+| `BOLNA_API_KEY` | Bolna AI voice calls | ✅ Added |
+| `BOLNA_AGENT_ID` | Bolna voice agent ID | ✅ Added |
 
 ## 📱 User Flow
 
@@ -161,7 +168,7 @@ All secrets are securely stored in Lovable Cloud:
 - **Backend:** Lovable Cloud (Supabase)
 - **Database:** PostgreSQL with RLS
 - **Auth:** Supabase Auth
-- **AI Voice:** Vapi AI
+- **AI Voice:** Bolna AI
 - **AI Chat:** Lovable AI (Google Gemini)
 
 ## 📊 Subscription Plans
@@ -188,7 +195,7 @@ All secrets are securely stored in Lovable Cloud:
 - Auth: `/auth`
 - Landing: `/`
 - Backend: Click "View Backend" button in Lovable
-- Vapi Dashboard: https://dashboard.vapi.ai
+- Bolna Dashboard: https://platform.bolna.ai
 
 ## 📝 Next Development Steps
 
