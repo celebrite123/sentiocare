@@ -1,13 +1,13 @@
 project_id = "hcdwbpbvuvbrozttahfz"
 
-[functions.vapi-voice-call]
+[functions.bolna-voice-call]
 verify_jwt = true
+
+[functions.bolna-webhook]
+verify_jwt = false
 
 [functions.whatsapp-ai-chat]
 verify_jwt = true
-
-[functions.vapi-webhook]
-verify_jwt = false
 
 [functions.simulate-checkin]
 verify_jwt = true
