@@ -36,7 +36,8 @@ const Dashboard = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const elderId = searchParams.get("elder");
+  // Support both URL param formats for navigation consistency
+  const elderId = searchParams.get("elder") || searchParams.get("elderId");
   const [elder, setElder] = useState<Elder | null>(null);
   const [stats, setStats] = useState<DashboardStats>({
     todayCheckIn: { status: "pending", lastTime: null },
@@ -53,6 +54,32 @@ const Dashboard = () => {
       loadElderData();
       loadDashboardStats();
     }
+  }, [elderId]);
+
+  // Real-time subscription for check-ins to auto-update dashboard
+  useEffect(() => {
+    if (!elderId) return;
+
+    const channel = supabase
+      .channel('check-ins-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'check_ins',
+          filter: `elder_id=eq.${elderId}`,
+        },
+        () => {
+          console.log('New check-in detected, refreshing stats...');
+          loadDashboardStats();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [elderId]);
 
   const loadElderData = async () => {
@@ -388,12 +415,14 @@ const Dashboard = () => {
             <AIInsights elderId={elderId} />
           </div>
 
-          {/* WhatsApp Chat - show if elder uses WhatsApp */}
-          {(elder.check_in_method === 'whatsapp' || elder.check_in_method === 'both') && (
-            <div className="mb-8">
-              <WhatsAppChat elderId={elderId} elderName={elder.full_name} />
-            </div>
-          )}
+          {/* WhatsApp Chat - always show with setup prompt if needed */}
+          <div className="mb-8">
+            <WhatsAppChat 
+              elderId={elderId} 
+              elderName={elder.full_name} 
+              checkInMethod={elder.check_in_method}
+            />
+          </div>
 
           {/* Tabs */}
           <Tabs defaultValue="checkins" className="space-y-6">

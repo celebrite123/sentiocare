@@ -19,19 +19,41 @@ serve(async (req) => {
 
     console.log('Incoming WhatsApp message:', { from, body: body.substring(0, 50), messageSid });
 
-    // Extract phone number (remove whatsapp: prefix)
-    const phoneNumber = from.replace('whatsapp:', '');
+    // Extract and normalize phone number (remove whatsapp: prefix and spaces)
+    const rawPhone = from.replace('whatsapp:', '').trim();
+    // Normalize: remove spaces, dashes, and ensure + prefix
+    const phoneNumber = rawPhone.replace(/[\s-]/g, '');
+    const phoneWithoutPlus = phoneNumber.replace(/^\+/, '');
+
+    console.log('Normalized phone:', phoneNumber, 'Without plus:', phoneWithoutPlus);
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Find elder by WhatsApp number
-    const { data: elder, error: elderError } = await supabase
+    // Find elder by WhatsApp number or phone number (check multiple formats)
+    const { data: elders, error: elderError } = await supabase
       .from('elders')
-      .select('id, full_name, preferred_language, medical_conditions, whatsapp_number')
-      .or(`whatsapp_number.eq.${phoneNumber},phone_number.eq.${phoneNumber}`)
-      .single();
+      .select('id, full_name, preferred_language, medical_conditions, whatsapp_number, phone_number');
+
+    if (elderError) {
+      console.error('Error fetching elders:', elderError);
+      throw elderError;
+    }
+
+    // Find matching elder by checking multiple phone formats
+    const elder = elders?.find(e => {
+      const waNum = e.whatsapp_number?.replace(/[\s-]/g, '') || '';
+      const phNum = e.phone_number?.replace(/[\s-]/g, '') || '';
+      
+      // Check exact match or match without + prefix
+      return waNum === phoneNumber || 
+             waNum === phoneWithoutPlus ||
+             waNum.replace(/^\+/, '') === phoneWithoutPlus ||
+             phNum === phoneNumber || 
+             phNum === phoneWithoutPlus ||
+             phNum.replace(/^\+/, '') === phoneWithoutPlus;
+    });
 
     if (elderError || !elder) {
       console.log('Elder not found for number:', phoneNumber);

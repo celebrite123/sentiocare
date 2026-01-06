@@ -34,6 +34,7 @@ const ElderSettings = () => {
   // Communication state
   const [preferredLanguage, setPreferredLanguage] = useState("english");
   const [checkInMethod, setCheckInMethod] = useState("voice");
+  const [whatsappNumber, setWhatsappNumber] = useState("");
 
   // Schedule state
   const [scheduleActive, setScheduleActive] = useState(false);
@@ -60,7 +61,7 @@ const ElderSettings = () => {
       // Load elder info
       const { data: elder } = await supabase
         .from("elders")
-        .select("full_name, preferred_language, check_in_method")
+        .select("full_name, preferred_language, check_in_method, whatsapp_number")
         .eq("id", elderId)
         .single();
 
@@ -68,6 +69,7 @@ const ElderSettings = () => {
         setElderName(elder.full_name);
         setPreferredLanguage(elder.preferred_language || "english");
         setCheckInMethod(elder.check_in_method || "voice");
+        setWhatsappNumber(elder.whatsapp_number || "");
       }
 
       // Load schedule
@@ -118,7 +120,11 @@ const ElderSettings = () => {
       // Update elder preferences
       await supabase
         .from("elders")
-        .update({ preferred_language: preferredLanguage, check_in_method: checkInMethod })
+        .update({ 
+          preferred_language: preferredLanguage, 
+          check_in_method: checkInMethod,
+          whatsapp_number: whatsappNumber || null
+        })
         .eq("id", elderId);
 
       // Upsert schedule
@@ -333,6 +339,31 @@ const ElderSettings = () => {
                   Choose how the AI will check in with {elderName}
                 </p>
               </div>
+
+              {/* WhatsApp Number - show when WhatsApp is enabled */}
+              {(checkInMethod === 'whatsapp' || checkInMethod === 'both') && (
+                <div className="space-y-2 p-4 border rounded-lg bg-green-50 dark:bg-green-950/20">
+                  <Label className="flex items-center gap-2">
+                    <MessageCircle className="h-4 w-4 text-green-600" />
+                    WhatsApp Number
+                  </Label>
+                  <Input
+                    type="tel"
+                    placeholder="+1234567890"
+                    value={whatsappNumber}
+                    onChange={(e) => setWhatsappNumber(e.target.value)}
+                    className="w-full md:w-[300px]"
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    Include country code (e.g., +91 for India, +1 for US)
+                  </p>
+                  {!whatsappNumber && (
+                    <p className="text-sm text-amber-600 dark:text-amber-400">
+                      ⚠️ WhatsApp number is required for WhatsApp check-ins
+                    </p>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
 
