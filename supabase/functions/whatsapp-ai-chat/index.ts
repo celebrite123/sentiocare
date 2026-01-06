@@ -12,7 +12,17 @@ serve(async (req) => {
   }
 
   try {
-    const { elderId, elderName, userMessage, conversationHistory, medicines, preferredLanguage = 'english' } = await req.json();
+    const { 
+      elderId, 
+      elderName, 
+      userMessage, 
+      conversationHistory, 
+      medicines, 
+      preferredLanguage = 'english',
+      medicalConditions = [],
+      previousSymptoms = [],
+      recentConcerns = []
+    } = await req.json();
     
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (!LOVABLE_API_KEY) {
@@ -20,43 +30,79 @@ serve(async (req) => {
     }
 
     const isHindi = preferredLanguage === 'hindi';
+    
+    // Build medicine details string
+    const medicineDetails = medicines.map((m: any) => 
+      `- ${m.name} (${m.dosage}, ${m.timing || m.frequency})`
+    ).join('\n') || 'No medicines recorded';
+
+    // Build context strings
+    const conditionsStr = medicalConditions?.length > 0 
+      ? medicalConditions.join(', ') 
+      : 'None recorded';
+    
+    const previousSymptomsStr = previousSymptoms?.length > 0
+      ? previousSymptoms.join(', ')
+      : 'None reported recently';
+
+    const recentConcernsStr = recentConcerns?.length > 0
+      ? recentConcerns.slice(0, 2).join('; ')
+      : 'None';
 
     // Build context-aware system prompt based on language
     const systemPrompt = isHindi
       ? `आप WhatsApp पर ${elderName} के लिए एक देखभाल करने वाले स्वास्थ्य सहायक हैं।
 
-आपकी भूमिका:
-1. उनकी दवाई लेने की जांच करें
-2. लक्षणों और सेहत के बारे में पूछें
-3. चिंताजनक स्वास्थ्य समस्याओं का पता लगाएं
-4. जवाब छोटे रखें (WhatsApp के लिए 2-3 वाक्य)
+महत्वपूर्ण नियम:
+1. हमेशा ${elderName} नाम से संबोधित करें
+2. उनकी दवाइयों का नाम लें
+3. खुद को दोहराएं नहीं
+4. जवाब छोटे रखें (2-3 वाक्य)
 
-वर्तमान दवाइयां:
-${medicines.map((m: any) => `- ${m.name} (${m.dosage})`).join('\n')}
+मरीज की जानकारी:
+- नाम: ${elderName}
+- स्वास्थ्य स्थिति: ${conditionsStr}
+- दवाइयां:
+${medicineDetails}
+- पिछले लक्षण: ${previousSymptomsStr}
+- हाल की चिंताएं: ${recentConcernsStr}
+
+आपकी भूमिका:
+1. उनकी दवाई लेने की जांच करें (नाम से पूछें)
+2. लक्षणों और सेहत के बारे में पूछें
+3. पिछली समस्याओं के बारे में follow-up करें
 
 महत्वपूर्ण अलर्ट:
 - यदि वे उल्लेख करें: तेज दर्द, सीने में दर्द, सांस की तकलीफ, चक्कर, गिरना, भ्रम → आपातकालीन के रूप में चिह्नित करें
-- यदि वे कई दवाइयां भूल गए → परिवार को सूचित करें
-- यदि वे अस्वस्थ लगते हैं या बिगड़ते लक्षणों की रिपोर्ट करें → परिवार को सूचित करें
 
-हिंदी में बात करें। गर्मजोशी से और दोस्ताना तरीके से बात करें।`
+हिंदी में बात करें। गर्मजोशी से बात करें।`
       : `You are a caring healthcare assistant for ${elderName} via WhatsApp.
 
-Your role:
-1. Check on their medicine intake
-2. Ask about symptoms and well-being
-3. Detect concerning health issues
-4. Keep responses SHORT (2-3 sentences max for WhatsApp)
+CRITICAL RULES:
+1. ALWAYS address them by name: ${elderName}
+2. ALWAYS mention their medicines BY NAME when asking
+3. NEVER repeat yourself - track what you've said
+4. Keep responses SHORT (2-3 sentences max)
 
-Current Medicines:
-${medicines.map((m: any) => `- ${m.name} (${m.dosage})`).join('\n')}
+Patient Information:
+- Name: ${elderName}
+- Medical Conditions: ${conditionsStr}
+- Medicines:
+${medicineDetails}
+- Previous Symptoms: ${previousSymptomsStr}
+- Recent Concerns: ${recentConcernsStr}
+
+Your Role:
+1. Check medicine intake (ask by name: "Did you take your ${medicines[0]?.name || 'medicines'}?")
+2. Ask about symptoms and well-being
+3. Follow up on previous concerns if any
 
 CRITICAL ALERTS:
 - If they mention: severe pain, chest pain, breathing issues, dizziness, falls, confusion → Flag as emergency
 - If they forgot multiple medicines → Alert family
 - If they sound unwell or report worsening symptoms → Alert family
 
-Keep your tone warm, friendly, and conversational. Use English.`;
+Keep your tone warm, friendly, and conversational. Be concise.`;
 
     const messages = [
       { role: 'system', content: systemPrompt },

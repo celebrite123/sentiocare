@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Clock, Bell, Save, Loader2, Globe } from "lucide-react";
+import { ArrowLeft, Clock, Bell, Save, Loader2, Globe, Phone, MessageCircle } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,8 +31,9 @@ const ElderSettings = () => {
   const [saving, setSaving] = useState(false);
   const [elderName, setElderName] = useState("");
 
-  // Language state
+  // Communication state
   const [preferredLanguage, setPreferredLanguage] = useState("english");
+  const [checkInMethod, setCheckInMethod] = useState("voice");
 
   // Schedule state
   const [scheduleActive, setScheduleActive] = useState(false);
@@ -59,13 +60,14 @@ const ElderSettings = () => {
       // Load elder info
       const { data: elder } = await supabase
         .from("elders")
-        .select("full_name, preferred_language")
+        .select("full_name, preferred_language, check_in_method")
         .eq("id", elderId)
         .single();
 
       if (elder) {
         setElderName(elder.full_name);
         setPreferredLanguage(elder.preferred_language || "english");
+        setCheckInMethod(elder.check_in_method || "voice");
       }
 
       // Load schedule
@@ -113,10 +115,10 @@ const ElderSettings = () => {
   const saveSettings = async () => {
     setSaving(true);
     try {
-      // Update elder language preference
+      // Update elder preferences
       await supabase
         .from("elders")
-        .update({ preferred_language: preferredLanguage })
+        .update({ preferred_language: preferredLanguage, check_in_method: checkInMethod })
         .eq("id", elderId);
 
       // Upsert schedule
@@ -282,7 +284,7 @@ const ElderSettings = () => {
                 Set the language for AI check-ins with {elderName}
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-6">
               <div className="space-y-2">
                 <Label>Preferred Language</Label>
                 <Select value={preferredLanguage} onValueChange={setPreferredLanguage}>
@@ -296,6 +298,39 @@ const ElderSettings = () => {
                 </Select>
                 <p className="text-sm text-muted-foreground">
                   The AI will speak and understand this language during check-ins
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Check-in Method</Label>
+                <Select value={checkInMethod} onValueChange={setCheckInMethod}>
+                  <SelectTrigger className="w-full md:w-[300px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="voice">
+                      <div className="flex items-center gap-2">
+                        <Phone className="h-4 w-4" />
+                        <span>Voice Calls Only</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="whatsapp">
+                      <div className="flex items-center gap-2">
+                        <MessageCircle className="h-4 w-4" />
+                        <span>WhatsApp Only</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="both">
+                      <div className="flex items-center gap-2">
+                        <Phone className="h-4 w-4" />
+                        <MessageCircle className="h-4 w-4" />
+                        <span>Voice + WhatsApp</span>
+                      </div>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-sm text-muted-foreground">
+                  Choose how the AI will check in with {elderName}
                 </p>
               </div>
             </CardContent>
