@@ -9,9 +9,12 @@ import Auth from "./pages/Auth";
 import SelectPlan from "./pages/SelectPlan";
 import Elders from "./pages/Elders";
 import AddElder from "./pages/AddElder";
+import EditElder from "./pages/EditElder";
 import ManageMedicines from "./pages/ManageMedicines";
 import HealthBook from "./pages/HealthBook";
 import ElderSettings from "./pages/ElderSettings";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
+import TermsOfService from "./pages/TermsOfService";
 import NotFound from "./pages/NotFound";
 import { AuthProvider } from "./contexts/AuthContext";
 import { ProtectedRoute } from "./components/ProtectedRoute";
@@ -28,6 +31,8 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
+            <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+            <Route path="/terms-of-service" element={<TermsOfService />} />
             <Route 
               path="/select-plan" 
               element={
@@ -57,6 +62,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <AddElder />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/elders/:elderId/edit" 
+              element={
+                <ProtectedRoute>
+                  <EditElder />
                 </ProtectedRoute>
               } 
             />

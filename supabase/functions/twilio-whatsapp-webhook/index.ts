@@ -195,6 +195,75 @@ serve(async (req) => {
       });
     }
 
+    // Analyze and create check-in if AI provides analysis data
+    if (aiData.analysis) {
+      const analysis = aiData.analysis;
+      
+      // Post-analysis validation for alerts
+      let alertTriggered = analysis.alertTriggered || false;
+      let alertReason = analysis.alertReason || null;
+      
+      if (!alertTriggered) {
+        if (analysis.wellBeingScore && analysis.wellBeingScore <= 3) {
+          alertTriggered = true;
+          alertReason = `Low well-being score (${analysis.wellBeingScore}/10) reported via WhatsApp`;
+        } else if (analysis.medicinesTaken === false) {
+          alertTriggered = true;
+          alertReason = "Medicines not taken as scheduled (reported via WhatsApp)";
+        } else if (analysis.sentiment === "negative") {
+          alertTriggered = true;
+          alertReason = "Negative sentiment detected in WhatsApp conversation";
+        }
+      }
+      
+      // Create check-in record
+      const { data: checkIn, error: checkInError } = await supabase
+        .from('check_ins')
+        .insert({
+          elder_id: elder.id,
+          check_in_type: 'whatsapp',
+          status: 'completed',
+          sentiment: analysis.sentiment || 'neutral',
+          well_being_score: analysis.wellBeingScore || null,
+          medicines_taken: analysis.medicinesTaken ?? null,
+          symptoms_reported: analysis.symptomsReported || [],
+          conversation_summary: body.substring(0, 500),
+          alert_triggered: alertTriggered,
+          alert_reason: alertReason,
+        })
+        .select()
+        .single();
+      
+      if (checkInError) {
+        console.error('Error creating check-in:', checkInError);
+      } else {
+        console.log('Check-in created:', checkIn.id);
+        
+        // Create alert if triggered
+        if (alertTriggered) {
+          console.log('Creating alert for WhatsApp check-in:', alertReason);
+          
+          let severity = "medium";
+          if (analysis.wellBeingScore && analysis.wellBeingScore <= 2) {
+            severity = "high";
+          }
+          
+          await supabase.from('alerts').insert({
+            elder_id: elder.id,
+            alert_type: 'health',
+            severity: severity,
+            title: analysis.wellBeingScore <= 3 
+              ? "Low Well-being Detected" 
+              : analysis.medicinesTaken === false 
+                ? "Medication Not Taken"
+                : "Health Concern Detected",
+            description: alertReason,
+            resolved: false,
+          });
+        }
+      }
+    }
+
     // Send response via Twilio
     const twilioAccountSid = Deno.env.get('TWILIO_ACCOUNT_SID')!;
     const twilioAuthToken = Deno.env.get('TWILIO_AUTH_TOKEN')!;

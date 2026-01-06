@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSubscription } from "@/hooks/useSubscription";
 import { toast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import Navbar from "@/components/Navbar";
@@ -22,6 +23,7 @@ interface Elder {
 const Elders = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { tier, isTrialActive } = useSubscription();
   const [elders, setElders] = useState<Elder[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -69,6 +71,19 @@ const Elders = () => {
       setLoading(false);
     }
   };
+
+  // Get display badge text based on subscription status
+  const getSubscriptionBadge = () => {
+    if (isTrialActive) {
+      return { text: "Premium Trial", variant: "default" as const };
+    }
+    if (tier === "premium") {
+      return { text: "Premium", variant: "default" as const };
+    }
+    return { text: "Basic", variant: "secondary" as const };
+  };
+
+  const subscriptionBadge = getSubscriptionBadge();
 
   if (loading) {
     return (
@@ -141,7 +156,7 @@ const Elders = () => {
                           {elder.age ? `${elder.age} years old` : "Age not specified"}
                         </CardDescription>
                       </div>
-                      <Badge variant="outline">{elder.subscription_plan}</Badge>
+                      <Badge variant={subscriptionBadge.variant}>{subscriptionBadge.text}</Badge>
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-4">
@@ -188,10 +203,10 @@ const Elders = () => {
                         <Settings className="h-4 w-4" />
                       </Button>
                       <Button
-                        onClick={() => navigate(`/elders/${elder.id}/settings`)}
+                        onClick={() => navigate(`/elders/${elder.id}/edit`)}
                         variant="outline"
                         size="icon"
-                        title="Schedules & Notifications"
+                        title="Edit Profile"
                       >
                         <Cog className="h-4 w-4" />
                       </Button>
