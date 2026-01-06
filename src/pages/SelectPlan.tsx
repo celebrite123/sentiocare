@@ -1,0 +1,188 @@
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { Check, Phone, MessageCircle, Loader2, Heart, Sparkles } from "lucide-react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { useSubscription } from "@/hooks/useSubscription";
+import { toast } from "@/hooks/use-toast";
+
+const plans = [
+  {
+    id: "basic" as const,
+    name: "Basic",
+    price: "₹299",
+    period: "/month",
+    description: "WhatsApp check-ins for daily care",
+    icon: MessageCircle,
+    features: [
+      "Daily WhatsApp check-ins",
+      "Health tracking dashboard",
+      "Medicine reminders",
+      "Email alerts & reports",
+      "AI health insights",
+    ],
+    notIncluded: [
+      "Voice calls"
+    ],
+  },
+  {
+    id: "premium" as const,
+    name: "Premium",
+    price: "₹999",
+    period: "/month",
+    description: "Complete care with voice + WhatsApp",
+    icon: Phone,
+    features: [
+      "Daily AI voice calls",
+      "WhatsApp check-ins",
+      "Health tracking dashboard",
+      "Medicine reminders",
+      "Instant SMS & email alerts",
+      "Advanced AI health insights",
+      "Priority support",
+    ],
+    notIncluded: [],
+    popular: true,
+  },
+];
+
+const SelectPlan = () => {
+  const navigate = useNavigate();
+  const { updateTier, isTrialActive, trialDaysLeft } = useSubscription();
+  const [loading, setLoading] = useState<string | null>(null);
+
+  const handleSelectPlan = async (planId: "basic" | "premium") => {
+    setLoading(planId);
+    
+    const success = await updateTier(planId);
+    
+    if (success) {
+      toast({
+        title: "Plan selected! 🎉",
+        description: `You've chosen the ${planId === "premium" ? "Premium" : "Basic"} plan. Let's add your first elder.`,
+      });
+      navigate("/elders/add");
+    } else {
+      toast({
+        title: "Error",
+        description: "Failed to select plan. Please try again.",
+        variant: "destructive",
+      });
+    }
+    
+    setLoading(null);
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-hero">
+      <div className="absolute inset-0 bg-background/95" />
+      
+      <div className="relative container mx-auto px-4 py-12">
+        {/* Header */}
+        <div className="text-center mb-12">
+          <div className="inline-flex items-center gap-2 mb-4">
+            <Heart className="h-8 w-8 text-primary" />
+            <h1 className="text-3xl font-bold">Welcome to Sentio AI</h1>
+          </div>
+          <h2 className="text-2xl md:text-3xl font-bold mb-4">
+            Choose Your Care Plan
+          </h2>
+          <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
+            Select the plan that best fits your loved one's needs
+          </p>
+          
+          {isTrialActive && (
+            <Badge variant="secondary" className="mt-4 text-sm px-4 py-2">
+              <Sparkles className="h-4 w-4 mr-2" />
+              {trialDaysLeft} days left in your free trial - All features unlocked!
+            </Badge>
+          )}
+        </div>
+
+        {/* Plans */}
+        <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+          {plans.map((plan) => (
+            <Card
+              key={plan.id}
+              className={`relative p-6 bg-card border-2 transition-all duration-300 hover:shadow-xl ${
+                plan.popular 
+                  ? "border-primary shadow-lg" 
+                  : "border-border hover:border-primary/50"
+              }`}
+            >
+              {plan.popular && (
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                  <Badge className="bg-primary text-primary-foreground px-4 py-1">
+                    Recommended
+                  </Badge>
+                </div>
+              )}
+
+              <CardHeader className="text-center pb-2">
+                <div className="mx-auto mb-4 p-4 rounded-full bg-primary/10">
+                  <plan.icon className="h-8 w-8 text-primary" />
+                </div>
+                <CardTitle className="text-2xl">{plan.name}</CardTitle>
+                <CardDescription className="text-base">{plan.description}</CardDescription>
+              </CardHeader>
+
+              <CardContent className="space-y-6">
+                <div className="text-center">
+                  <div className="flex items-baseline justify-center gap-1">
+                    <span className="text-4xl font-bold">{plan.price}</span>
+                    <span className="text-muted-foreground">{plan.period}</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground mt-1">per elder</p>
+                </div>
+
+                <ul className="space-y-3">
+                  {plan.features.map((feature, i) => (
+                    <li key={i} className="flex items-start gap-3">
+                      <Check className="h-5 w-5 text-accent shrink-0 mt-0.5" />
+                      <span className="text-sm">{feature}</span>
+                    </li>
+                  ))}
+                  {plan.notIncluded.map((feature, i) => (
+                    <li key={`not-${i}`} className="flex items-start gap-3 opacity-50">
+                      <span className="h-5 w-5 shrink-0 mt-0.5 text-center">✕</span>
+                      <span className="text-sm line-through">{feature}</span>
+                    </li>
+                  ))}
+                </ul>
+
+                <Button
+                  onClick={() => handleSelectPlan(plan.id)}
+                  disabled={loading !== null}
+                  className={`w-full py-6 text-lg ${
+                    plan.popular 
+                      ? "bg-gradient-primary hover:opacity-90" 
+                      : ""
+                  }`}
+                  variant={plan.popular ? "default" : "outline"}
+                >
+                  {loading === plan.id ? (
+                    <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                  ) : null}
+                  Select {plan.name}
+                </Button>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
+        {/* Trial info */}
+        <div className="text-center mt-12">
+          <p className="text-muted-foreground">
+            Start with a 14-day free trial. All premium features included.
+          </p>
+          <p className="text-sm text-muted-foreground mt-2">
+            No credit card required • Cancel anytime
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default SelectPlan;

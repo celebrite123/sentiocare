@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
 import Auth from "./pages/Auth";
+import SelectPlan from "./pages/SelectPlan";
 import Elders from "./pages/Elders";
 import AddElder from "./pages/AddElder";
 import ManageMedicines from "./pages/ManageMedicines";
@@ -27,6 +28,14 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
+            <Route 
+              path="/select-plan" 
+              element={
+                <ProtectedRoute>
+                  <SelectPlan />
+                </ProtectedRoute>
+              } 
+            />
             <Route 
               path="/dashboard" 
               element={

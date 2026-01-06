@@ -1,12 +1,15 @@
 import { useState, useEffect } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { Activity, Bell, Heart, Phone, Pill, Loader2, BookHeart, PlayCircle, MessageCircle } from "lucide-react";
+import { Activity, Bell, Heart, Phone, Pill, Loader2, BookHeart, PlayCircle, MessageCircle, Lock, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSubscription } from "@/hooks/useSubscription";
 import { toast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import Navbar from "@/components/Navbar";
 import DashboardHeader from "@/components/dashboard/DashboardHeader";
 import HealthMetrics from "@/components/dashboard/HealthMetrics";
@@ -14,7 +17,7 @@ import CheckInLog from "@/components/dashboard/CheckInLog";
 import MedicineTracker from "@/components/dashboard/MedicineTracker";
 import AIInsights from "@/components/dashboard/AIInsights";
 import WhatsAppChat from "@/components/dashboard/WhatsAppChat";
-import { format, isToday } from "date-fns";
+import { format } from "date-fns";
 
 interface Elder {
   id: string;
@@ -35,8 +38,8 @@ interface DashboardStats {
 const Dashboard = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { canUseVoice, isTrialActive, trialDaysLeft, tier, loading: subscriptionLoading } = useSubscription();
   const [searchParams] = useSearchParams();
-  // Support both URL param formats for navigation consistency
   const elderId = searchParams.get("elder") || searchParams.get("elderId");
   const [elder, setElder] = useState<Elder | null>(null);
   const [stats, setStats] = useState<DashboardStats>({
@@ -56,7 +59,6 @@ const Dashboard = () => {
     }
   }, [elderId]);
 
-  // Real-time subscription for check-ins to auto-update dashboard
   useEffect(() => {
     if (!elderId) return;
 
@@ -106,7 +108,6 @@ const Dashboard = () => {
 
   const loadDashboardStats = async () => {
     try {
-      // Get today's check-ins
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       
@@ -117,7 +118,6 @@ const Dashboard = () => {
         .gte("created_at", today.toISOString())
         .order("created_at", { ascending: false });
 
-      // Get latest check-in for well-being score
       const { data: latestCheckIn } = await supabase
         .from("check_ins")
         .select("well_being_score, medicines_taken, created_at")
@@ -126,21 +126,18 @@ const Dashboard = () => {
         .limit(1)
         .single();
 
-      // Get unresolved alerts count
       const { count: alertCount } = await supabase
         .from("alerts")
         .select("*", { count: "exact", head: true })
         .eq("elder_id", elderId!)
         .eq("resolved", false);
 
-      // Get active medicines count
       const { count: medicineCount } = await supabase
         .from("medicines")
         .select("*", { count: "exact", head: true })
         .eq("elder_id", elderId!)
         .eq("active", true);
 
-      // Count medicines taken today
       const medicinesTakenToday = checkIns?.filter((c) => c.medicines_taken)?.length || 0;
 
       setStats({
@@ -163,6 +160,15 @@ const Dashboard = () => {
   const initiateCall = async () => {
     if (!elder) return;
 
+    if (!canUseVoice) {
+      toast({
+        title: "Upgrade Required",
+        description: "Voice calls are available on the Premium plan. Upgrade to unlock this feature.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setCalling(true);
     try {
       const { data, error } = await supabase.functions.invoke("bolna-voice-call", {
@@ -182,7 +188,6 @@ const Dashboard = () => {
         description: `AI assistant is calling ${elder.full_name}...`,
       });
 
-      // Refresh stats after a delay
       setTimeout(loadDashboardStats, 5000);
     } catch (error: any) {
       console.error("Error initiating call:", error);
@@ -215,7 +220,6 @@ const Dashboard = () => {
         description: `Check-in simulated for ${elder.full_name}. Scenario: ${data.scenario}`,
       });
 
-      // Refresh stats
       loadDashboardStats();
     } catch (error: any) {
       console.error("Error simulating check-in:", error);
@@ -249,7 +253,7 @@ const Dashboard = () => {
     );
   }
 
-  if (loading) {
+  if (loading || subscriptionLoading) {
     return (
       <>
         <Navbar />
@@ -282,21 +286,73 @@ const Dashboard = () => {
         <DashboardHeader elderName={elder.full_name} />
 
         <main className="container mx-auto px-4 py-8">
+          {/* Trial Banner */}
+          {isTrialActive && (
+            <div className="mb-6 p-4 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Sparkles className="h-5 w-5 text-primary" />
+                <div>
+                  <p className="font-medium">Free Trial Active</p>
+                  <p className="text-sm text-muted-foreground">
+                    {trialDaysLeft} days left - All Premium features unlocked
+                  </p>
+                </div>
+              </div>
+              <Button size="sm" onClick={() => navigate("/select-plan")}>
+                Choose Plan
+              </Button>
+            </div>
+          )}
+
+          {/* Tier Badge */}
+          <div className="mb-4 flex items-center gap-2">
+            <Badge variant={tier === "premium" ? "default" : "secondary"}>
+              {tier === "premium" ? "Premium" : "Basic"} Plan
+            </Badge>
+            {!canUseVoice && !isTrialActive && (
+              <Badge variant="outline" className="text-muted-foreground">
+                <Lock className="h-3 w-3 mr-1" />
+                Voice calls locked
+              </Badge>
+            )}
+          </div>
+
           {/* Call Buttons */}
           <div className="mb-6 flex flex-wrap justify-center gap-4">
-            <Button
-              onClick={initiateCall}
-              disabled={calling || simulating}
-              size="lg"
-              className="gap-2 bg-gradient-primary hover:opacity-90"
-            >
-              {calling ? (
-                <Loader2 className="h-5 w-5 animate-spin" />
-              ) : (
-                <Phone className="h-5 w-5" />
-              )}
-              {calling ? "Calling..." : `Call ${elder.full_name}`}
-            </Button>
+            {canUseVoice ? (
+              <Button
+                onClick={initiateCall}
+                disabled={calling || simulating}
+                size="lg"
+                className="gap-2 bg-gradient-primary hover:opacity-90"
+              >
+                {calling ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : (
+                  <Phone className="h-5 w-5" />
+                )}
+                {calling ? "Calling..." : `Call ${elder.full_name}`}
+              </Button>
+            ) : (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="lg"
+                    className="gap-2"
+                    variant="outline"
+                    onClick={() => navigate("/select-plan")}
+                  >
+                    <Lock className="h-5 w-5" />
+                    Voice Calls
+                    <Badge variant="secondary" className="ml-2">Premium</Badge>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Upgrade to Premium for AI voice calls</p>
+                </TooltipContent>
+              </Tooltip>
+            )}
+            
             <Button
               onClick={simulateCheckIn}
               disabled={calling || simulating}
@@ -415,7 +471,7 @@ const Dashboard = () => {
             <AIInsights elderId={elderId} />
           </div>
 
-          {/* WhatsApp Chat - always show with setup prompt if needed */}
+          {/* WhatsApp Chat */}
           <div className="mb-8">
             <WhatsAppChat 
               elderId={elderId} 

@@ -25,17 +25,63 @@ serve(async (req) => {
       throw new Error('BOLNA_AGENT_ID not configured');
     }
 
+    // Initialize Supabase client
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // Check subscription tier for voice access
+    const { data: elder, error: elderError } = await supabase
+      .from("elders")
+      .select("family_member_id")
+      .eq("id", elderId)
+      .single();
+
+    if (elderError || !elder) {
+      throw new Error("Elder not found");
+    }
+
+    // Get the family member's profile to check subscription
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("subscription_tier, subscription_status, trial_ends_at")
+      .eq("id", elder.family_member_id)
+      .single();
+
+    if (profileError) {
+      console.error("Error fetching profile:", profileError);
+    }
+
+    // Check if user can use voice
+    const tier = profile?.subscription_tier || "basic";
+    const status = profile?.subscription_status || "trial";
+    const trialEndsAt = profile?.trial_ends_at ? new Date(profile.trial_ends_at) : null;
+    const now = new Date();
+    const isTrialActive = status === "trial" && trialEndsAt && trialEndsAt > now;
+    const canUseVoice = tier === "premium" || isTrialActive;
+
+    if (!canUseVoice) {
+      console.log("Voice call blocked - Basic tier without active trial");
+      return new Response(
+        JSON.stringify({ 
+          error: "Voice calls require a Premium subscription. Please upgrade your plan.",
+          code: "SUBSCRIPTION_REQUIRED"
+        }),
+        {
+          status: 403,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
     console.log('Initiating Bolna voice call:', {
       elderId,
       elderName,
       phone: elderPhone,
-      language: preferredLanguage
+      language: preferredLanguage,
+      tier,
+      isTrialActive
     });
-
-    // Initialize Supabase client to fetch previous check-ins
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
 
     // Fetch last 5 check-ins for context
     const { data: previousCheckIns, error: checkInsError } = await supabase
@@ -56,7 +102,6 @@ serve(async (req) => {
     let checkInCount = 0;
     
     if (previousCheckIns && previousCheckIns.length > 0) {
-      // Collect all unique symptoms from recent check-ins
       previousCheckIns.forEach(checkIn => {
         if (checkIn.symptoms_reported && checkIn.symptoms_reported.length > 0) {
           previousSymptoms = [...previousSymptoms, ...checkIn.symptoms_reported];
@@ -67,15 +112,12 @@ serve(async (req) => {
         }
       });
       
-      // Remove duplicates
       previousSymptoms = [...new Set(previousSymptoms)];
       
-      // Calculate average wellbeing
       if (checkInCount > 0) {
         averageWellbeing = Math.round(averageWellbeing / checkInCount);
       }
 
-      // Get most recent concerns/summary
       const lastCheckIn = previousCheckIns[0];
       if (lastCheckIn.conversation_summary) {
         recentConcerns = lastCheckIn.conversation_summary.substring(0, 200);
@@ -91,7 +133,6 @@ serve(async (req) => {
     // Build user data with comprehensive context for the AI agent
     const isHindi = preferredLanguage === 'hindi';
     
-    // Format medicines list with names prominently
     const medicineList = medicines.map((m: any) => m.name).join(', ');
     const medicineDetails = medicines.map((m: any) => 
       `${m.name} - ${m.dosage} (${m.timing})`
@@ -102,40 +143,28 @@ serve(async (req) => {
       ? previousSymptoms.join(', ') 
       : 'No symptoms reported recently';
     
-    // Create a structured context object for the Bolna agent
     const userData = {
-      // Core identification
       elder_id: elderId,
       elder_name: elderName,
       preferred_language: preferredLanguage,
-      
-      // Health context
       medicines: medicineList,
       medicine_details: medicineDetails,
       medical_conditions: conditionsList,
-      
-      // Historical context
       previous_symptoms: symptomsList,
       recent_concerns: recentConcerns,
       average_wellbeing: averageWellbeing || 'No data',
       total_previous_checkins: previousCheckIns?.length || 0,
-      
-      // Greeting based on language
       greeting: isHindi 
         ? `नमस्ते ${elderName} जी, मैं Sentio AI से बोल रहा हूं। आज आपकी तबीयत कैसी है?`
         : `Hello ${elderName}, this is your health check-in call from Sentio AI. How are you feeling today?`,
-      
-      // Agent instructions (these help guide the conversation)
       agent_instructions: isHindi
         ? `इस बुजुर्ग का नाम ${elderName} है। इनकी दवाइयां हैं: ${medicineList}। कृपया नाम से संबोधित करें और दवाइयों के बारे में नाम से पूछें।`
         : `This elder's name is ${elderName}. Their medicines are: ${medicineList}. Please address them by name and ask about their medicines by name.`,
-      
       check_in_type: 'voice',
     };
 
     console.log('Sending user_data to Bolna:', JSON.stringify(userData, null, 2));
 
-    // Make call using Bolna API
     const bolnaResponse = await fetch('https://api.bolna.ai/call', {
       method: 'POST',
       headers: {
