@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { Activity, Bell, Heart, Phone, Pill, Loader2, BookHeart, PlayCircle } from "lucide-react";
+import { Activity, Bell, Heart, Phone, Pill, Loader2, BookHeart, PlayCircle, MessageCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
@@ -13,6 +13,7 @@ import HealthMetrics from "@/components/dashboard/HealthMetrics";
 import CheckInLog from "@/components/dashboard/CheckInLog";
 import MedicineTracker from "@/components/dashboard/MedicineTracker";
 import AIInsights from "@/components/dashboard/AIInsights";
+import WhatsAppChat from "@/components/dashboard/WhatsAppChat";
 import { format, isToday } from "date-fns";
 
 interface Elder {
@@ -20,6 +21,7 @@ interface Elder {
   full_name: string;
   phone_number: string;
   medical_conditions: string[] | null;
+  check_in_method: string;
   medicines: { id: string; name: string; dosage: string; timing: string }[];
 }
 
@@ -385,6 +387,13 @@ const Dashboard = () => {
             <HealthMetrics elderId={elderId} />
             <AIInsights elderId={elderId} />
           </div>
+
+          {/* WhatsApp Chat - show if elder uses WhatsApp */}
+          {(elder.check_in_method === 'whatsapp' || elder.check_in_method === 'both') && (
+            <div className="mb-8">
+              <WhatsAppChat elderId={elderId} elderName={elder.full_name} />
+            </div>
+          )}
 
           {/* Tabs */}
           <Tabs defaultValue="checkins" className="space-y-6">

@@ -17,3 +17,9 @@ verify_jwt = true
 
 [functions.run-scheduled-checkins]
 verify_jwt = false
+
+[functions.twilio-whatsapp-webhook]
+verify_jwt = false
+
+[functions.send-whatsapp-checkin]
+verify_jwt = true

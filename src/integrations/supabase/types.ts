@@ -187,6 +187,7 @@ export type Database = {
       elders: {
         Row: {
           age: number | null
+          check_in_method: string
           created_at: string | null
           emergency_contact: string | null
           family_member_id: string
@@ -201,6 +202,7 @@ export type Database = {
         }
         Insert: {
           age?: number | null
+          check_in_method?: string
           created_at?: string | null
           emergency_contact?: string | null
           family_member_id: string
@@ -215,6 +217,7 @@ export type Database = {
         }
         Update: {
           age?: number | null
+          check_in_method?: string
           created_at?: string | null
           emergency_contact?: string | null
           family_member_id?: string
@@ -389,6 +392,89 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      whatsapp_conversations: {
+        Row: {
+          check_in_id: string | null
+          created_at: string
+          elder_id: string
+          ended_at: string | null
+          id: string
+          started_at: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          check_in_id?: string | null
+          created_at?: string
+          elder_id: string
+          ended_at?: string | null
+          id?: string
+          started_at?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          check_in_id?: string | null
+          created_at?: string
+          elder_id?: string
+          ended_at?: string | null
+          id?: string
+          started_at?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_conversations_check_in_id_fkey"
+            columns: ["check_in_id"]
+            isOneToOne: false
+            referencedRelation: "check_ins"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_conversations_elder_id_fkey"
+            columns: ["elder_id"]
+            isOneToOne: false
+            referencedRelation: "elders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_messages: {
+        Row: {
+          content: string
+          conversation_id: string
+          created_at: string
+          id: string
+          role: string
+          twilio_sid: string | null
+        }
+        Insert: {
+          content: string
+          conversation_id: string
+          created_at?: string
+          id?: string
+          role: string
+          twilio_sid?: string | null
+        }
+        Update: {
+          content?: string
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          role?: string
+          twilio_sid?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
