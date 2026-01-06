@@ -34,15 +34,15 @@ serve(async (req) => {
     // Find elder by WhatsApp number or phone number (check multiple formats)
     const { data: elders, error: elderError } = await supabase
       .from('elders')
-      .select('id, full_name, preferred_language, medical_conditions, whatsapp_number, phone_number');
+      .select('id, full_name, preferred_language, medical_conditions, whatsapp_number, phone_number, check_in_method');
 
     if (elderError) {
       console.error('Error fetching elders:', elderError);
       throw elderError;
     }
 
-    // Find matching elder by checking multiple phone formats
-    const elder = elders?.find(e => {
+    // Find matching elders by checking multiple phone formats
+    const matchingElders = elders?.filter(e => {
       const waNum = e.whatsapp_number?.replace(/[\s-]/g, '') || '';
       const phNum = e.phone_number?.replace(/[\s-]/g, '') || '';
       
@@ -53,18 +53,38 @@ serve(async (req) => {
              phNum === phoneNumber || 
              phNum === phoneWithoutPlus ||
              phNum.replace(/^\+/, '') === phoneWithoutPlus;
-    });
+    }) || [];
 
-    if (elderError || !elder) {
+    // Prioritize elders with WhatsApp configured as check-in method
+    const elder = matchingElders.sort((a, b) => {
+      const aHasWhatsApp = a.check_in_method === 'whatsapp' || a.check_in_method === 'both';
+      const bHasWhatsApp = b.check_in_method === 'whatsapp' || b.check_in_method === 'both';
+      const aHasWhatsAppNum = !!a.whatsapp_number;
+      const bHasWhatsAppNum = !!b.whatsapp_number;
+      
+      // Prioritize WhatsApp check-in method
+      if (aHasWhatsApp && !bHasWhatsApp) return -1;
+      if (!aHasWhatsApp && bHasWhatsApp) return 1;
+      // Then prioritize having whatsapp_number set
+      if (aHasWhatsAppNum && !bHasWhatsAppNum) return -1;
+      if (!aHasWhatsAppNum && bHasWhatsAppNum) return 1;
+      return 0;
+    })[0];
+
+    if (!elder) {
       console.log('Elder not found for number:', phoneNumber);
-      // Return empty TwiML to acknowledge receipt
       return new Response(
         `<?xml version="1.0" encoding="UTF-8"?><Response></Response>`,
         { headers: { ...corsHeaders, 'Content-Type': 'text/xml' } }
       );
     }
 
-    console.log('Found elder:', elder.full_name);
+    console.log('Found elder:', {
+      id: elder.id,
+      name: elder.full_name,
+      language: elder.preferred_language,
+      checkInMethod: elder.check_in_method
+    });
 
     // Get elder's medicines
     const { data: medicines } = await supabase
