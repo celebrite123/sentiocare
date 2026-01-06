@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { Activity, Bell, Heart, Phone, Pill, Loader2, BookHeart, PlayCircle, MessageCircle, Lock, Sparkles } from "lucide-react";
+import { Activity, Bell, Heart, Phone, Pill, Loader2, BookHeart, MessageCircle, Lock, Sparkles, AlertTriangle, Clock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSubscription } from "@/hooks/useSubscription";
@@ -10,6 +10,17 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import Navbar from "@/components/Navbar";
 import DashboardHeader from "@/components/dashboard/DashboardHeader";
 import HealthMetrics from "@/components/dashboard/HealthMetrics";
@@ -17,7 +28,7 @@ import CheckInLog from "@/components/dashboard/CheckInLog";
 import MedicineTracker from "@/components/dashboard/MedicineTracker";
 import AIInsights from "@/components/dashboard/AIInsights";
 import WhatsAppChat from "@/components/dashboard/WhatsAppChat";
-import { format } from "date-fns";
+import { format, formatDistanceToNow, differenceInHours, differenceInMinutes } from "date-fns";
 
 interface Elder {
   id: string;
@@ -25,6 +36,7 @@ interface Elder {
   phone_number: string;
   medical_conditions: string[] | null;
   check_in_method: string;
+  last_manual_call_at: string | null;
   medicines: { id: string; name: string; dosage: string; timing: string }[];
 }
 
@@ -34,6 +46,8 @@ interface DashboardStats {
   wellBeingScore: number | null;
   alertCount: number;
 }
+
+const CALL_COOLDOWN_HOURS = 4;
 
 const Dashboard = () => {
   const { user } = useAuth();
@@ -50,7 +64,7 @@ const Dashboard = () => {
   });
   const [loading, setLoading] = useState(true);
   const [calling, setCalling] = useState(false);
-  const [simulating, setSimulating] = useState(false);
+  const [cooldownRemaining, setCooldownRemaining] = useState<string | null>(null);
 
   useEffect(() => {
     if (elderId) {
@@ -58,6 +72,34 @@ const Dashboard = () => {
       loadDashboardStats();
     }
   }, [elderId]);
+
+  // Update cooldown timer every minute
+  useEffect(() => {
+    if (!elder?.last_manual_call_at) {
+      setCooldownRemaining(null);
+      return;
+    }
+
+    const updateCooldown = () => {
+      const lastCallTime = new Date(elder.last_manual_call_at!);
+      const now = new Date();
+      const hoursSinceCall = differenceInHours(now, lastCallTime);
+      
+      if (hoursSinceCall >= CALL_COOLDOWN_HOURS) {
+        setCooldownRemaining(null);
+      } else {
+        const cooldownEnd = new Date(lastCallTime.getTime() + CALL_COOLDOWN_HOURS * 60 * 60 * 1000);
+        const minutesRemaining = differenceInMinutes(cooldownEnd, now);
+        const hours = Math.floor(minutesRemaining / 60);
+        const mins = minutesRemaining % 60;
+        setCooldownRemaining(`${hours}h ${mins}m`);
+      }
+    };
+
+    updateCooldown();
+    const interval = setInterval(updateCooldown, 60000);
+    return () => clearInterval(interval);
+  }, [elder?.last_manual_call_at]);
 
   useEffect(() => {
     if (!elderId) return;
@@ -157,13 +199,23 @@ const Dashboard = () => {
     }
   };
 
-  const initiateCall = async () => {
+  const initiateCall = async (isEmergency: boolean = false) => {
     if (!elder) return;
 
     if (!canUseVoice) {
       toast({
         title: "Upgrade Required",
         description: "Voice calls are available on the Premium plan. Upgrade to unlock this feature.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Check cooldown (unless emergency)
+    if (!isEmergency && cooldownRemaining) {
+      toast({
+        title: "Call Cooldown Active",
+        description: `Please wait ${cooldownRemaining} before calling again, or use Emergency Call.`,
         variant: "destructive",
       });
       return;
@@ -178,13 +230,23 @@ const Dashboard = () => {
           elderPhone: elder.phone_number,
           medicines: elder.medicines || [],
           medicalConditions: elder.medical_conditions || [],
+          isEmergency,
         },
       });
 
       if (error) throw error;
 
+      // Update last_manual_call_at
+      await supabase
+        .from("elders")
+        .update({ last_manual_call_at: new Date().toISOString() })
+        .eq("id", elder.id);
+
+      // Refresh elder data to get updated cooldown
+      loadElderData();
+
       toast({
-        title: "Call Initiated",
+        title: isEmergency ? "Emergency Call Initiated" : "Call Initiated",
         description: `AI assistant is calling ${elder.full_name}...`,
       });
 
@@ -198,38 +260,6 @@ const Dashboard = () => {
       });
     } finally {
       setCalling(false);
-    }
-  };
-
-  const simulateCheckIn = async () => {
-    if (!elder) return;
-
-    setSimulating(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("simulate-checkin", {
-        body: {
-          elderId: elder.id,
-          elderName: elder.full_name,
-        },
-      });
-
-      if (error) throw error;
-
-      toast({
-        title: "Simulation Complete",
-        description: `Check-in simulated for ${elder.full_name}. Scenario: ${data.scenario}`,
-      });
-
-      loadDashboardStats();
-    } catch (error: any) {
-      console.error("Error simulating check-in:", error);
-      toast({
-        title: "Simulation Failed",
-        description: error.message || "Failed to simulate check-in",
-        variant: "destructive",
-      });
-    } finally {
-      setSimulating(false);
     }
   };
 
@@ -279,6 +309,8 @@ const Dashboard = () => {
     );
   }
 
+  const isOnCooldown = !!cooldownRemaining;
+
   return (
     <>
       <Navbar />
@@ -304,10 +336,10 @@ const Dashboard = () => {
             </div>
           )}
 
-          {/* Tier Badge */}
+          {/* Tier Badge - Fixed to show Premium Trial during trial */}
           <div className="mb-4 flex items-center gap-2">
-            <Badge variant={tier === "premium" ? "default" : "secondary"}>
-              {tier === "premium" ? "Premium" : "Basic"} Plan
+            <Badge variant={canUseVoice ? "default" : "secondary"}>
+              {isTrialActive ? "Premium Trial" : tier === "premium" ? "Premium" : "Basic"} Plan
             </Badge>
             {!canUseVoice && !isTrialActive && (
               <Badge variant="outline" className="text-muted-foreground">
@@ -320,19 +352,68 @@ const Dashboard = () => {
           {/* Call Buttons */}
           <div className="mb-6 flex flex-wrap justify-center gap-4">
             {canUseVoice ? (
-              <Button
-                onClick={initiateCall}
-                disabled={calling || simulating}
-                size="lg"
-                className="gap-2 bg-gradient-primary hover:opacity-90"
-              >
-                {calling ? (
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                ) : (
-                  <Phone className="h-5 w-5" />
-                )}
-                {calling ? "Calling..." : `Call ${elder.full_name}`}
-              </Button>
+              <>
+                {/* Regular Call Button */}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div>
+                      <Button
+                        onClick={() => initiateCall(false)}
+                        disabled={calling || isOnCooldown}
+                        size="lg"
+                        className="gap-2 bg-gradient-primary hover:opacity-90"
+                      >
+                        {calling ? (
+                          <Loader2 className="h-5 w-5 animate-spin" />
+                        ) : isOnCooldown ? (
+                          <Clock className="h-5 w-5" />
+                        ) : (
+                          <Phone className="h-5 w-5" />
+                        )}
+                        {calling ? "Calling..." : isOnCooldown ? `Wait ${cooldownRemaining}` : `Call ${elder.full_name}`}
+                      </Button>
+                    </div>
+                  </TooltipTrigger>
+                  {isOnCooldown && (
+                    <TooltipContent>
+                      <p>Regular calls have a {CALL_COOLDOWN_HOURS}-hour cooldown. Use Emergency Call for urgent situations.</p>
+                    </TooltipContent>
+                  )}
+                </Tooltip>
+
+                {/* Emergency Call Button */}
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant="destructive"
+                      size="lg"
+                      className="gap-2"
+                      disabled={calling}
+                    >
+                      <AlertTriangle className="h-5 w-5" />
+                      Emergency Call
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Emergency Call</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Are you sure you want to make an emergency call to {elder.full_name}? 
+                        Emergency calls should only be used when you urgently need to check on their wellbeing.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={() => initiateCall(true)}
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      >
+                        Yes, Call Now
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </>
             ) : (
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -353,20 +434,6 @@ const Dashboard = () => {
               </Tooltip>
             )}
             
-            <Button
-              onClick={simulateCheckIn}
-              disabled={calling || simulating}
-              variant="secondary"
-              size="lg"
-              className="gap-2"
-            >
-              {simulating ? (
-                <Loader2 className="h-5 w-5 animate-spin" />
-              ) : (
-                <PlayCircle className="h-5 w-5" />
-              )}
-              {simulating ? "Simulating..." : "Demo Check-in"}
-            </Button>
             <Button
               onClick={() => navigate(`/elders/${elderId}/health-book`)}
               variant="outline"

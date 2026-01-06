@@ -1,12 +1,13 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Check, User, Phone, Heart, Pill, Globe, MessageCircle } from "lucide-react";
+import { ArrowLeft, Check, User, Phone, Heart, Pill, Globe, MessageCircle, Users, Calendar } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSubscription } from "@/hooks/useSubscription";
@@ -22,21 +23,56 @@ interface Medicine {
   purpose: string;
 }
 
+interface CaregiverData {
+  name: string;
+  phone: string;
+  relation: string;
+  notifyEmail: boolean;
+  notifySms: boolean;
+}
+
+interface ScheduleData {
+  timeOfDay: string;
+  daysOfWeek: number[];
+}
+
+const DAYS_OF_WEEK = [
+  { value: 0, label: "Sun" },
+  { value: 1, label: "Mon" },
+  { value: 2, label: "Tue" },
+  { value: 3, label: "Wed" },
+  { value: 4, label: "Thu" },
+  { value: 5, label: "Fri" },
+  { value: 6, label: "Sat" },
+];
+
 const AddElder = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { tier, canUseVoice, isTrialActive } = useSubscription();
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(1);
-  const totalSteps = 4;
+  const totalSteps = 6;
 
   const [formData, setFormData] = useState({
     full_name: "",
     age: "",
     phone_number: "",
     whatsapp_number: "",
-    emergency_contact: "",
     preferred_language: "english",
+  });
+
+  const [caregiverData, setCaregiverData] = useState<CaregiverData>({
+    name: "",
+    phone: "",
+    relation: "",
+    notifyEmail: true,
+    notifySms: false,
+  });
+
+  const [scheduleData, setScheduleData] = useState<ScheduleData>({
+    timeOfDay: "09:00",
+    daysOfWeek: [0, 1, 2, 3, 4, 5, 6], // All days selected by default
   });
 
   const [medicalConditions, setMedicalConditions] = useState<string[]>([]);
@@ -86,6 +122,15 @@ const AddElder = () => {
     setMedicines(medicines.filter((_, i) => i !== index));
   };
 
+  const toggleDay = (day: number) => {
+    setScheduleData(prev => ({
+      ...prev,
+      daysOfWeek: prev.daysOfWeek.includes(day)
+        ? prev.daysOfWeek.filter(d => d !== day)
+        : [...prev.daysOfWeek, day].sort()
+    }));
+  };
+
   const canProceed = () => {
     switch (step) {
       case 1:
@@ -93,9 +138,13 @@ const AddElder = () => {
       case 2:
         return formData.phone_number.trim() && formData.whatsapp_number.trim();
       case 3:
-        return true;
+        return caregiverData.name.trim() && caregiverData.phone.trim() && caregiverData.relation;
       case 4:
-        return true;
+        return scheduleData.daysOfWeek.length > 0;
+      case 5:
+        return true; // Medical conditions are optional
+      case 6:
+        return true; // Medicines are optional
       default:
         return false;
     }
@@ -129,7 +178,6 @@ const AddElder = () => {
         profile = newProfile;
       }
 
-      // Determine check-in method based on tier
       // Map profile tier to elder subscription_plan (constraint allows 'whatsapp' or 'premium')
       const profileTier = profile?.subscription_tier || tier || "basic";
       const subscriptionPlan = profileTier === "premium" ? "premium" : "whatsapp";
@@ -144,7 +192,7 @@ const AddElder = () => {
           phone_number: formData.phone_number,
           whatsapp_number: formData.whatsapp_number || null,
           age: formData.age ? parseInt(formData.age) : null,
-          emergency_contact: formData.emergency_contact || null,
+          emergency_contact: caregiverData.phone || null,
           medical_conditions: medicalConditions.length > 0 ? medicalConditions : null,
           subscription_plan: subscriptionPlan,
           preferred_language: formData.preferred_language,
@@ -173,23 +221,38 @@ const AddElder = () => {
         if (medicineError) throw medicineError;
       }
 
-      // Create default notification settings
+      // Create notification settings with caregiver details
       const { data: { user: currentUser } } = await supabase.auth.getUser();
       await supabase
         .from("notification_settings")
         .insert({
           elder_id: elder.id,
-          notify_email: true,
+          notify_email: caregiverData.notifyEmail,
           email_address: currentUser?.email || null,
           notify_on_alert: true,
           notify_on_low_wellbeing: true,
           wellbeing_threshold: 5,
           notify_on_missed_checkin: true,
+          caregiver_name: caregiverData.name,
+          caregiver_phone: caregiverData.phone,
+          caregiver_relation: caregiverData.relation,
+          notify_sms: caregiverData.notifySms,
+        });
+
+      // Create check-in schedule
+      await supabase
+        .from("check_in_schedules")
+        .insert({
+          elder_id: elder.id,
+          schedule_type: checkInMethod,
+          time_of_day: scheduleData.timeOfDay,
+          days_of_week: scheduleData.daysOfWeek,
+          active: true,
         });
 
       toast({
         title: "Success! 🎉",
-        description: `${formData.full_name}'s profile has been created`,
+        description: `${formData.full_name}'s profile has been created with scheduled check-ins`,
       });
       navigate("/elders");
     } catch (error: any) {
@@ -273,7 +336,7 @@ const AddElder = () => {
               <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 mb-4">
                 <Phone className="h-8 w-8 text-primary" />
               </div>
-              <h2 className="text-2xl font-bold">Contact Details</h2>
+              <h2 className="text-2xl font-bold">Elder's Contact</h2>
               <p className="text-muted-foreground mt-2">How can we reach {formData.full_name || "them"}?</p>
             </div>
 
@@ -311,23 +374,11 @@ const AddElder = () => {
                 </p>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="emergency_contact">Emergency Contact (Optional)</Label>
-                <Input
-                  id="emergency_contact"
-                  type="tel"
-                  value={formData.emergency_contact}
-                  onChange={(e) => setFormData({ ...formData, emergency_contact: e.target.value })}
-                  placeholder="+91 98765 43210"
-                  className="text-lg"
-                />
-              </div>
-
               {/* Show plan info */}
               <div className="p-4 rounded-lg bg-muted/50 space-y-2">
                 <div className="flex items-center gap-2">
-                  <Badge variant={tier === "premium" ? "default" : "secondary"}>
-                    {tier === "premium" ? "Premium" : "Basic"} Plan
+                  <Badge variant={canUseVoice ? "default" : "secondary"}>
+                    {isTrialActive ? "Premium Trial" : tier === "premium" ? "Premium" : "Basic"} Plan
                   </Badge>
                   {isTrialActive && (
                     <Badge variant="outline">Trial Active</Badge>
@@ -344,6 +395,155 @@ const AddElder = () => {
         );
 
       case 3:
+        return (
+          <div className="space-y-6 animate-in fade-in-50 duration-300">
+            <div className="text-center mb-8">
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 mb-4">
+                <Users className="h-8 w-8 text-primary" />
+              </div>
+              <h2 className="text-2xl font-bold">Caregiver Details</h2>
+              <p className="text-muted-foreground mt-2">Who should we notify in case of emergencies?</p>
+            </div>
+
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="caregiver_name">Caregiver Name *</Label>
+                <Input
+                  id="caregiver_name"
+                  value={caregiverData.name}
+                  onChange={(e) => setCaregiverData({ ...caregiverData, name: e.target.value })}
+                  placeholder="Enter caregiver's full name"
+                  className="text-lg"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="caregiver_phone">Caregiver Phone *</Label>
+                <Input
+                  id="caregiver_phone"
+                  type="tel"
+                  value={caregiverData.phone}
+                  onChange={(e) => setCaregiverData({ ...caregiverData, phone: e.target.value })}
+                  placeholder="+91 98765 43210"
+                  className="text-lg"
+                />
+                <p className="text-sm text-muted-foreground">
+                  This number will be contacted for missed medications or emergencies
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="caregiver_relation">Relation to Elder *</Label>
+                <Select
+                  value={caregiverData.relation}
+                  onValueChange={(value) => setCaregiverData({ ...caregiverData, relation: value })}
+                >
+                  <SelectTrigger className="text-lg">
+                    <SelectValue placeholder="Select relation" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="son">Son</SelectItem>
+                    <SelectItem value="daughter">Daughter</SelectItem>
+                    <SelectItem value="spouse">Spouse</SelectItem>
+                    <SelectItem value="sibling">Sibling</SelectItem>
+                    <SelectItem value="grandchild">Grandchild</SelectItem>
+                    <SelectItem value="caretaker">Professional Caretaker</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="p-4 rounded-lg bg-muted/50 space-y-3">
+                <Label className="text-base font-medium">Notification Preferences</Label>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="notify_email"
+                    checked={caregiverData.notifyEmail}
+                    onCheckedChange={(checked) => 
+                      setCaregiverData({ ...caregiverData, notifyEmail: checked as boolean })
+                    }
+                  />
+                  <label htmlFor="notify_email" className="text-sm">
+                    Email notifications
+                  </label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="notify_sms"
+                    checked={caregiverData.notifySms}
+                    onCheckedChange={(checked) => 
+                      setCaregiverData({ ...caregiverData, notifySms: checked as boolean })
+                    }
+                  />
+                  <label htmlFor="notify_sms" className="text-sm">
+                    SMS notifications (for urgent alerts)
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+
+      case 4:
+        return (
+          <div className="space-y-6 animate-in fade-in-50 duration-300">
+            <div className="text-center mb-8">
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 mb-4">
+                <Calendar className="h-8 w-8 text-primary" />
+              </div>
+              <h2 className="text-2xl font-bold">Check-in Schedule</h2>
+              <p className="text-muted-foreground mt-2">When should we check in on {formData.full_name || "them"}?</p>
+            </div>
+
+            <div className="space-y-6">
+              <div className="space-y-2">
+                <Label htmlFor="check_in_time">Preferred Check-in Time *</Label>
+                <Input
+                  id="check_in_time"
+                  type="time"
+                  value={scheduleData.timeOfDay}
+                  onChange={(e) => setScheduleData({ ...scheduleData, timeOfDay: e.target.value })}
+                  className="text-lg"
+                />
+                <p className="text-sm text-muted-foreground">
+                  The AI will call/message at this time
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                <Label>Days of Week *</Label>
+                <div className="flex flex-wrap gap-2">
+                  {DAYS_OF_WEEK.map((day) => (
+                    <Button
+                      key={day.value}
+                      type="button"
+                      variant={scheduleData.daysOfWeek.includes(day.value) ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => toggleDay(day.value)}
+                      className="w-12"
+                    >
+                      {day.label}
+                    </Button>
+                  ))}
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Select which days the check-in should occur
+                </p>
+              </div>
+
+              <div className="p-4 rounded-lg bg-muted/50 space-y-2">
+                <p className="text-sm font-medium">Check-in Method</p>
+                <p className="text-sm text-muted-foreground">
+                  {canUseVoice 
+                    ? "✓ AI voice calls + WhatsApp messages"
+                    : "✓ WhatsApp messages only"}
+                </p>
+              </div>
+            </div>
+          </div>
+        );
+
+      case 5:
         return (
           <div className="space-y-6 animate-in fade-in-50 duration-300">
             <div className="text-center mb-8">
@@ -396,7 +596,7 @@ const AddElder = () => {
           </div>
         );
 
-      case 4:
+      case 6:
         return (
           <div className="space-y-6 animate-in fade-in-50 duration-300">
             <div className="text-center mb-8">
@@ -470,31 +670,29 @@ const AddElder = () => {
                       <SelectItem value="afternoon">Afternoon</SelectItem>
                       <SelectItem value="evening">Evening</SelectItem>
                       <SelectItem value="night">Night</SelectItem>
-                      <SelectItem value="with_meals">With Meals</SelectItem>
-                      <SelectItem value="before_meals">Before Meals</SelectItem>
+                      <SelectItem value="with_food">With Food</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
 
-                <div className="space-y-2 md:col-span-2">
-                  <Label htmlFor="med_purpose">Purpose (Optional)</Label>
-                  <Input
-                    id="med_purpose"
-                    value={currentMedicine.purpose}
-                    onChange={(e) =>
-                      setCurrentMedicine({ ...currentMedicine, purpose: e.target.value })
-                    }
-                    placeholder="e.g., Blood pressure control"
-                  />
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="med_purpose">Purpose (Optional)</Label>
+                <Input
+                  id="med_purpose"
+                  value={currentMedicine.purpose}
+                  onChange={(e) =>
+                    setCurrentMedicine({ ...currentMedicine, purpose: e.target.value })
+                  }
+                  placeholder="e.g., Blood pressure control"
+                />
               </div>
 
               <Button
                 type="button"
                 onClick={addMedicine}
-                variant="outline"
                 className="w-full"
-                disabled={!currentMedicine.name || !currentMedicine.dosage}
+                disabled={!currentMedicine.name.trim() || !currentMedicine.dosage.trim()}
               >
                 Add Medicine
               </Button>
@@ -502,39 +700,27 @@ const AddElder = () => {
               {medicines.length > 0 && (
                 <div className="space-y-3">
                   <Label>Added Medicines</Label>
-                  <div className="space-y-2">
-                    {medicines.map((med, index) => (
-                      <div
-                        key={index}
-                        className="p-4 bg-muted/50 rounded-lg flex justify-between items-start"
-                      >
-                        <div className="space-y-1">
+                  {medicines.map((med, index) => (
+                    <Card key={index}>
+                      <CardContent className="p-4 flex items-center justify-between">
+                        <div>
                           <p className="font-medium">{med.name}</p>
                           <p className="text-sm text-muted-foreground">
-                            {med.dosage} • {med.frequency.replace(/_/g, " ")} • {med.timing}
+                            {med.dosage} • {med.timing} • {med.frequency.replace("_", " ")}
                           </p>
-                          {med.purpose && (
-                            <p className="text-sm text-muted-foreground italic">{med.purpose}</p>
-                          )}
                         </div>
                         <Button
-                          type="button"
                           variant="ghost"
                           size="sm"
                           onClick={() => removeMedicine(index)}
+                          className="text-destructive hover:text-destructive"
                         >
                           Remove
                         </Button>
-                      </div>
-                    ))}
-                  </div>
+                      </CardContent>
+                    </Card>
+                  ))}
                 </div>
-              )}
-
-              {medicines.length === 0 && (
-                <p className="text-center text-muted-foreground py-4">
-                  No medicines added yet. You can skip this step and add them later.
-                </p>
               )}
             </div>
           </div>
@@ -548,89 +734,76 @@ const AddElder = () => {
   return (
     <>
       <Navbar />
-      <div className="min-h-screen bg-gradient-to-br from-background via-muted/20 to-background">
+      <div className="min-h-screen bg-muted/30">
         <div className="container mx-auto px-4 py-8">
           <Button
             variant="ghost"
-            onClick={() => {
-              if (step > 1) {
-                setStep(step - 1);
-              } else {
-                navigate("/elders");
-              }
-            }}
-            className="gap-2 mb-6"
+            onClick={() => navigate("/elders")}
+            className="mb-6"
           >
-            <ArrowLeft className="h-4 w-4" />
-            {step > 1 ? "Previous Step" : "Back to Elders"}
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Elders
           </Button>
 
-          <div className="max-w-3xl mx-auto">
+          <div className="max-w-2xl mx-auto">
             {/* Progress Bar */}
             <div className="mb-8">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium">
-                  Step {step} of {totalSteps}
-                </span>
-                <span className="text-sm text-muted-foreground">{Math.round((step / totalSteps) * 100)}% Complete</span>
+              <div className="flex justify-between mb-2">
+                <span className="text-sm text-muted-foreground">Step {step} of {totalSteps}</span>
+                <span className="text-sm text-muted-foreground">{Math.round((step / totalSteps) * 100)}%</span>
               </div>
               <Progress value={(step / totalSteps) * 100} className="h-2" />
             </div>
 
             {/* Step Indicators */}
-            <div className="flex justify-between mb-12">
-              {[
-                { num: 1, label: "Basic Info", icon: User },
-                { num: 2, label: "Contact", icon: Phone },
-                { num: 3, label: "Health", icon: Heart },
-                { num: 4, label: "Medicines", icon: Pill },
-              ].map((item) => (
-                <div key={item.num} className="flex flex-col items-center gap-2">
-                  <div
-                    className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${
-                      step >= item.num
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-muted text-muted-foreground"
-                    }`}
-                  >
-                    {step > item.num ? (
-                      <Check className="h-6 w-6" />
-                    ) : (
-                      <item.icon className="h-6 w-6" />
-                    )}
-                  </div>
-                  <span className="text-xs font-medium hidden sm:block">{item.label}</span>
+            <div className="flex justify-center gap-2 mb-8">
+              {Array.from({ length: totalSteps }, (_, i) => (
+                <div
+                  key={i}
+                  className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors ${
+                    i + 1 === step
+                      ? "bg-primary text-primary-foreground"
+                      : i + 1 < step
+                      ? "bg-primary/20 text-primary"
+                      : "bg-muted text-muted-foreground"
+                  }`}
+                >
+                  {i + 1 < step ? <Check className="h-4 w-4" /> : i + 1}
                 </div>
               ))}
             </div>
 
-            {/* Step Content */}
-            <Card className="border-2">
-              <CardContent className="p-8">{renderStepContent()}</CardContent>
-            </Card>
+            {/* Form Content */}
+            <Card>
+              <CardContent className="p-6 md:p-8">
+                {renderStepContent()}
 
-            {/* Navigation Buttons */}
-            <div className="flex gap-4 mt-8">
-              {step < totalSteps ? (
-                <Button
-                  onClick={() => setStep(step + 1)}
-                  disabled={!canProceed()}
-                  className="flex-1"
-                  size="lg"
-                >
-                  Continue
-                </Button>
-              ) : (
-                <Button
-                  onClick={handleSubmit}
-                  disabled={loading || !canProceed()}
-                  className="flex-1"
-                  size="lg"
-                >
-                  {loading ? "Creating Profile..." : "Create Elder Profile"}
-                </Button>
-              )}
-            </div>
+                {/* Navigation Buttons */}
+                <div className="flex justify-between mt-8">
+                  <Button
+                    variant="outline"
+                    onClick={() => setStep(step - 1)}
+                    disabled={step === 1}
+                  >
+                    Previous
+                  </Button>
+
+                  {step < totalSteps ? (
+                    <Button onClick={() => setStep(step + 1)} disabled={!canProceed()}>
+                      Continue
+                    </Button>
+                  ) : (
+                    <Button
+                      onClick={handleSubmit}
+                      disabled={loading || !canProceed()}
+                      className="bg-gradient-primary"
+                    >
+                      {loading ? "Creating..." : "Create Profile"}
+                    </Button>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
           </div>
         </div>
       </div>
