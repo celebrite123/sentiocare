@@ -130,7 +130,9 @@ const AddElder = () => {
       }
 
       // Determine check-in method based on tier
-      const subscriptionPlan = profile?.subscription_tier || tier || "basic";
+      // Map profile tier to elder subscription_plan (constraint allows 'whatsapp' or 'premium')
+      const profileTier = profile?.subscription_tier || tier || "basic";
+      const subscriptionPlan = profileTier === "premium" ? "premium" : "whatsapp";
       const checkInMethod = canUseVoice ? "both" : "whatsapp";
 
       // Insert elder
