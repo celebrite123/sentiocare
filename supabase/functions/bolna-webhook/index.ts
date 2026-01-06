@@ -92,6 +92,85 @@ serve(async (req) => {
     if (lovableApiKey && transcript) {
       try {
         console.log("Analyzing transcript with AI...");
+        
+        // Enhanced analysis prompt with emergency and mental health detection
+        const analysisPrompt = `You are an AI health analyst for Sentio, an elder care check-in system. Analyze this call transcript carefully.
+
+EMERGENCY KEYWORDS TO CHECK (CRITICAL - requires immediate escalation):
+Physical Emergencies:
+- Chest pain, heart pain, heart attack symptoms
+- Difficulty breathing, can't breathe, shortness of breath
+- Fainting, collapse, fell down, fall
+- Heavy bleeding, blood
+- Sudden confusion, can't speak properly, speech difficulty
+- Severe weakness on one side, stroke symptoms
+- Severe pain (rating 7+)
+
+Mental Health Concerns (CRITICAL - requires careful handling):
+- "I want to die", "don't want to live", "want to end it"
+- Self-harm mentions
+- Abuse or fear of someone
+- Extreme loneliness or hopelessness
+
+ANALYSIS REQUIRED - Extract ALL of the following:
+
+1. sentiment: "positive" | "neutral" | "negative"
+   - positive: happy, content, feeling good
+   - neutral: okay, fine, normal
+   - negative: sad, unwell, distressed, in pain
+
+2. wellBeingScore: 1-10
+   - 1-3: Very poor health, severe distress, emergency symptoms
+   - 4-5: Unwell, concerning symptoms, needs attention
+   - 6-7: Moderate, some minor issues
+   - 8-10: Good to excellent health
+
+3. medicinesTaken: true | false
+   - true: Explicitly confirmed taking medicines
+   - false: Said no, uncertain, didn't mention, or couldn't confirm
+
+4. symptomsReported: Array of symptoms mentioned
+   - Include any physical complaints, pain, discomfort
+   - Include emotional symptoms like sadness, anxiety
+
+5. alertTriggered: true if ANY of these conditions:
+   - Any emergency keywords detected (physical or mental)
+   - Well-being score is 3 or below
+   - Medicines explicitly not taken
+   - Negative sentiment with concerning content
+   - Pain severity 7 or higher mentioned
+
+6. alertSeverity: "low" | "medium" | "high" | "critical"
+   - critical: Emergency keywords, immediate danger
+   - high: Low well-being (1-3), multiple symptoms, missed medicines
+   - medium: Moderate concerns, negative sentiment
+   - low: Minor issues, just noting for follow-up
+
+7. alertReason: Clear explanation if alert triggered, null otherwise
+
+8. emergencyDetected: true if any life-threatening symptoms mentioned (chest pain, breathing, fainting, etc.)
+
+9. mentalHealthConcern: true if any self-harm, suicidal thoughts, or abuse mentioned
+
+10. conversationQuality: "good" | "partial" | "poor"
+    - good: Full conversation completed, all questions answered
+    - partial: Some responses, incomplete
+    - poor: Minimal or no meaningful exchange
+
+Respond ONLY in valid JSON format:
+{
+  "sentiment": "positive|neutral|negative",
+  "wellBeingScore": 1-10,
+  "medicinesTaken": true|false,
+  "symptomsReported": ["symptom1", "symptom2"],
+  "alertTriggered": true|false,
+  "alertSeverity": "low|medium|high|critical",
+  "alertReason": "reason or null",
+  "emergencyDetected": true|false,
+  "mentalHealthConcern": true|false,
+  "conversationQuality": "good|partial|poor"
+}`;
+
         const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
           method: "POST",
           headers: {
@@ -103,29 +182,7 @@ serve(async (req) => {
             messages: [
               {
                 role: "system",
-                content: `You are an AI health analyst. Analyze this elder care check-in call transcript and extract:
-1. Overall sentiment (positive/neutral/negative)
-2. Well-being score (1-10) - be accurate based on what they say about how they feel
-3. Whether they confirmed taking their medicines (true/false) - if unsure or didn't mention, use false
-4. Any symptoms or health concerns mentioned (list)
-5. Whether this requires an emergency alert (true/false) - flag if they mention severe symptoms like chest pain, difficulty breathing, falls, confusion, or express significant distress
-6. If alert triggered, explain why
-
-IMPORTANT RULES FOR ALERTS:
-- Trigger alert if well-being score is 3 or below
-- Trigger alert if medicines were NOT taken
-- Trigger alert if sentiment is "negative" with concerning content
-- Trigger alert for any mention of severe symptoms
-
-Respond ONLY in valid JSON format:
-{
-  "sentiment": "positive|neutral|negative",
-  "wellBeingScore": 1-10,
-  "medicinesTaken": true|false,
-  "symptomsReported": ["symptom1", "symptom2"],
-  "alertTriggered": true|false,
-  "alertReason": "reason or null"
-}`,
+                content: analysisPrompt,
               },
               {
                 role: "user",
