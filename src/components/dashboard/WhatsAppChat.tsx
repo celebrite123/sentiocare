@@ -1,11 +1,13 @@
 import { useState, useEffect, useRef } from "react";
-import { MessageCircle, Send, Loader2, RefreshCw } from "lucide-react";
+import { MessageCircle, Send, Loader2, RefreshCw, Settings, AlertCircle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { useNavigate } from "react-router-dom";
 
 interface Message {
   id: string;
@@ -17,15 +19,21 @@ interface Message {
 interface WhatsAppChatProps {
   elderId: string;
   elderName: string;
+  checkInMethod?: string;
 }
 
-const WhatsAppChat = ({ elderId, elderName }: WhatsAppChatProps) => {
+const WhatsAppChat = ({ elderId, elderName, checkInMethod = 'voice' }: WhatsAppChatProps) => {
+  const navigate = useNavigate();
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [hasWhatsAppNumber, setHasWhatsAppNumber] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  const isWhatsAppEnabled = checkInMethod === 'whatsapp' || checkInMethod === 'both';
+
   useEffect(() => {
+    checkWhatsAppSetup();
     loadConversations();
   }, [elderId]);
 
@@ -34,6 +42,20 @@ const WhatsAppChat = ({ elderId, elderName }: WhatsAppChatProps) => {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages]);
+
+  const checkWhatsAppSetup = async () => {
+    try {
+      const { data: elder } = await supabase
+        .from('elders')
+        .select('whatsapp_number')
+        .eq('id', elderId)
+        .single();
+
+      setHasWhatsAppNumber(!!elder?.whatsapp_number);
+    } catch (error) {
+      console.error('Error checking WhatsApp setup:', error);
+    }
+  };
 
   const loadConversations = async () => {
     try {
@@ -97,11 +119,47 @@ const WhatsAppChat = ({ elderId, elderName }: WhatsAppChatProps) => {
     });
   };
 
+  // Don't show if WhatsApp is not enabled
+  if (!isWhatsAppEnabled) {
+    return null;
+  }
+
   if (loading) {
     return (
       <Card>
         <CardContent className="flex items-center justify-center py-8">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Show setup prompt if WhatsApp is enabled but no number configured
+  if (!hasWhatsAppNumber) {
+    return (
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <MessageCircle className="h-5 w-5 text-green-500" />
+            WhatsApp Check-ins
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Alert>
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription className="flex items-center justify-between">
+              <span>WhatsApp number not configured for {elderName}.</span>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => navigate(`/elders/${elderId}/settings`)}
+                className="ml-4"
+              >
+                <Settings className="h-4 w-4 mr-1" />
+                Configure
+              </Button>
+            </AlertDescription>
+          </Alert>
         </CardContent>
       </Card>
     );
