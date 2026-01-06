@@ -193,6 +193,7 @@ export type Database = {
           family_member_id: string
           full_name: string
           id: string
+          last_manual_call_at: string | null
           medical_conditions: string[] | null
           phone_number: string
           preferred_language: string
@@ -208,6 +209,7 @@ export type Database = {
           family_member_id: string
           full_name: string
           id?: string
+          last_manual_call_at?: string | null
           medical_conditions?: string[] | null
           phone_number: string
           preferred_language?: string
@@ -223,6 +225,7 @@ export type Database = {
           family_member_id?: string
           full_name?: string
           id?: string
+          last_manual_call_at?: string | null
           medical_conditions?: string[] | null
           phone_number?: string
           preferred_language?: string
@@ -321,6 +324,9 @@ export type Database = {
       }
       notification_settings: {
         Row: {
+          caregiver_name: string | null
+          caregiver_phone: string | null
+          caregiver_relation: string | null
           created_at: string | null
           elder_id: string
           email_address: string | null
@@ -329,10 +335,14 @@ export type Database = {
           notify_on_alert: boolean | null
           notify_on_low_wellbeing: boolean | null
           notify_on_missed_checkin: boolean | null
+          notify_sms: boolean | null
           updated_at: string | null
           wellbeing_threshold: number | null
         }
         Insert: {
+          caregiver_name?: string | null
+          caregiver_phone?: string | null
+          caregiver_relation?: string | null
           created_at?: string | null
           elder_id: string
           email_address?: string | null
@@ -341,10 +351,14 @@ export type Database = {
           notify_on_alert?: boolean | null
           notify_on_low_wellbeing?: boolean | null
           notify_on_missed_checkin?: boolean | null
+          notify_sms?: boolean | null
           updated_at?: string | null
           wellbeing_threshold?: number | null
         }
         Update: {
+          caregiver_name?: string | null
+          caregiver_phone?: string | null
+          caregiver_relation?: string | null
           created_at?: string | null
           elder_id?: string
           email_address?: string | null
@@ -353,6 +367,7 @@ export type Database = {
           notify_on_alert?: boolean | null
           notify_on_low_wellbeing?: boolean | null
           notify_on_missed_checkin?: boolean | null
+          notify_sms?: boolean | null
           updated_at?: string | null
           wellbeing_threshold?: number | null
         }

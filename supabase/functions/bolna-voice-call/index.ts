@@ -6,13 +6,15 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+const CALL_COOLDOWN_HOURS = 4;
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { elderId, elderName, elderPhone, medicines, medicalConditions, preferredLanguage = 'english' } = await req.json();
+    const { elderId, elderName, elderPhone, medicines, medicalConditions, preferredLanguage = 'english', isEmergency = false } = await req.json();
     
     const BOLNA_API_KEY = Deno.env.get('BOLNA_API_KEY');
     const BOLNA_AGENT_ID = Deno.env.get('BOLNA_AGENT_ID');
@@ -30,15 +32,41 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Check subscription tier for voice access
+    // Check subscription tier and cooldown
     const { data: elder, error: elderError } = await supabase
       .from("elders")
-      .select("family_member_id")
+      .select("family_member_id, last_manual_call_at")
       .eq("id", elderId)
       .single();
 
     if (elderError || !elder) {
       throw new Error("Elder not found");
+    }
+
+    // Check cooldown (unless emergency)
+    if (!isEmergency && elder.last_manual_call_at) {
+      const lastCallTime = new Date(elder.last_manual_call_at);
+      const now = new Date();
+      const hoursSinceCall = (now.getTime() - lastCallTime.getTime()) / (1000 * 60 * 60);
+      
+      if (hoursSinceCall < CALL_COOLDOWN_HOURS) {
+        const remainingMinutes = Math.ceil((CALL_COOLDOWN_HOURS * 60) - (hoursSinceCall * 60));
+        const hours = Math.floor(remainingMinutes / 60);
+        const mins = remainingMinutes % 60;
+        
+        console.log("Call blocked - cooldown active", { hoursSinceCall, remainingMinutes });
+        return new Response(
+          JSON.stringify({ 
+            error: `Please wait ${hours}h ${mins}m before calling again. Use Emergency Call for urgent situations.`,
+            code: "COOLDOWN_ACTIVE",
+            remainingMinutes
+          }),
+          {
+            status: 429,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          }
+        );
+      }
     }
 
     // Get the family member's profile to check subscription
@@ -80,7 +108,8 @@ serve(async (req) => {
       phone: elderPhone,
       language: preferredLanguage,
       tier,
-      isTrialActive
+      isTrialActive,
+      isEmergency
     });
 
     // Fetch last 5 check-ins for context
@@ -154,13 +183,14 @@ serve(async (req) => {
       recent_concerns: recentConcerns,
       average_wellbeing: averageWellbeing || 'No data',
       total_previous_checkins: previousCheckIns?.length || 0,
+      is_emergency: isEmergency,
       greeting: isHindi 
         ? `नमस्ते ${elderName} जी, मैं Sentio AI से बोल रहा हूं। आज आपकी तबीयत कैसी है?`
         : `Hello ${elderName}, this is your health check-in call from Sentio AI. How are you feeling today?`,
       agent_instructions: isHindi
-        ? `इस बुजुर्ग का नाम ${elderName} है। इनकी दवाइयां हैं: ${medicineList}। कृपया नाम से संबोधित करें और दवाइयों के बारे में नाम से पूछें।`
-        : `This elder's name is ${elderName}. Their medicines are: ${medicineList}. Please address them by name and ask about their medicines by name.`,
-      check_in_type: 'voice',
+        ? `इस बुजुर्ग का नाम ${elderName} है। इनकी दवाइयां हैं: ${medicineList}। कृपया नाम से संबोधित करें और दवाइयों के बारे में नाम से पूछें।${isEmergency ? ' यह एक आपातकालीन कॉल है।' : ''}`
+        : `This elder's name is ${elderName}. Their medicines are: ${medicineList}. Please address them by name and ask about their medicines by name.${isEmergency ? ' This is an EMERGENCY call - be extra attentive.' : ''}`,
+      check_in_type: isEmergency ? 'emergency_voice' : 'voice',
     };
 
     console.log('Sending user_data to Bolna:', JSON.stringify(userData, null, 2));
@@ -190,15 +220,17 @@ serve(async (req) => {
       callId: callData.call_id || callData.id,
       language: preferredLanguage,
       medicinesCount: medicines.length,
-      previousCheckInsLoaded: previousCheckIns?.length || 0
+      previousCheckInsLoaded: previousCheckIns?.length || 0,
+      isEmergency
     });
 
     return new Response(
       JSON.stringify({ 
         success: true, 
         callId: callData.call_id || callData.id,
-        message: 'Voice call initiated successfully',
+        message: isEmergency ? 'Emergency voice call initiated' : 'Voice call initiated successfully',
         language: preferredLanguage,
+        isEmergency,
         contextLoaded: {
           medicines: medicines.length,
           previousCheckIns: previousCheckIns?.length || 0,
