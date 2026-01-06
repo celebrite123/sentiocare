@@ -109,6 +109,7 @@ export type Database = {
           elder_id: string
           id: string
           medicines_taken: boolean | null
+          recording_url: string | null
           sentiment: string | null
           status: string
           symptoms_reported: string[] | null
@@ -123,6 +124,7 @@ export type Database = {
           elder_id: string
           id?: string
           medicines_taken?: boolean | null
+          recording_url?: string | null
           sentiment?: string | null
           status: string
           symptoms_reported?: string[] | null
@@ -137,6 +139,7 @@ export type Database = {
           elder_id?: string
           id?: string
           medicines_taken?: boolean | null
+          recording_url?: string | null
           sentiment?: string | null
           status?: string
           symptoms_reported?: string[] | null
@@ -387,8 +390,10 @@ export type Database = {
           full_name: string
           id: string
           phone_number: string | null
+          privacy_accepted_at: string | null
           subscription_status: string | null
           subscription_tier: string | null
+          terms_accepted_at: string | null
           trial_ends_at: string | null
           updated_at: string | null
           user_id: string
@@ -398,8 +403,10 @@ export type Database = {
           full_name: string
           id?: string
           phone_number?: string | null
+          privacy_accepted_at?: string | null
           subscription_status?: string | null
           subscription_tier?: string | null
+          terms_accepted_at?: string | null
           trial_ends_at?: string | null
           updated_at?: string | null
           user_id: string
@@ -409,8 +416,10 @@ export type Database = {
           full_name?: string
           id?: string
           phone_number?: string | null
+          privacy_accepted_at?: string | null
           subscription_status?: string | null
           subscription_tier?: string | null
+          terms_accepted_at?: string | null
           trial_ends_at?: string | null
           updated_at?: string | null
           user_id?: string

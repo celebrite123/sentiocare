@@ -72,7 +72,8 @@ serve(async (req) => {
     }
 
     // Extract recording URL from telephony_data or direct payload
-    const recordingUrl = telephony_data?.recording_url || payload.recording_url;
+    const recordingUrl = telephony_data?.recording_url || payload.recording_url || null;
+    console.log("Recording URL:", recordingUrl);
     
     // Extract duration from multiple sources
     const callDuration = conversation_duration || duration;
@@ -104,11 +105,17 @@ serve(async (req) => {
                 role: "system",
                 content: `You are an AI health analyst. Analyze this elder care check-in call transcript and extract:
 1. Overall sentiment (positive/neutral/negative)
-2. Well-being score (1-10)
-3. Whether they confirmed taking their medicines (true/false)
+2. Well-being score (1-10) - be accurate based on what they say about how they feel
+3. Whether they confirmed taking their medicines (true/false) - if unsure or didn't mention, use false
 4. Any symptoms or health concerns mentioned (list)
-5. Whether this requires an emergency alert (true/false) - flag if they mention severe symptoms like chest pain, difficulty breathing, falls, etc.
+5. Whether this requires an emergency alert (true/false) - flag if they mention severe symptoms like chest pain, difficulty breathing, falls, confusion, or express significant distress
 6. If alert triggered, explain why
+
+IMPORTANT RULES FOR ALERTS:
+- Trigger alert if well-being score is 3 or below
+- Trigger alert if medicines were NOT taken
+- Trigger alert if sentiment is "negative" with concerning content
+- Trigger alert for any mention of severe symptoms
 
 Respond ONLY in valid JSON format:
 {
@@ -150,12 +157,27 @@ Respond ONLY in valid JSON format:
       console.log("Skipping AI analysis - no API key or transcript");
     }
 
+    // Post-analysis validation: Ensure alerts are triggered for concerning situations
+    // even if the AI didn't flag them
+    if (!analysis.alertTriggered) {
+      if (analysis.wellBeingScore <= 3) {
+        analysis.alertTriggered = true;
+        analysis.alertReason = `Low well-being score (${analysis.wellBeingScore}/10) reported during call`;
+      } else if (analysis.medicinesTaken === false) {
+        analysis.alertTriggered = true;
+        analysis.alertReason = "Medicines not taken as scheduled";
+      } else if (analysis.sentiment === "negative") {
+        analysis.alertTriggered = true;
+        analysis.alertReason = "Negative sentiment detected during check-in - possible distress";
+      }
+    }
+
     // If Bolna provides its own analysis, merge it
     if (call_analysis) {
       console.log("Bolna call analysis:", call_analysis);
     }
 
-    // Save check-in to database
+    // Save check-in to database with recording URL
     console.log("Saving check-in for elder:", elderId);
     const { data: checkIn, error: checkInError } = await supabase
       .from("check_ins")
@@ -170,6 +192,7 @@ Respond ONLY in valid JSON format:
         conversation_summary: transcript?.substring(0, 500) || hangup_reason || `Call ${status}`,
         alert_triggered: analysis.alertTriggered,
         alert_reason: analysis.alertReason,
+        recording_url: recordingUrl,
       })
       .select()
       .single();
@@ -189,12 +212,23 @@ Respond ONLY in valid JSON format:
 
     // If alert triggered, create alert record
     if (analysis.alertTriggered) {
-      console.log("Creating alert for elder:", elderId);
+      console.log("Creating alert for elder:", elderId, "Reason:", analysis.alertReason);
+      
+      // Determine severity based on the issue
+      let severity = "medium";
+      if (analysis.wellBeingScore <= 2 || analysis.symptomsReported.length > 2) {
+        severity = "high";
+      }
+      
       const { error: alertError } = await supabase.from("alerts").insert({
         elder_id: elderId,
-        title: "Health Concern Detected",
+        title: analysis.wellBeingScore <= 3 
+          ? "Low Well-being Detected" 
+          : analysis.medicinesTaken === false 
+            ? "Medication Not Taken"
+            : "Health Concern Detected",
         description: analysis.alertReason || "AI detected a potential health concern during the call",
-        severity: "high",
+        severity: severity,
         alert_type: "health",
       });
 

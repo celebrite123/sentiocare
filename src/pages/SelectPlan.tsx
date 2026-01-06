@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Check, Phone, MessageCircle, Loader2, Heart, Sparkles } from "lucide-react";
+import { Check, Phone, MessageCircle, Loader2, Heart, Sparkles, Lock } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -49,10 +49,20 @@ const plans = [
 
 const SelectPlan = () => {
   const navigate = useNavigate();
-  const { updateTier, isTrialActive, trialDaysLeft } = useSubscription();
+  const { updateTier, isTrialActive, trialDaysLeft, tier } = useSubscription();
   const [loading, setLoading] = useState<string | null>(null);
 
   const handleSelectPlan = async (planId: "basic" | "premium") => {
+    // During trial, users can only preview plans - selection applies after trial
+    if (isTrialActive) {
+      toast({
+        title: "Plan Selected for After Trial",
+        description: `You've selected the ${planId === "premium" ? "Premium" : "Basic"} plan. This will apply when your trial ends. Enjoy all Premium features during your trial!`,
+      });
+      navigate("/elders/add");
+      return;
+    }
+
     setLoading(planId);
     
     const success = await updateTier(planId);
@@ -86,17 +96,24 @@ const SelectPlan = () => {
             <h1 className="text-3xl font-bold">Welcome to Sentio AI</h1>
           </div>
           <h2 className="text-2xl md:text-3xl font-bold mb-4">
-            Choose Your Care Plan
+            {isTrialActive ? "Choose Your Plan After Trial" : "Choose Your Care Plan"}
           </h2>
           <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-            Select the plan that best fits your loved one's needs
+            {isTrialActive 
+              ? "You're currently enjoying all Premium features for free. Select your plan for after the trial ends."
+              : "Select the plan that best fits your loved one's needs"}
           </p>
           
           {isTrialActive && (
-            <Badge variant="secondary" className="mt-4 text-sm px-4 py-2">
-              <Sparkles className="h-4 w-4 mr-2" />
-              {trialDaysLeft} days left in your free trial - All features unlocked!
-            </Badge>
+            <div className="mt-6 inline-flex flex-col items-center">
+              <Badge variant="default" className="text-sm px-4 py-2 bg-gradient-primary">
+                <Sparkles className="h-4 w-4 mr-2" />
+                {trialDaysLeft} days left in your free trial
+              </Badge>
+              <p className="text-sm text-muted-foreground mt-2">
+                All Premium features unlocked during trial!
+              </p>
+            </div>
           )}
         </div>
 
@@ -134,6 +151,9 @@ const SelectPlan = () => {
                     <span className="text-muted-foreground">{plan.period}</span>
                   </div>
                   <p className="text-sm text-muted-foreground mt-1">per elder</p>
+                  {isTrialActive && (
+                    <p className="text-xs text-primary mt-2">Billing starts after trial</p>
+                  )}
                 </div>
 
                 <ul className="space-y-3">
@@ -164,7 +184,7 @@ const SelectPlan = () => {
                   {loading === plan.id ? (
                     <Loader2 className="h-5 w-5 animate-spin mr-2" />
                   ) : null}
-                  Select {plan.name}
+                  {isTrialActive ? `Select ${plan.name} for After Trial` : `Select ${plan.name}`}
                 </Button>
               </CardContent>
             </Card>
@@ -173,12 +193,30 @@ const SelectPlan = () => {
 
         {/* Trial info */}
         <div className="text-center mt-12">
-          <p className="text-muted-foreground">
-            Start with a 14-day free trial. All premium features included.
-          </p>
-          <p className="text-sm text-muted-foreground mt-2">
-            No credit card required • Cancel anytime
-          </p>
+          {isTrialActive ? (
+            <>
+              <p className="text-muted-foreground">
+                <Lock className="inline h-4 w-4 mr-1" />
+                Your plan choice will be applied when your trial ends.
+              </p>
+              <Button 
+                variant="link" 
+                className="mt-2"
+                onClick={() => navigate("/elders")}
+              >
+                Skip for now and continue with trial →
+              </Button>
+            </>
+          ) : (
+            <>
+              <p className="text-muted-foreground">
+                Start with a 14-day free trial. All premium features included.
+              </p>
+              <p className="text-sm text-muted-foreground mt-2">
+                No credit card required • Cancel anytime
+              </p>
+            </>
+          )}
         </div>
       </div>
     </div>

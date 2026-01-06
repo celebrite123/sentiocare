@@ -1,13 +1,14 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { Heart, Loader2, Mail } from "lucide-react";
+import { Heart, Loader2 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 
 const Auth = () => {
@@ -20,6 +21,7 @@ const Auth = () => {
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
 
   useEffect(() => {
     // Check if user is already logged in
@@ -123,6 +125,15 @@ const Auth = () => {
       return;
     }
 
+    if (!agreedToTerms) {
+      toast({
+        title: "Terms Required",
+        description: "Please agree to the Privacy Policy and Terms of Service",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (password.length < 6) {
       toast({
         title: "Password too short",
@@ -149,7 +160,7 @@ const Auth = () => {
       if (authError) throw authError;
 
       if (authData.user) {
-        // Create profile with trial
+        // Create profile with trial and consent tracking
         const { error: profileError } = await supabase
           .from("profiles")
           .insert({
@@ -157,6 +168,8 @@ const Auth = () => {
             full_name: fullName,
             phone_number: phoneNumber || null,
             subscription_status: "trial",
+            terms_accepted_at: new Date().toISOString(),
+            privacy_accepted_at: new Date().toISOString(),
             // trial_ends_at is set by default in DB
           });
 
@@ -451,10 +464,32 @@ const Auth = () => {
                     </p>
                   </div>
 
+                  {/* Terms & Privacy Consent */}
+                  <div className="flex items-start space-x-2">
+                    <Checkbox
+                      id="terms"
+                      checked={agreedToTerms}
+                      onCheckedChange={(checked) => setAgreedToTerms(checked === true)}
+                    />
+                    <label
+                      htmlFor="terms"
+                      className="text-sm text-muted-foreground leading-tight cursor-pointer"
+                    >
+                      I agree to the{" "}
+                      <Link to="/privacy-policy" className="text-primary hover:underline" target="_blank">
+                        Privacy Policy
+                      </Link>{" "}
+                      and{" "}
+                      <Link to="/terms-of-service" className="text-primary hover:underline" target="_blank">
+                        Terms of Service
+                      </Link>
+                    </label>
+                  </div>
+
                   <Button
                     type="submit"
                     className="w-full bg-gradient-primary"
-                    disabled={loading}
+                    disabled={loading || !agreedToTerms}
                   >
                     {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Start Free Trial

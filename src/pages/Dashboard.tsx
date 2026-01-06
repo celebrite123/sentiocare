@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { Activity, Bell, Heart, Phone, Pill, Loader2, BookHeart, MessageCircle, Lock, Sparkles, AlertTriangle, Clock } from "lucide-react";
+import { Activity, Bell, Heart, Phone, Pill, Loader2, BookHeart, Lock, Sparkles, AlertTriangle, Clock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSubscription } from "@/hooks/useSubscription";
@@ -28,7 +28,7 @@ import CheckInLog from "@/components/dashboard/CheckInLog";
 import MedicineTracker from "@/components/dashboard/MedicineTracker";
 import AIInsights from "@/components/dashboard/AIInsights";
 import WhatsAppChat from "@/components/dashboard/WhatsAppChat";
-import { format, formatDistanceToNow, differenceInHours, differenceInMinutes } from "date-fns";
+import { format, differenceInHours, differenceInMinutes } from "date-fns";
 
 interface Elder {
   id: string;
@@ -349,71 +349,64 @@ const Dashboard = () => {
             )}
           </div>
 
-          {/* Call Buttons */}
+          {/* Single Call Button with Dialog */}
           <div className="mb-6 flex flex-wrap justify-center gap-4">
             {canUseVoice ? (
-              <>
-                {/* Regular Call Button */}
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div>
-                      <Button
-                        onClick={() => initiateCall(false)}
-                        disabled={calling || isOnCooldown}
-                        size="lg"
-                        className="gap-2 bg-gradient-primary hover:opacity-90"
-                      >
-                        {calling ? (
-                          <Loader2 className="h-5 w-5 animate-spin" />
-                        ) : isOnCooldown ? (
-                          <Clock className="h-5 w-5" />
-                        ) : (
-                          <Phone className="h-5 w-5" />
-                        )}
-                        {calling ? "Calling..." : isOnCooldown ? `Wait ${cooldownRemaining}` : `Call ${elder.full_name}`}
-                      </Button>
-                    </div>
-                  </TooltipTrigger>
-                  {isOnCooldown && (
-                    <TooltipContent>
-                      <p>Regular calls have a {CALL_COOLDOWN_HOURS}-hour cooldown. Use Emergency Call for urgent situations.</p>
-                    </TooltipContent>
-                  )}
-                </Tooltip>
-
-                {/* Emergency Call Button */}
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button
-                      variant="destructive"
-                      size="lg"
-                      className="gap-2"
-                      disabled={calling}
-                    >
-                      <AlertTriangle className="h-5 w-5" />
-                      Emergency Call
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Emergency Call</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        Are you sure you want to make an emergency call to {elder.full_name}? 
-                        Emergency calls should only be used when you urgently need to check on their wellbeing.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    size="lg"
+                    className="gap-2 bg-gradient-primary hover:opacity-90"
+                    disabled={calling}
+                  >
+                    {calling ? (
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                    ) : isOnCooldown ? (
+                      <Clock className="h-5 w-5" />
+                    ) : (
+                      <Phone className="h-5 w-5" />
+                    )}
+                    {calling ? "Calling..." : isOnCooldown ? `Call ${elder.full_name} (${cooldownRemaining})` : `Call ${elder.full_name}`}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Call {elder.full_name}</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      {isOnCooldown ? (
+                        <>
+                          <div className="flex items-center gap-2 mb-3 text-warning">
+                            <Clock className="h-4 w-4" />
+                            <span>Cooldown active: {cooldownRemaining} remaining</span>
+                          </div>
+                          <p>Regular calls are limited to once every {CALL_COOLDOWN_HOURS} hours. You can still make an emergency call if urgent.</p>
+                        </>
+                      ) : (
+                        <p>Our AI assistant will call {elder.full_name} to check on their health and medication adherence.</p>
+                      )}
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter className="flex-col gap-2 sm:flex-row">
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    {!isOnCooldown && (
                       <AlertDialogAction
-                        onClick={() => initiateCall(true)}
-                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        onClick={() => initiateCall(false)}
+                        className="bg-primary text-primary-foreground"
                       >
-                        Yes, Call Now
+                        <Phone className="h-4 w-4 mr-2" />
+                        Call Now
                       </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              </>
+                    )}
+                    <AlertDialogAction
+                      onClick={() => initiateCall(true)}
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                      <AlertTriangle className="h-4 w-4 mr-2" />
+                      Emergency Call
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             ) : (
               <Tooltip>
                 <TooltipTrigger asChild>
