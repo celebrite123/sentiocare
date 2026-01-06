@@ -1,14 +1,15 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Check, User, Phone, Heart, Pill, Globe } from "lucide-react";
+import { ArrowLeft, Check, User, Phone, Heart, Pill, Globe, MessageCircle } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSubscription } from "@/hooks/useSubscription";
 import { toast } from "@/hooks/use-toast";
 import Navbar from "@/components/Navbar";
 import { Progress } from "@/components/ui/progress";
@@ -24,6 +25,7 @@ interface Medicine {
 const AddElder = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { tier, canUseVoice, isTrialActive } = useSubscription();
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(1);
   const totalSteps = 4;
@@ -34,7 +36,6 @@ const AddElder = () => {
     phone_number: "",
     whatsapp_number: "",
     emergency_contact: "",
-    subscription_plan: "premium",
     preferred_language: "english",
   });
 
@@ -49,6 +50,13 @@ const AddElder = () => {
     timing: "morning",
     purpose: "",
   });
+
+  // Auto-fill WhatsApp number when phone number changes
+  useEffect(() => {
+    if (formData.phone_number && !formData.whatsapp_number) {
+      setFormData(prev => ({ ...prev, whatsapp_number: prev.phone_number }));
+    }
+  }, [formData.phone_number]);
 
   const addCondition = () => {
     if (conditionInput.trim() && !medicalConditions.includes(conditionInput.trim())) {
@@ -83,11 +91,11 @@ const AddElder = () => {
       case 1:
         return formData.full_name.trim() && formData.age;
       case 2:
-        return formData.phone_number.trim();
+        return formData.phone_number.trim() && formData.whatsapp_number.trim();
       case 3:
-        return true; // Medical conditions are optional
+        return true;
       case 4:
-        return true; // Medicines are optional
+        return true;
       default:
         return false;
     }
@@ -100,13 +108,12 @@ const AddElder = () => {
       // Get or create profile
       let { data: profile, error: profileError } = await supabase
         .from("profiles")
-        .select("id")
+        .select("id, subscription_tier")
         .eq("user_id", user!.id)
         .maybeSingle();
 
       if (profileError) throw profileError;
 
-      // Create profile if it doesn't exist
       if (!profile) {
         const { data: newProfile, error: createError } = await supabase
           .from("profiles")
@@ -122,6 +129,10 @@ const AddElder = () => {
         profile = newProfile;
       }
 
+      // Determine check-in method based on tier
+      const subscriptionPlan = profile?.subscription_tier || tier || "basic";
+      const checkInMethod = canUseVoice ? "both" : "whatsapp";
+
       // Insert elder
       const { data: elder, error: elderError } = await supabase
         .from("elders")
@@ -133,8 +144,9 @@ const AddElder = () => {
           age: formData.age ? parseInt(formData.age) : null,
           emergency_contact: formData.emergency_contact || null,
           medical_conditions: medicalConditions.length > 0 ? medicalConditions : null,
-          subscription_plan: formData.subscription_plan,
+          subscription_plan: subscriptionPlan,
           preferred_language: formData.preferred_language,
+          check_in_method: checkInMethod,
         })
         .select()
         .single();
@@ -158,6 +170,20 @@ const AddElder = () => {
 
         if (medicineError) throw medicineError;
       }
+
+      // Create default notification settings
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      await supabase
+        .from("notification_settings")
+        .insert({
+          elder_id: elder.id,
+          notify_email: true,
+          email_address: currentUser?.email || null,
+          notify_on_alert: true,
+          notify_on_low_wellbeing: true,
+          wellbeing_threshold: 5,
+          notify_on_missed_checkin: true,
+        });
 
       toast({
         title: "Success! 🎉",
@@ -246,7 +272,7 @@ const AddElder = () => {
                 <Phone className="h-8 w-8 text-primary" />
               </div>
               <h2 className="text-2xl font-bold">Contact Details</h2>
-              <p className="text-muted-foreground mt-2">How can we reach {formData.full_name}?</p>
+              <p className="text-muted-foreground mt-2">How can we reach {formData.full_name || "them"}?</p>
             </div>
 
             <div className="space-y-4">
@@ -257,21 +283,30 @@ const AddElder = () => {
                   type="tel"
                   value={formData.phone_number}
                   onChange={(e) => setFormData({ ...formData, phone_number: e.target.value })}
-                  placeholder="+1234567890"
+                  placeholder="+91 98765 43210"
                   className="text-lg"
                 />
+                <p className="text-sm text-muted-foreground">
+                  Include country code (e.g., +91 for India)
+                </p>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="whatsapp_number">WhatsApp Number (Optional)</Label>
+              <div className="space-y-2 p-4 border rounded-lg bg-green-50 dark:bg-green-950/20">
+                <Label htmlFor="whatsapp_number" className="flex items-center gap-2">
+                  <MessageCircle className="h-4 w-4 text-green-600" />
+                  WhatsApp Number *
+                </Label>
                 <Input
                   id="whatsapp_number"
                   type="tel"
                   value={formData.whatsapp_number}
                   onChange={(e) => setFormData({ ...formData, whatsapp_number: e.target.value })}
-                  placeholder="+1234567890"
+                  placeholder="+91 98765 43210"
                   className="text-lg"
                 />
+                <p className="text-sm text-muted-foreground">
+                  Required for WhatsApp check-ins. Usually same as phone number.
+                </p>
               </div>
 
               <div className="space-y-2">
@@ -281,9 +316,26 @@ const AddElder = () => {
                   type="tel"
                   value={formData.emergency_contact}
                   onChange={(e) => setFormData({ ...formData, emergency_contact: e.target.value })}
-                  placeholder="+1234567890"
+                  placeholder="+91 98765 43210"
                   className="text-lg"
                 />
+              </div>
+
+              {/* Show plan info */}
+              <div className="p-4 rounded-lg bg-muted/50 space-y-2">
+                <div className="flex items-center gap-2">
+                  <Badge variant={tier === "premium" ? "default" : "secondary"}>
+                    {tier === "premium" ? "Premium" : "Basic"} Plan
+                  </Badge>
+                  {isTrialActive && (
+                    <Badge variant="outline">Trial Active</Badge>
+                  )}
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  {canUseVoice 
+                    ? "✓ Voice calls + WhatsApp check-ins enabled"
+                    : "✓ WhatsApp check-ins enabled"}
+                </p>
               </div>
             </div>
           </div>
@@ -334,6 +386,9 @@ const AddElder = () => {
                     ))}
                   </div>
                 )}
+                <p className="text-sm text-muted-foreground">
+                  The AI will ask about these conditions during check-ins
+                </p>
               </div>
             </div>
           </div>
@@ -378,39 +433,45 @@ const AddElder = () => {
 
                 <div className="space-y-2">
                   <Label htmlFor="med_frequency">Frequency</Label>
-                  <select
-                    id="med_frequency"
+                  <Select
                     value={currentMedicine.frequency}
-                    onChange={(e) =>
-                      setCurrentMedicine({ ...currentMedicine, frequency: e.target.value })
+                    onValueChange={(value) =>
+                      setCurrentMedicine({ ...currentMedicine, frequency: value })
                     }
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   >
-                    <option value="once_daily">Once Daily</option>
-                    <option value="twice_daily">Twice Daily</option>
-                    <option value="thrice_daily">Three Times Daily</option>
-                    <option value="weekly">Weekly</option>
-                    <option value="as_needed">As Needed</option>
-                  </select>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="once_daily">Once Daily</SelectItem>
+                      <SelectItem value="twice_daily">Twice Daily</SelectItem>
+                      <SelectItem value="thrice_daily">Three Times Daily</SelectItem>
+                      <SelectItem value="weekly">Weekly</SelectItem>
+                      <SelectItem value="as_needed">As Needed</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="med_timing">Timing</Label>
-                  <select
-                    id="med_timing"
+                  <Select
                     value={currentMedicine.timing}
-                    onChange={(e) =>
-                      setCurrentMedicine({ ...currentMedicine, timing: e.target.value })
+                    onValueChange={(value) =>
+                      setCurrentMedicine({ ...currentMedicine, timing: value })
                     }
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   >
-                    <option value="morning">Morning</option>
-                    <option value="afternoon">Afternoon</option>
-                    <option value="evening">Evening</option>
-                    <option value="night">Night</option>
-                    <option value="with_meals">With Meals</option>
-                    <option value="before_meals">Before Meals</option>
-                  </select>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="morning">Morning</SelectItem>
+                      <SelectItem value="afternoon">Afternoon</SelectItem>
+                      <SelectItem value="evening">Evening</SelectItem>
+                      <SelectItem value="night">Night</SelectItem>
+                      <SelectItem value="with_meals">With Meals</SelectItem>
+                      <SelectItem value="before_meals">Before Meals</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div className="space-y-2 md:col-span-2">
@@ -466,6 +527,12 @@ const AddElder = () => {
                     ))}
                   </div>
                 </div>
+              )}
+
+              {medicines.length === 0 && (
+                <p className="text-center text-muted-foreground py-4">
+                  No medicines added yet. You can skip this step and add them later.
+                </p>
               )}
             </div>
           </div>

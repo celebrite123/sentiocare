@@ -18,20 +18,19 @@ serve(async (req) => {
 
     console.log("Running scheduled check-ins processor...");
 
-    // Get current time in UTC
     const now = new Date();
     const currentHour = now.getUTCHours();
     const currentMinute = now.getUTCMinutes();
-    const currentDay = now.getUTCDay(); // 0 = Sunday
+    const currentDay = now.getUTCDay();
 
     console.log(`Current UTC time: ${currentHour}:${currentMinute}, Day: ${currentDay}`);
 
-    // Find schedules that should run now (within 5 minute window)
+    // Find schedules that should run now
     const { data: schedules, error: schedulesError } = await supabase
       .from("check_in_schedules")
       .select(`
         *,
-        elders(*)
+        elders(*, profiles:family_member_id(subscription_tier, subscription_status, trial_ends_at))
       `)
       .eq("active", true);
 
@@ -45,18 +44,14 @@ serve(async (req) => {
     const results: any[] = [];
 
     for (const schedule of schedules || []) {
-      // Parse time_of_day
       const [scheduleHour, scheduleMinute] = schedule.time_of_day.split(":").map(Number);
       
-      // Check if current time matches (within 5 minutes)
       const timeDiff = Math.abs((currentHour * 60 + currentMinute) - (scheduleHour * 60 + scheduleMinute));
       const isTimeMatch = timeDiff <= 5 || timeDiff >= (24 * 60 - 5);
 
-      // Check if day matches
       const daysArray = schedule.days_of_week || [0, 1, 2, 3, 4, 5, 6];
       const isDayMatch = daysArray.includes(currentDay);
 
-      // Check if already run today
       const lastRun = schedule.last_run_at ? new Date(schedule.last_run_at) : null;
       const alreadyRunToday = lastRun && 
         lastRun.toDateString() === now.toDateString();
@@ -64,10 +59,83 @@ serve(async (req) => {
       console.log(`Schedule ${schedule.id}: time=${schedule.time_of_day}, timeMatch=${isTimeMatch}, dayMatch=${isDayMatch}, alreadyRun=${alreadyRunToday}`);
 
       if (isTimeMatch && isDayMatch && !alreadyRunToday) {
-        console.log(`Triggering check-in for elder: ${schedule.elders?.full_name}`);
+        const elder = schedule.elders;
+        const checkInMethod = elder?.check_in_method || "whatsapp";
+        
+        // Get subscription info
+        const profile = elder?.profiles;
+        const tier = profile?.subscription_tier || "basic";
+        const status = profile?.subscription_status || "trial";
+        const trialEndsAt = profile?.trial_ends_at ? new Date(profile.trial_ends_at) : null;
+        const isTrialActive = status === "trial" && trialEndsAt && trialEndsAt > now;
+        const canUseVoice = tier === "premium" || isTrialActive;
+
+        console.log(`Elder ${elder?.full_name}: method=${checkInMethod}, tier=${tier}, canUseVoice=${canUseVoice}`);
+
+        // Determine what type of check-in to run
+        let shouldRunVoice = false;
+        let shouldRunWhatsApp = false;
+
+        if (checkInMethod === "voice" && canUseVoice) {
+          shouldRunVoice = true;
+        } else if (checkInMethod === "whatsapp") {
+          shouldRunWhatsApp = true;
+        } else if (checkInMethod === "both") {
+          if (canUseVoice) {
+            shouldRunVoice = true;
+          }
+          shouldRunWhatsApp = true;
+        } else if (checkInMethod === "voice" && !canUseVoice) {
+          // User has voice selected but can't use it - fall back to WhatsApp if available
+          if (elder?.whatsapp_number) {
+            shouldRunWhatsApp = true;
+            console.log(`Falling back to WhatsApp for ${elder?.full_name} (voice requires Premium)`);
+          } else {
+            console.log(`Skipping check-in for ${elder?.full_name} - voice requires Premium and no WhatsApp configured`);
+          }
+        }
+
+        console.log(`Triggering check-in for elder: ${elder?.full_name}, voice=${shouldRunVoice}, whatsapp=${shouldRunWhatsApp}`);
 
         try {
-          // Call the simulate-checkin function to run a check-in
+          // Run voice call if applicable
+          if (shouldRunVoice) {
+            const voiceResponse = await fetch(`${supabaseUrl}/functions/v1/bolna-voice-call`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${supabaseServiceKey}`,
+              },
+              body: JSON.stringify({
+                elderId: schedule.elder_id,
+                elderName: elder?.full_name,
+                elderPhone: elder?.phone_number,
+                medicines: [],
+                medicalConditions: elder?.medical_conditions || [],
+                preferredLanguage: elder?.preferred_language || "english",
+              }),
+            });
+            const voiceResult = await voiceResponse.json();
+            console.log("Voice call result:", voiceResult);
+          }
+
+          // Run WhatsApp check-in if applicable
+          if (shouldRunWhatsApp && elder?.whatsapp_number) {
+            const whatsappResponse = await fetch(`${supabaseUrl}/functions/v1/send-whatsapp-checkin`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${supabaseServiceKey}`,
+              },
+              body: JSON.stringify({
+                elderId: schedule.elder_id,
+              }),
+            });
+            const whatsappResult = await whatsappResponse.json();
+            console.log("WhatsApp check-in result:", whatsappResult);
+          }
+
+          // Also run simulate-checkin for demo data
           const response = await fetch(`${supabaseUrl}/functions/v1/simulate-checkin`, {
             method: "POST",
             headers: {
@@ -91,16 +159,18 @@ serve(async (req) => {
           results.push({
             schedule_id: schedule.id,
             elder_id: schedule.elder_id,
-            elder_name: schedule.elders?.full_name,
+            elder_name: elder?.full_name,
             status: "completed",
+            check_in_method: checkInMethod,
+            voice_enabled: shouldRunVoice,
+            whatsapp_enabled: shouldRunWhatsApp,
             result,
           });
 
-          // Check if we need to send notifications based on check-in result
+          // Send notifications based on check-in result
           if (result.check_in) {
             const checkIn = result.check_in;
             
-            // Send alert notification if triggered
             if (checkIn.alert_triggered) {
               await fetch(`${supabaseUrl}/functions/v1/send-notification`, {
                 method: "POST",
@@ -120,7 +190,6 @@ serve(async (req) => {
               });
             }
 
-            // Send low wellbeing notification
             const { data: settings } = await supabase
               .from("notification_settings")
               .select("wellbeing_threshold")

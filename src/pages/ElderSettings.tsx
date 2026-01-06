@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Clock, Bell, Save, Loader2, Globe, Phone, MessageCircle } from "lucide-react";
+import { ArrowLeft, Clock, Bell, Save, Loader2, Globe, Phone, MessageCircle, Lock } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,8 +8,10 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
+import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSubscription } from "@/hooks/useSubscription";
 import { toast } from "@/hooks/use-toast";
 import Navbar from "@/components/Navbar";
 
@@ -27,13 +29,14 @@ const ElderSettings = () => {
   const { elderId } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { canUseVoice, tier, isTrialActive } = useSubscription();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [elderName, setElderName] = useState("");
 
   // Communication state
   const [preferredLanguage, setPreferredLanguage] = useState("english");
-  const [checkInMethod, setCheckInMethod] = useState("voice");
+  const [checkInMethod, setCheckInMethod] = useState("whatsapp");
   const [whatsappNumber, setWhatsappNumber] = useState("");
 
   // Schedule state
@@ -56,6 +59,13 @@ const ElderSettings = () => {
     }
   }, [user, elderId]);
 
+  // Auto-adjust check-in method if user doesn't have voice access
+  useEffect(() => {
+    if (!canUseVoice && (checkInMethod === "voice" || checkInMethod === "both")) {
+      setCheckInMethod("whatsapp");
+    }
+  }, [canUseVoice, checkInMethod]);
+
   const loadSettings = async () => {
     try {
       // Load elder info
@@ -68,7 +78,13 @@ const ElderSettings = () => {
       if (elder) {
         setElderName(elder.full_name);
         setPreferredLanguage(elder.preferred_language || "english");
-        setCheckInMethod(elder.check_in_method || "voice");
+        // Default to whatsapp if current method requires voice but user can't use it
+        const savedMethod = elder.check_in_method || "whatsapp";
+        if (!canUseVoice && (savedMethod === "voice" || savedMethod === "both")) {
+          setCheckInMethod("whatsapp");
+        } else {
+          setCheckInMethod(savedMethod);
+        }
         setWhatsappNumber(elder.whatsapp_number || "");
       }
 
@@ -142,7 +158,6 @@ const ElderSettings = () => {
         });
 
       if (scheduleError) {
-        // If upsert fails, try insert
         const { data: existing } = await supabase
           .from("check_in_schedules")
           .select("id")
@@ -271,7 +286,12 @@ const ElderSettings = () => {
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Elders
             </Button>
-            <h1 className="text-3xl font-bold">Settings for {elderName}</h1>
+            <div className="flex items-center gap-3">
+              <h1 className="text-3xl font-bold">Settings for {elderName}</h1>
+              <Badge variant={tier === "premium" ? "default" : "secondary"}>
+                {tier === "premium" ? "Premium" : "Basic"}
+              </Badge>
+            </div>
             <p className="text-muted-foreground mt-1">
               Configure check-in schedules and notifications
             </p>
@@ -287,7 +307,7 @@ const ElderSettings = () => {
                 <CardTitle>Communication Preferences</CardTitle>
               </div>
               <CardDescription>
-                Set the language for AI check-ins with {elderName}
+                Set the language and method for AI check-ins with {elderName}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -314,30 +334,64 @@ const ElderSettings = () => {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="voice">
-                      <div className="flex items-center gap-2">
-                        <Phone className="h-4 w-4" />
-                        <span>Voice Calls Only</span>
-                      </div>
-                    </SelectItem>
                     <SelectItem value="whatsapp">
                       <div className="flex items-center gap-2">
                         <MessageCircle className="h-4 w-4" />
                         <span>WhatsApp Only</span>
                       </div>
                     </SelectItem>
-                    <SelectItem value="both">
-                      <div className="flex items-center gap-2">
-                        <Phone className="h-4 w-4" />
-                        <MessageCircle className="h-4 w-4" />
-                        <span>Voice + WhatsApp</span>
-                      </div>
-                    </SelectItem>
+                    {canUseVoice ? (
+                      <>
+                        <SelectItem value="voice">
+                          <div className="flex items-center gap-2">
+                            <Phone className="h-4 w-4" />
+                            <span>Voice Calls Only</span>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="both">
+                          <div className="flex items-center gap-2">
+                            <Phone className="h-4 w-4" />
+                            <MessageCircle className="h-4 w-4" />
+                            <span>Voice + WhatsApp</span>
+                          </div>
+                        </SelectItem>
+                      </>
+                    ) : (
+                      <>
+                        <SelectItem value="voice" disabled>
+                          <div className="flex items-center gap-2 opacity-50">
+                            <Lock className="h-4 w-4" />
+                            <span>Voice Calls Only</span>
+                            <Badge variant="outline" className="ml-2 text-xs">Premium</Badge>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="both" disabled>
+                          <div className="flex items-center gap-2 opacity-50">
+                            <Lock className="h-4 w-4" />
+                            <span>Voice + WhatsApp</span>
+                            <Badge variant="outline" className="ml-2 text-xs">Premium</Badge>
+                          </div>
+                        </SelectItem>
+                      </>
+                    )}
                   </SelectContent>
                 </Select>
-                <p className="text-sm text-muted-foreground">
-                  Choose how the AI will check in with {elderName}
-                </p>
+                {!canUseVoice && (
+                  <div className="flex items-center gap-2 p-3 rounded-lg bg-muted">
+                    <Lock className="h-4 w-4 text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">
+                      Voice calls require a Premium plan.{" "}
+                      <Button variant="link" className="p-0 h-auto" onClick={() => navigate("/select-plan")}>
+                        Upgrade now
+                      </Button>
+                    </p>
+                  </div>
+                )}
+                {canUseVoice && (
+                  <p className="text-sm text-muted-foreground">
+                    Choose how the AI will check in with {elderName}
+                  </p>
+                )}
               </div>
 
               {/* WhatsApp Number - show when WhatsApp is enabled */}
@@ -480,7 +534,7 @@ const ElderSettings = () => {
                   <div>
                     <Label>Health Alerts</Label>
                     <p className="text-sm text-muted-foreground">
-                      When an alert is triggered during check-in
+                      When AI detects concerning health symptoms
                     </p>
                   </div>
                   <Switch
@@ -493,7 +547,7 @@ const ElderSettings = () => {
                   <div>
                     <Label>Low Well-being Score</Label>
                     <p className="text-sm text-muted-foreground">
-                      When well-being drops below threshold
+                      When well-being score drops below threshold
                     </p>
                   </div>
                   <Switch
@@ -504,16 +558,17 @@ const ElderSettings = () => {
 
                 {notifyOnLowWellbeing && (
                   <div className="space-y-2 pl-4 border-l-2">
-                    <Label>Well-being Threshold: {wellbeingThreshold}/10</Label>
+                    <Label>Well-being Threshold: {wellbeingThreshold}</Label>
                     <Slider
                       value={[wellbeingThreshold]}
-                      onValueChange={([v]) => setWellbeingThreshold(v)}
+                      onValueChange={(v) => setWellbeingThreshold(v[0])}
                       min={1}
                       max={10}
                       step={1}
+                      className="w-full max-w-xs"
                     />
                     <p className="text-sm text-muted-foreground">
-                      Notify when score is below {wellbeingThreshold}
+                      Alert when score falls below {wellbeingThreshold}/10
                     </p>
                   </div>
                 )}
@@ -534,9 +589,19 @@ const ElderSettings = () => {
             </CardContent>
           </Card>
 
+          {/* Save Button */}
           <div className="flex justify-end">
-            <Button onClick={saveSettings} disabled={saving} className="gap-2">
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            <Button
+              onClick={saveSettings}
+              disabled={saving}
+              size="lg"
+              className="gap-2"
+            >
+              {saving ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Save className="h-4 w-4" />
+              )}
               Save Settings
             </Button>
           </div>
