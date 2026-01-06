@@ -159,6 +159,15 @@ serve(async (req) => {
       });
     }
 
+    // Fetch caregiver info from notification_settings
+    const { data: notificationSettings } = await supabase
+      .from("notification_settings")
+      .select("caregiver_name, caregiver_phone, caregiver_relation")
+      .eq("elder_id", elderId)
+      .single();
+
+    const hasCaregiver = !!(notificationSettings?.caregiver_name && notificationSettings?.caregiver_phone);
+
     // Build user data with comprehensive context for the AI agent
     const isHindi = preferredLanguage === 'hindi';
     
@@ -172,25 +181,58 @@ serve(async (req) => {
       ? previousSymptoms.join(', ') 
       : 'No symptoms reported recently';
     
+    // Enhanced user_data with all variables for FAQs and guardrails
     const userData = {
+      // Core identification
       elder_id: elderId,
       elder_name: elderName,
       preferred_language: preferredLanguage,
-      medicines: medicineList,
-      medicine_details: medicineDetails,
+      
+      // Medicine context
+      medicines: medicineList || 'No medicines prescribed',
+      medicine_details: medicineDetails || 'No medicine details',
+      medicine_count: medicines?.length || 0,
+      
+      // Health context
       medical_conditions: conditionsList,
       previous_symptoms: symptomsList,
       recent_concerns: recentConcerns,
       average_wellbeing: averageWellbeing || 'No data',
-      total_previous_checkins: previousCheckIns?.length || 0,
+      
+      // Call metadata
       is_emergency: isEmergency,
+      check_in_type: isEmergency ? 'emergency_voice' : 'scheduled_voice',
+      total_previous_checkins: previousCheckIns?.length || 0,
+      
+      // Language-specific greetings
+      greeting_hindi: `नमस्ते ${elderName} जी, मैं Sentio हूं। आज आपकी तबीयत कैसी है?`,
+      greeting_english: `Hello ${elderName}, this is Sentio, your health check-in assistant. How are you feeling today?`,
       greeting: isHindi 
-        ? `नमस्ते ${elderName} जी, मैं Sentio AI से बोल रहा हूं। आज आपकी तबीयत कैसी है?`
-        : `Hello ${elderName}, this is your health check-in call from Sentio AI. How are you feeling today?`,
+        ? `नमस्ते ${elderName} जी, मैं Sentio हूं। आज आपकी तबीयत कैसी है?`
+        : `Hello ${elderName}, this is Sentio, your health check-in assistant. How are you feeling today?`,
+      
+      // Caregiver context
+      has_caregiver: hasCaregiver,
+      caregiver_name: notificationSettings?.caregiver_name || '',
+      caregiver_relation: notificationSettings?.caregiver_relation || '',
+      
+      // Agent instructions with guardrails context
       agent_instructions: isHindi
-        ? `इस बुजुर्ग का नाम ${elderName} है। इनकी दवाइयां हैं: ${medicineList}। कृपया नाम से संबोधित करें और दवाइयों के बारे में नाम से पूछें।${isEmergency ? ' यह एक आपातकालीन कॉल है।' : ''}`
-        : `This elder's name is ${elderName}. Their medicines are: ${medicineList}. Please address them by name and ask about their medicines by name.${isEmergency ? ' This is an EMERGENCY call - be extra attentive.' : ''}`,
-      check_in_type: isEmergency ? 'emergency_voice' : 'voice',
+        ? `इस बुजुर्ग का नाम ${elderName} है। इनकी दवाइयां हैं: ${medicineList || 'कोई नहीं'}। कृपया नाम से संबोधित करें। अधिकतम 3 प्रश्न पूछें। कॉल 60-120 सेकंड में समाप्त करें।${isEmergency ? ' यह एक आपातकालीन कॉल है - अतिरिक्त सतर्क रहें।' : ''}`
+        : `This elder's name is ${elderName}. Their medicines are: ${medicineList || 'None'}. Address them by name. Maximum 3 questions. Complete call in 60-120 seconds.${isEmergency ? ' This is an EMERGENCY call - be extra attentive.' : ''}`,
+      
+      // FAQ quick references
+      identity_response: isHindi
+        ? "मैं Sentio हूं, आपका स्वास्थ्य जांच सहायक। मैं आपकी तबीयत और दवाइयों पर नज़र रखने में मदद करता हूं।"
+        : "I'm Sentio, your health check-in assistant. I'm here to help track how you're feeling and your medicines.",
+      
+      call_purpose_response: isHindi
+        ? `मैं आपकी नियमित स्वास्थ्य जांच के लिए कॉल कर रहा हूं, ${elderName} जी, यह सुनिश्चित करने के लिए कि आप आज ठीक हैं।`
+        : `I'm calling for your regular health check-in, ${elderName}, to make sure you're doing okay today.`,
+      
+      privacy_response: isHindi
+        ? "मैं इस कॉल का उपयोग केवल आपकी देखभाल में मदद करने और ज़रूरत पड़ने पर आपके परिवार या डॉक्टर को अपडेट साझा करने के लिए करता हूं।"
+        : "I only use this call to help with your care and to share updates with your family or doctor if needed.",
     };
 
     console.log('Sending user_data to Bolna:', JSON.stringify(userData, null, 2));
