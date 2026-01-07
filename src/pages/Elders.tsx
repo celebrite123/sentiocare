@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Phone, Settings, User, BookHeart, Cog } from "lucide-react";
+import { Plus, Phone, Settings, User, BookHeart, Cog, Calendar } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -113,15 +113,17 @@ const Elders = () => {
   return (
     <>
       <Navbar />
-      <div className="min-h-screen bg-muted/30">
-        <div className="border-b bg-background">
+      <div className="min-h-screen bg-gradient-to-br from-background via-muted/20 to-background">
+        <div className="border-b bg-background/80 backdrop-blur-sm sticky top-0 z-10">
           <div className="container mx-auto px-4 py-6">
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-3xl font-bold">Elder Profiles</h1>
+                <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-primary/70">
+                  Elder Profiles
+                </h1>
                 <p className="text-muted-foreground mt-1">Manage the elders you care for</p>
               </div>
-              <Button onClick={() => navigate("/elders/add")} className="gap-2">
+              <Button onClick={() => navigate("/elders/add")} className="gap-2 shadow-lg hover:shadow-xl transition-all">
                 <Plus className="h-4 w-4" />
                 Add Elder
               </Button>
@@ -131,15 +133,17 @@ const Elders = () => {
 
         <div className="container mx-auto px-4 py-8">
           {elders.length === 0 ? (
-            <Card className="text-center py-12">
+            <Card className="text-center py-16 border-dashed border-2">
               <CardContent>
-                <User className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
-                <h3 className="text-xl font-semibold mb-2">No Elders Added Yet</h3>
-                <p className="text-muted-foreground mb-6">
-                  Add your first elder profile to start monitoring their health
+                <div className="w-20 h-20 mx-auto rounded-full bg-primary/10 flex items-center justify-center mb-6">
+                  <User className="h-10 w-10 text-primary" />
+                </div>
+                <h3 className="text-2xl font-semibold mb-2">No Elders Added Yet</h3>
+                <p className="text-muted-foreground mb-8 max-w-md mx-auto">
+                  Add your first elder profile to start monitoring their health with AI-powered check-ins
                 </p>
-                <Button onClick={() => navigate("/elders/add")} className="gap-2">
-                  <Plus className="h-4 w-4" />
+                <Button onClick={() => navigate("/elders/add")} size="lg" className="gap-2">
+                  <Plus className="h-5 w-5" />
                   Add Your First Elder
                 </Button>
               </CardContent>
@@ -147,38 +151,59 @@ const Elders = () => {
           ) : (
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
               {elders.map((elder) => (
-                <Card key={elder.id} className="hover:shadow-lg transition-shadow">
-                  <CardHeader>
+                <Card 
+                  key={elder.id} 
+                  className="group hover:shadow-xl transition-all duration-300 border-l-4 border-l-primary/50 hover:border-l-primary"
+                >
+                  <CardHeader className="pb-3">
                     <div className="flex items-start justify-between">
-                      <div>
-                        <CardTitle className="text-xl">{elder.full_name}</CardTitle>
-                        <CardDescription>
-                          {elder.age ? `${elder.age} years old` : "Age not specified"}
-                        </CardDescription>
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center">
+                          <span className="text-lg font-bold text-primary">
+                            {elder.full_name.charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                        <div>
+                          <CardTitle className="text-xl group-hover:text-primary transition-colors">
+                            {elder.full_name}
+                          </CardTitle>
+                          <CardDescription>
+                            {elder.age ? `${elder.age} years old` : "Age not specified"}
+                          </CardDescription>
+                        </div>
                       </div>
-                      <Badge variant={subscriptionBadge.variant}>{subscriptionBadge.text}</Badge>
+                      <Badge variant={subscriptionBadge.variant} className="shrink-0">
+                        {subscriptionBadge.text}
+                      </Badge>
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Phone</p>
-                      <p className="font-medium">{elder.phone_number}</p>
+                    <div className="flex items-center gap-2 text-sm">
+                      <Phone className="h-4 w-4 text-muted-foreground" />
+                      <span className="font-medium">{elder.phone_number}</span>
                     </div>
                     
                     {elder.medical_conditions && elder.medical_conditions.length > 0 && (
                       <div>
-                        <p className="text-sm text-muted-foreground mb-2">Medical Conditions</p>
-                        <div className="flex flex-wrap gap-2">
-                          {elder.medical_conditions.map((condition, idx) => (
+                        <p className="text-xs text-muted-foreground mb-2 uppercase tracking-wide">
+                          Medical Conditions
+                        </p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {elder.medical_conditions.slice(0, 3).map((condition, idx) => (
                             <Badge key={idx} variant="secondary" className="text-xs">
                               {condition}
                             </Badge>
                           ))}
+                          {elder.medical_conditions.length > 3 && (
+                            <Badge variant="outline" className="text-xs">
+                              +{elder.medical_conditions.length - 3} more
+                            </Badge>
+                          )}
                         </div>
                       </div>
                     )}
 
-                    <div className="flex gap-2 pt-4">
+                    <div className="flex gap-2 pt-4 border-t">
                       <Button
                         onClick={() => navigate(`/dashboard?elder=${elder.id}`)}
                         className="flex-1 gap-2"
@@ -191,22 +216,25 @@ const Elders = () => {
                         variant="outline"
                         size="icon"
                         title="Health Book"
+                        className="hover:bg-primary/10 hover:text-primary hover:border-primary"
                       >
                         <BookHeart className="h-4 w-4" />
                       </Button>
                       <Button
-                        onClick={() => navigate(`/elders/${elder.id}/medicines`)}
+                        onClick={() => navigate(`/elders/${elder.id}/settings`)}
                         variant="outline"
                         size="icon"
-                        title="Manage Medicines"
+                        title="Schedule & Settings"
+                        className="hover:bg-primary/10 hover:text-primary hover:border-primary"
                       >
-                        <Settings className="h-4 w-4" />
+                        <Calendar className="h-4 w-4" />
                       </Button>
                       <Button
                         onClick={() => navigate(`/elders/${elder.id}/edit`)}
                         variant="outline"
                         size="icon"
                         title="Edit Profile"
+                        className="hover:bg-primary/10 hover:text-primary hover:border-primary"
                       >
                         <Cog className="h-4 w-4" />
                       </Button>

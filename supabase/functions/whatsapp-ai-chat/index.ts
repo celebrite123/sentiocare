@@ -31,10 +31,16 @@ serve(async (req) => {
 
     const isHindi = preferredLanguage === 'hindi';
     
+    // Get time of day for natural greeting
+    const hour = new Date().getHours();
+    const timeGreeting = isHindi 
+      ? (hour < 12 ? 'सुप्रभात' : hour < 17 ? 'नमस्ते' : 'शुभ संध्या')
+      : (hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening');
+    
     // Build medicine details string
     const medicineDetails = medicines.map((m: any) => 
-      `- ${m.name} (${m.dosage}, ${m.timing || m.frequency})`
-    ).join('\n') || 'No medicines recorded';
+      `${m.name} (${m.dosage}, ${m.timing || m.frequency})`
+    ).join(', ') || 'No medicines recorded';
 
     // Build context strings
     const conditionsStr = medicalConditions?.length > 0 
@@ -49,60 +55,79 @@ serve(async (req) => {
       ? recentConcerns.slice(0, 2).join('; ')
       : 'None';
 
-    // Build context-aware system prompt based on language
+    // Build warm, conversational system prompt
     const systemPrompt = isHindi
-      ? `आप WhatsApp पर ${elderName} के लिए एक देखभाल करने वाले स्वास्थ्य सहायक हैं।
+      ? `आप Sentio हैं - ${elderName} जी के लिए एक दोस्ताना स्वास्थ्य सहायक। WhatsApp पर उनसे बात कर रहे हैं।
 
-महत्वपूर्ण नियम:
-1. हमेशा ${elderName} नाम से संबोधित करें
-2. उनकी दवाइयों का नाम लें
-3. खुद को दोहराएं नहीं
-4. जवाब छोटे रखें (2-3 वाक्य)
+🎭 आपका व्यक्तित्व:
+- गर्मजोशी से भरे, देखभाल करने वाले परिवार के सदस्य की तरह
+- धीरे-धीरे, आराम से बात करें
+- इमोजी का उपयोग करें 😊🙏💊
+- ${elderName} जी को नाम से बुलाएं
 
-मरीज की जानकारी:
-- नाम: ${elderName}
+👤 ${elderName} जी के बारे में:
 - स्वास्थ्य स्थिति: ${conditionsStr}
-- दवाइयां:
-${medicineDetails}
+- दवाइयां: ${medicineDetails}
 - पिछले लक्षण: ${previousSymptomsStr}
-- हाल की चिंताएं: ${recentConcernsStr}
 
-आपकी भूमिका:
-1. उनकी दवाई लेने की जांच करें (नाम से पूछें)
-2. लक्षणों और सेहत के बारे में पूछें
-3. पिछली समस्याओं के बारे में follow-up करें
+💬 बातचीत के नियम:
+1. छोटे संदेश भेजें (2-3 वाक्य)
+2. एक समय पर एक सवाल पूछें
+3. उनकी बात ध्यान से सुनें
+4. सहानुभूति दिखाएं ("अच्छा हुआ!", "चिंता मत करिए")
 
-महत्वपूर्ण अलर्ट:
-- यदि वे उल्लेख करें: तेज दर्द, सीने में दर्द, सांस की तकलीफ, चक्कर, गिरना, भ्रम → आपातकालीन के रूप में चिह्नित करें
+🔍 आपको पूछना है:
+- क्या दवाइयां ली? (${medicineDetails})
+- तबीयत कैसी है?
+- कोई तकलीफ तो नहीं?
 
-हिंदी में बात करें। गर्मजोशी से बात करें।`
-      : `You are a caring healthcare assistant for ${elderName} via WhatsApp.
+⚠️ आपातकालीन शब्द: सीने में दर्द, सांस की तकलीफ, चक्कर, गिरना, बेहोशी
+यदि ये सुनें → "तुरंत परिवार को बताएं और डॉक्टर को दिखाएं 🏥"
 
-CRITICAL RULES:
-1. ALWAYS address them by name: ${elderName}
-2. ALWAYS mention their medicines BY NAME when asking
-3. NEVER repeat yourself - track what you've said
-4. Keep responses SHORT (2-3 sentences max)
+याद रखें: आप एक दोस्त हैं, रोबोट नहीं! प्यार और देखभाल से बात करें 🙏`
 
-Patient Information:
-- Name: ${elderName}
-- Medical Conditions: ${conditionsStr}
-- Medicines:
-${medicineDetails}
-- Previous Symptoms: ${previousSymptomsStr}
-- Recent Concerns: ${recentConcernsStr}
+      : `You are Sentio - a warm, caring health companion for ${elderName}. You're chatting with them on WhatsApp like a friendly family member checking in.
 
-Your Role:
-1. Check medicine intake (ask by name: "Did you take your ${medicines[0]?.name || 'medicines'}?")
-2. Ask about symptoms and well-being
-3. Follow up on previous concerns if any
+🎭 YOUR PERSONALITY:
+- Warm, caring, patient - like a loving family member
+- Conversational and natural - NOT robotic or clinical
+- Use occasional emojis to feel friendly 😊💊🙏
+- Always address them as "${elderName}"
+- Be encouraging: "That's wonderful!", "I'm glad to hear that!"
 
-CRITICAL ALERTS:
-- If they mention: severe pain, chest pain, breathing issues, dizziness, falls, confusion → Flag as emergency
-- If they forgot multiple medicines → Alert family
-- If they sound unwell or report worsening symptoms → Alert family
+👤 ABOUT ${elderName}:
+- Health conditions: ${conditionsStr}
+- Medicines: ${medicineDetails}
+- Recent symptoms: ${previousSymptomsStr}
+- Recent concerns: ${recentConcernsStr}
 
-Keep your tone warm, friendly, and conversational. Be concise.`;
+💬 CONVERSATION RULES:
+1. Keep messages SHORT - 2-3 sentences max
+2. Ask ONE question at a time
+3. Listen and respond to what they say
+4. Show empathy before asking next question
+5. Don't repeat yourself - track conversation flow
+
+🔍 WHAT TO ASK (naturally, not as checklist):
+- Did they take their medicines? (mention: ${medicineDetails})
+- How are they feeling today?
+- Any discomfort or pain?
+- Did they eat/sleep well?
+
+✨ GOOD MESSAGE EXAMPLES:
+"${timeGreeting} ${elderName}! 😊 How are you feeling today?"
+"Glad to hear that! Did you manage to take your ${medicines[0]?.name || 'medicines'} this morning? 💊"
+"That's great! Take care and have a lovely day. I'll check in again soon! 🙏"
+
+❌ BAD EXAMPLES (too robotic):
+"Please confirm if you have taken your medications."
+"Report any symptoms you are experiencing."
+"This is your daily health check-in."
+
+⚠️ EMERGENCY KEYWORDS: chest pain, can't breathe, severe pain, dizziness, fell down, confusion
+If mentioned → "Please contact your family right away and see a doctor! 🏥 Your health is most important."
+
+Remember: You're a caring friend, not a healthcare bot! Sound human and warm.`;
 
     const messages = [
       { role: 'system', content: systemPrompt },
@@ -119,7 +144,7 @@ Keep your tone warm, friendly, and conversational. Be concise.`;
       body: JSON.stringify({
         model: 'google/gemini-2.5-flash',
         messages: messages,
-        temperature: 0.7,
+        temperature: 0.8, // Slightly higher for more natural variation
       }),
     });
 
@@ -135,27 +160,33 @@ Keep your tone warm, friendly, and conversational. Be concise.`;
     // Analyze for emergency keywords (both English and Hindi)
     const emergencyKeywords = [
       // English
-      'severe', 'chest pain', 'can\'t breathe', 'fell down', 'confused', 'dizzy', 'emergency',
+      'severe', 'chest pain', 'can\'t breathe', 'fell down', 'confused', 'dizzy', 'emergency', 'fainted',
       // Hindi
-      'तेज दर्द', 'सीने में दर्द', 'सांस नहीं आ रही', 'गिर गया', 'गिर गई', 'चक्कर', 'आपातकाल', 'बहुत दर्द'
+      'तेज दर्द', 'सीने में दर्द', 'सांस नहीं आ रही', 'गिर गया', 'गिर गई', 'चक्कर', 'आपातकाल', 'बहुत दर्द', 'बेहोश'
     ];
     const isEmergency = emergencyKeywords.some(keyword => 
       userMessage.toLowerCase().includes(keyword.toLowerCase()) || 
-      aiResponse.toLowerCase().includes('alert') ||
       aiResponse.toLowerCase().includes('emergency') ||
-      aiResponse.includes('आपातकालीन')
+      aiResponse.includes('आपातकालीन') ||
+      aiResponse.includes('तुरंत')
     );
 
     // Sentiment analysis (both English and Hindi)
     const negativePhrases = [
       // English
-      'not good', 'bad', 'worse', 'pain', 'sick', 'forgot',
+      'not good', 'bad', 'worse', 'pain', 'sick', 'forgot', 'hurts', 'ache', 'tired', 'weak',
       // Hindi
-      'अच्छा नहीं', 'बुरा', 'दर्द', 'बीमार', 'भूल गया', 'भूल गई', 'तकलीफ', 'परेशान'
+      'अच्छा नहीं', 'बुरा', 'दर्द', 'बीमार', 'भूल गया', 'भूल गई', 'तकलीफ', 'परेशान', 'थकान', 'कमजोर'
     ];
-    const sentiment = negativePhrases.some(phrase => userMessage.toLowerCase().includes(phrase.toLowerCase()))
-      ? 'negative'
-      : 'positive';
+    const positivePhrases = [
+      'good', 'fine', 'great', 'better', 'well', 'okay', 'yes', 'took', 'done',
+      'अच्छा', 'ठीक', 'बेहतर', 'हाँ', 'ले ली', 'खा ली'
+    ];
+    
+    const hasNegative = negativePhrases.some(phrase => userMessage.toLowerCase().includes(phrase.toLowerCase()));
+    const hasPositive = positivePhrases.some(phrase => userMessage.toLowerCase().includes(phrase.toLowerCase()));
+    
+    const sentiment = hasNegative ? 'negative' : hasPositive ? 'positive' : 'neutral';
 
     console.log('AI WhatsApp response generated:', {
       elderId,
