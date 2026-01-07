@@ -1,9 +1,9 @@
 project_id = "hcdwbpbvuvbrozttahfz"
 
-[functions.bolna-voice-call]
+[functions.vapi-voice-call]
 verify_jwt = true
 
-[functions.bolna-webhook]
+[functions.vapi-webhook]
 verify_jwt = false
 
 [functions.whatsapp-ai-chat]
