@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { Activity, Bell, Heart, Phone, Pill, Loader2, BookHeart, Lock, Sparkles, AlertTriangle, Clock } from "lucide-react";
+import { Activity, Bell, Heart, Phone, Pill, Loader2, BookHeart, Lock, Sparkles, AlertTriangle, Clock, Settings } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSubscription } from "@/hooks/useSubscription";
@@ -28,6 +28,7 @@ import CheckInLog from "@/components/dashboard/CheckInLog";
 import MedicineTracker from "@/components/dashboard/MedicineTracker";
 import AIInsights from "@/components/dashboard/AIInsights";
 import WhatsAppChat from "@/components/dashboard/WhatsAppChat";
+import AlertsPanel from "@/components/AlertsPanel";
 import { format, differenceInHours, differenceInMinutes } from "date-fns";
 
 interface Elder {
@@ -65,6 +66,7 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [calling, setCalling] = useState(false);
   const [cooldownRemaining, setCooldownRemaining] = useState<string | null>(null);
+  const [alertsOpen, setAlertsOpen] = useState(false);
 
   useEffect(() => {
     if (elderId) {
@@ -314,8 +316,12 @@ const Dashboard = () => {
   return (
     <>
       <Navbar />
-      <div className="min-h-screen bg-muted/30">
-        <DashboardHeader elderName={elder.full_name} />
+      <div className="min-h-screen bg-gradient-to-br from-background via-muted/20 to-background">
+        <DashboardHeader 
+          elderName={elder.full_name} 
+          alertCount={stats.alertCount}
+          onAlertsClick={() => setAlertsOpen(true)}
+        />
 
         <main className="container mx-auto px-4 py-8">
           {/* Trial Banner */}
@@ -436,6 +442,16 @@ const Dashboard = () => {
               <BookHeart className="h-5 w-5" />
               Health Book
             </Button>
+            
+            <Button
+              onClick={() => navigate(`/elders/${elderId}/settings`)}
+              variant="outline"
+              size="lg"
+              className="gap-2"
+            >
+              <Settings className="h-5 w-5" />
+              Settings
+            </Button>
           </div>
 
           {/* Stats Cards */}
@@ -480,26 +496,55 @@ const Dashboard = () => {
               </CardContent>
             </Card>
 
-            <Card className="border-secondary/20">
+            <Card className={`border-l-4 ${
+              stats.wellBeingScore && stats.wellBeingScore >= 7 
+                ? "border-l-accent" 
+                : stats.wellBeingScore && stats.wellBeingScore >= 4 
+                  ? "border-l-warning" 
+                  : stats.wellBeingScore 
+                    ? "border-l-destructive" 
+                    : "border-l-muted"
+            }`}>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Well-being Score</CardTitle>
-                <Heart className="h-4 w-4 text-secondary" />
+                <Heart className={`h-4 w-4 ${
+                  stats.wellBeingScore && stats.wellBeingScore >= 7 
+                    ? "text-accent" 
+                    : stats.wellBeingScore && stats.wellBeingScore >= 4 
+                      ? "text-warning" 
+                      : stats.wellBeingScore 
+                        ? "text-destructive" 
+                        : "text-muted-foreground"
+                }`} />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-secondary">
+                <div className={`text-2xl font-bold ${
+                  stats.wellBeingScore && stats.wellBeingScore >= 7 
+                    ? "text-accent" 
+                    : stats.wellBeingScore && stats.wellBeingScore >= 4 
+                      ? "text-warning" 
+                      : stats.wellBeingScore 
+                        ? "text-destructive" 
+                        : "text-muted-foreground"
+                }`}>
                   {stats.wellBeingScore ? `${stats.wellBeingScore}/10` : "N/A"}
                 </div>
                 <p className="text-xs text-muted-foreground">
                   {stats.wellBeingScore
                     ? stats.wellBeingScore >= 7
-                      ? "Feeling good"
-                      : "Needs attention"
+                      ? "Feeling great"
+                      : stats.wellBeingScore >= 4
+                        ? "Could be better"
+                        : "Needs attention"
                     : "No data yet"}
                 </p>
               </CardContent>
             </Card>
 
-            <Card className={stats.alertCount > 0 ? "border-destructive/40" : "border-muted"}>
+            <Card 
+              className={`cursor-pointer hover:shadow-md transition-shadow ${stats.alertCount > 0 ? "border-destructive/40" : "border-muted"}`}
+              onClick={() => setAlertsOpen(true)}
+            >
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Alerts</CardTitle>
                 <Bell
@@ -518,7 +563,7 @@ const Dashboard = () => {
                 </div>
                 <p className="text-xs text-muted-foreground">
                   {stats.alertCount > 0
-                    ? "Requires attention"
+                    ? "Click to view details"
                     : "No concerns detected"}
                 </p>
               </CardContent>
@@ -557,6 +602,9 @@ const Dashboard = () => {
           </Tabs>
         </main>
       </div>
+      
+      {/* Alerts Panel */}
+      <AlertsPanel open={alertsOpen} onOpenChange={setAlertsOpen} />
     </>
   );
 };

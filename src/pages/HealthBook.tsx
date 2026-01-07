@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Heart, Activity, Pill, TrendingUp, Plus, Calendar, Clock } from "lucide-react";
+import { ArrowLeft, Heart, Activity, Pill, TrendingUp, Plus, Calendar, Clock, Stethoscope } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -52,6 +52,7 @@ interface CheckIn {
   well_being_score: number | null;
   medicines_taken: boolean | null;
   sentiment: string | null;
+  symptoms_reported: string[] | null;
   created_at: string;
 }
 
@@ -333,9 +334,10 @@ const HealthBook = () => {
 
           {/* Main Content Tabs */}
           <Tabs defaultValue="overview" className="space-y-6">
-            <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:inline-flex">
+            <TabsList className="grid w-full grid-cols-5 lg:w-auto lg:inline-flex">
               <TabsTrigger value="overview">Overview</TabsTrigger>
               <TabsTrigger value="vitals">Vitals</TabsTrigger>
+              <TabsTrigger value="symptoms">Symptoms</TabsTrigger>
               <TabsTrigger value="medicines">Medicines</TabsTrigger>
               <TabsTrigger value="history">History</TabsTrigger>
             </TabsList>
@@ -743,6 +745,114 @@ const HealthBook = () => {
                       </div>
                     </div>
                   </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="symptoms" className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Stethoscope className="h-5 w-5 text-secondary" />
+                    Reported Symptoms
+                  </CardTitle>
+                  <CardDescription>Symptoms mentioned during check-in calls</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {(() => {
+                    const symptomsWithDates = checkIns
+                      .filter((c) => c.symptoms_reported && c.symptoms_reported.length > 0)
+                      .flatMap((c) =>
+                        (c.symptoms_reported || []).map((symptom) => ({
+                          symptom,
+                          date: c.created_at,
+                          checkInId: c.id,
+                        }))
+                      );
+
+                    const symptomGroups = symptomsWithDates.reduce((acc, item) => {
+                      if (!acc[item.symptom]) {
+                        acc[item.symptom] = [];
+                      }
+                      acc[item.symptom].push(item.date);
+                      return acc;
+                    }, {} as Record<string, string[]>);
+
+                    const uniqueSymptoms = Object.entries(symptomGroups).sort(
+                      (a, b) => b[1].length - a[1].length
+                    );
+
+                    if (uniqueSymptoms.length === 0) {
+                      return (
+                        <div className="text-center py-12 text-muted-foreground">
+                          <Stethoscope className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                          <p>No symptoms reported</p>
+                          <p className="text-sm mt-2">
+                            Symptoms mentioned during check-in calls will appear here
+                          </p>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="space-y-4">
+                        {/* Summary cards */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                          {uniqueSymptoms.slice(0, 6).map(([symptom, dates]) => (
+                            <div
+                              key={symptom}
+                              className="p-4 border rounded-lg bg-muted/30"
+                            >
+                              <div className="flex items-center justify-between mb-2">
+                                <h4 className="font-medium capitalize">{symptom}</h4>
+                                <Badge variant="secondary">
+                                  {dates.length}x
+                                </Badge>
+                              </div>
+                              <p className="text-xs text-muted-foreground">
+                                Last reported: {format(new Date(dates[0]), "MMM d, yyyy")}
+                              </p>
+                              {dates.length > 1 && (
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  First reported: {format(new Date(dates[dates.length - 1]), "MMM d, yyyy")}
+                                </p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Timeline */}
+                        <Card className="mt-6">
+                          <CardHeader>
+                            <CardTitle className="text-lg">Symptom Timeline</CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="space-y-4 max-h-[400px] overflow-y-auto">
+                              {symptomsWithDates
+                                .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                                .map((item, idx) => (
+                                  <div
+                                    key={`${item.checkInId}-${item.symptom}-${idx}`}
+                                    className="flex items-center gap-4 pb-4 border-b last:border-0"
+                                  >
+                                    <div className="flex-shrink-0 w-24 text-sm text-muted-foreground">
+                                      {format(new Date(item.date), "MMM d")}
+                                    </div>
+                                    <div className="flex-shrink-0 w-2 h-2 rounded-full bg-secondary" />
+                                    <div className="flex-1">
+                                      <span className="font-medium capitalize">{item.symptom}</span>
+                                    </div>
+                                    <div className="text-xs text-muted-foreground">
+                                      {format(new Date(item.date), "h:mm a")}
+                                    </div>
+                                  </div>
+                                ))}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </div>
+                    );
+                  })()}
                 </CardContent>
               </Card>
             </TabsContent>
