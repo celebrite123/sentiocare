@@ -98,9 +98,9 @@ serve(async (req) => {
         console.log(`Triggering check-in for elder: ${elder?.full_name}, voice=${shouldRunVoice}, whatsapp=${shouldRunWhatsApp}`);
 
         try {
-          // Run voice call if applicable (using Vapi)
+          // Run voice call if applicable (using Bolna)
           if (shouldRunVoice) {
-            const voiceResponse = await fetch(`${supabaseUrl}/functions/v1/vapi-voice-call`, {
+            const voiceResponse = await fetch(`${supabaseUrl}/functions/v1/bolna-voice-call`, {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
