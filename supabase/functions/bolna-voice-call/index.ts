@@ -258,8 +258,14 @@ serve(async (req) => {
 
     const callData = await bolnaResponse.json();
     
+    console.log('Bolna API full response:', JSON.stringify(callData));
+    
+    // Bolna returns execution_id, not call_id
+    const callId = callData.execution_id || callData.call_id || callData.id;
+    
     console.log('Voice call initiated successfully:', { 
-      callId: callData.call_id || callData.id,
+      callId,
+      execution_id: callData.execution_id,
       language: preferredLanguage,
       medicinesCount: medicines.length,
       previousCheckInsLoaded: previousCheckIns?.length || 0,
@@ -269,7 +275,8 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         success: true, 
-        callId: callData.call_id || callData.id,
+        callId,
+        execution_id: callData.execution_id,
         message: isEmergency ? 'Emergency voice call initiated' : 'Voice call initiated successfully',
         language: preferredLanguage,
         isEmergency,

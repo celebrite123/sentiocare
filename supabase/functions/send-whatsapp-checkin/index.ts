@@ -87,6 +87,12 @@ serve(async (req) => {
     const twilioAuthToken = Deno.env.get('TWILIO_AUTH_TOKEN')!;
     const twilioWhatsAppNumber = Deno.env.get('TWILIO_WHATSAPP_NUMBER')!;
 
+    console.log('Sending WhatsApp message:', {
+      from: twilioWhatsAppNumber,
+      to: whatsappNumber,
+      elderName: elder.full_name,
+    });
+
     const twilioResponse = await fetch(
       `https://api.twilio.com/2010-04-01/Accounts/${twilioAccountSid}/Messages.json`,
       {
@@ -103,14 +109,25 @@ serve(async (req) => {
       }
     );
 
+    const twilioData = await twilioResponse.json();
+    
+    console.log('Twilio full response:', JSON.stringify(twilioData));
+
     if (!twilioResponse.ok) {
-      const error = await twilioResponse.text();
-      console.error('Twilio error:', error);
-      throw new Error(`Failed to send WhatsApp message: ${error}`);
+      console.error('Twilio error details:', {
+        status: twilioResponse.status,
+        code: twilioData.code,
+        message: twilioData.message,
+        moreInfo: twilioData.more_info,
+      });
+      throw new Error(`Failed to send WhatsApp message: ${twilioData.message || twilioResponse.statusText}`);
     }
 
-    const twilioData = await twilioResponse.json();
-    console.log('WhatsApp check-in sent:', twilioData.sid);
+    console.log('WhatsApp check-in sent successfully:', {
+      sid: twilioData.sid,
+      status: twilioData.status,
+      to: twilioData.to,
+    });
 
     return new Response(
       JSON.stringify({ 
