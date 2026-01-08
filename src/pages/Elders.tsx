@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Phone, User, BookHeart, Cog, Calendar } from "lucide-react";
+import { Plus, User, BookHeart, Settings, Pencil, Activity } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -178,10 +178,9 @@ const Elders = () => {
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <div className="flex items-center gap-2 text-sm">
-                      <Phone className="h-4 w-4 text-muted-foreground" />
-                      <span className="font-medium">{elder.phone_number}</span>
-                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {elder.phone_number}
+                    </p>
                     
                     {elder.medical_conditions && elder.medical_conditions.length > 0 && (
                       <div>
@@ -203,41 +202,43 @@ const Elders = () => {
                       </div>
                     )}
 
-                    <div className="flex gap-2 pt-4 border-t">
+                    <div className="space-y-3 pt-4 border-t">
+                      {/* Primary action - View Dashboard */}
                       <Button
                         onClick={() => navigate(`/dashboard?elder=${elder.id}`)}
-                        className="flex-1 gap-2 bg-primary hover:bg-primary/90"
+                        className="w-full gap-2 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 h-11"
                       >
-                        <Phone className="h-4 w-4" />
-                        Dashboard
+                        <Activity className="h-5 w-5" />
+                        View Dashboard
                       </Button>
-                      <Button
-                        onClick={() => navigate(`/elders/${elder.id}/health-book`)}
-                        variant="outline"
-                        size="icon"
-                        title="Health Book"
-                        className="hover:bg-primary/10 hover:text-primary hover:border-primary"
-                      >
-                        <BookHeart className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        onClick={() => navigate(`/elders/${elder.id}/settings`)}
-                        variant="outline"
-                        size="icon"
-                        title="Schedule & Settings"
-                        className="hover:bg-secondary/10 hover:text-secondary hover:border-secondary"
-                      >
-                        <Calendar className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        onClick={() => navigate(`/elders/${elder.id}/edit`)}
-                        variant="outline"
-                        size="icon"
-                        title="Edit Profile"
-                        className="hover:bg-accent/10 hover:text-accent hover:border-accent"
-                      >
-                        <Cog className="h-4 w-4" />
-                      </Button>
+                      
+                      {/* Secondary actions */}
+                      <div className="grid grid-cols-3 gap-2">
+                        <Button
+                          onClick={() => navigate(`/elders/${elder.id}/health-book`)}
+                          variant="outline"
+                          className="flex flex-col items-center gap-1 h-auto py-3 hover:bg-primary/5 hover:border-primary/50"
+                        >
+                          <BookHeart className="h-5 w-5 text-primary" />
+                          <span className="text-xs font-medium">Health</span>
+                        </Button>
+                        <Button
+                          onClick={() => navigate(`/elders/${elder.id}/settings`)}
+                          variant="outline"
+                          className="flex flex-col items-center gap-1 h-auto py-3 hover:bg-secondary/5 hover:border-secondary/50"
+                        >
+                          <Settings className="h-5 w-5 text-secondary" />
+                          <span className="text-xs font-medium">Settings</span>
+                        </Button>
+                        <Button
+                          onClick={() => navigate(`/elders/${elder.id}/edit`)}
+                          variant="outline"
+                          className="flex flex-col items-center gap-1 h-auto py-3 hover:bg-muted"
+                        >
+                          <Pencil className="h-5 w-5 text-muted-foreground" />
+                          <span className="text-xs font-medium">Edit</span>
+                        </Button>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
