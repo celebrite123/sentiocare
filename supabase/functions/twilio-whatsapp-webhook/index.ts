@@ -1,14 +1,17 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+// Webhook endpoints don't need CORS headers as they're server-to-server
+// Only include minimal headers for response content type
+const responseHeaders = {
+  "Content-Type": "text/xml",
 };
 
 serve(async (req) => {
+  // Webhooks are server-to-server - no CORS preflight needed
+  // If we receive an OPTIONS request, just return 200
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { status: 200 });
   }
 
   try {
@@ -75,7 +78,7 @@ serve(async (req) => {
       console.log('Elder not found for number:', phoneNumber);
       return new Response(
         `<?xml version="1.0" encoding="UTF-8"?><Response></Response>`,
-        { headers: { ...corsHeaders, 'Content-Type': 'text/xml' } }
+        { headers: responseHeaders }
       );
     }
 
@@ -293,14 +296,14 @@ serve(async (req) => {
     // Return empty TwiML (we're sending via API, not reply)
     return new Response(
       `<?xml version="1.0" encoding="UTF-8"?><Response></Response>`,
-      { headers: { ...corsHeaders, 'Content-Type': 'text/xml' } }
+      { headers: responseHeaders }
     );
 
   } catch (error) {
     console.error('Error in WhatsApp webhook:', error);
     return new Response(
       `<?xml version="1.0" encoding="UTF-8"?><Response></Response>`,
-      { headers: { ...corsHeaders, 'Content-Type': 'text/xml' } }
+      { headers: responseHeaders }
     );
   }
 });

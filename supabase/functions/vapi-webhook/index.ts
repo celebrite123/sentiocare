@@ -1,15 +1,17 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+// Webhook endpoints don't need CORS headers as they're server-to-server
+// Only include minimal headers for response content type
+const responseHeaders = {
+  "Content-Type": "application/json",
 };
 
 serve(async (req) => {
-  // Handle CORS preflight requests
+  // Webhooks are server-to-server - no CORS preflight needed
+  // If we receive an OPTIONS request, just return 200
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { status: 200 });
   }
 
   try {
@@ -27,7 +29,7 @@ serve(async (req) => {
     if (messageType !== "end-of-call-report") {
       console.log(`Received event type: ${messageType}, ignoring...`);
       return new Response(JSON.stringify({ success: true, message: `Ignored event: ${messageType}` }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: responseHeaders,
       });
     }
 
@@ -51,7 +53,7 @@ serve(async (req) => {
         success: false, 
         message: "No elder ID found in webhook payload"
       }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: responseHeaders,
       });
     }
 
@@ -204,7 +206,7 @@ Respond ONLY in valid JSON format:
         error: checkInError.message 
       }), {
         status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: responseHeaders,
       });
     }
     
@@ -278,14 +280,14 @@ Respond ONLY in valid JSON format:
         callDuration,
         endedReason
       }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { headers: responseHeaders }
     );
   } catch (error: unknown) {
     console.error("Webhook error:", error);
     const message = error instanceof Error ? error.message : "Unknown error";
     return new Response(JSON.stringify({ error: message }), {
       status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: responseHeaders,
     });
   }
 });
