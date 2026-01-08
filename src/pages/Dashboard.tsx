@@ -267,63 +267,52 @@ const Dashboard = () => {
 
   if (!elderId) {
     return (
-      <>
-        <Navbar />
-        <div className="min-h-screen bg-muted/30 flex items-center justify-center">
-          <Card className="w-full max-w-md">
-            <CardContent className="pt-6 text-center">
-              <p className="text-muted-foreground">
-                Please select an elder from the Elders page
-              </p>
-              <Button className="mt-4" onClick={() => window.location.href = "/elders"}>
-                Go to Elders
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
-      </>
+      <div className="min-h-screen bg-muted/30 flex items-center justify-center px-4">
+        <Card className="w-full max-w-md">
+          <CardContent className="pt-6 text-center">
+            <p className="text-muted-foreground">
+              Please select an elder from the Elders page
+            </p>
+            <Button className="mt-4" onClick={() => window.location.href = "/elders"}>
+              Go to Elders
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 
   if (loading || subscriptionLoading) {
     return (
-      <>
-        <Navbar />
-        <div className="min-h-screen bg-muted/30 flex items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </div>
-      </>
+      <div className="min-h-screen bg-muted/30 flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
     );
   }
 
   if (!elder) {
     return (
-      <>
-        <Navbar />
-        <div className="min-h-screen bg-muted/30 flex items-center justify-center">
-          <Card className="w-full max-w-md">
-            <CardContent className="pt-6 text-center">
-              <p className="text-muted-foreground">Elder not found</p>
-            </CardContent>
-          </Card>
-        </div>
-      </>
+      <div className="min-h-screen bg-muted/30 flex items-center justify-center px-4">
+        <Card className="w-full max-w-md">
+          <CardContent className="pt-6 text-center">
+            <p className="text-muted-foreground">Elder not found</p>
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 
   const isOnCooldown = !!cooldownRemaining;
 
   return (
-    <>
-      <Navbar />
-      <div className="min-h-screen bg-gradient-to-br from-background via-muted/20 to-background">
-        <DashboardHeader 
-          elderName={elder.full_name} 
-          alertCount={stats.alertCount}
-          onAlertsClick={() => setAlertsOpen(true)}
-        />
+    <div className="min-h-screen bg-gradient-to-br from-background via-muted/20 to-background">
+      <DashboardHeader 
+        elderName={elder.full_name} 
+        alertCount={stats.alertCount}
+        onAlertsClick={() => setAlertsOpen(true)}
+      />
 
-        <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-4 py-6 sm:py-8">
           {/* Trial Banner */}
           {isTrialActive && (
             <div className="mb-6 p-4 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-between">
@@ -355,8 +344,8 @@ const Dashboard = () => {
             )}
           </div>
 
-          {/* Single Call Button with Dialog */}
-          <div className="mb-6 flex flex-wrap justify-center gap-4">
+          {/* Action Buttons */}
+          <div className="mb-6 flex flex-col sm:flex-row flex-wrap justify-center gap-3 sm:gap-4">
             {canUseVoice ? (
               <AlertDialog>
                 <AlertDialogTrigger asChild>
@@ -601,11 +590,10 @@ const Dashboard = () => {
             </TabsContent>
           </Tabs>
         </main>
+        
+        {/* Alerts Panel */}
+        <AlertsPanel open={alertsOpen} onOpenChange={setAlertsOpen} />
       </div>
-      
-      {/* Alerts Panel */}
-      <AlertsPanel open={alertsOpen} onOpenChange={setAlertsOpen} />
-    </>
   );
 };
 
