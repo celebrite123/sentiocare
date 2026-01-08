@@ -19,11 +19,39 @@ serve(async (req) => {
     console.log("Running scheduled check-ins processor...");
 
     const now = new Date();
-    const currentHour = now.getUTCHours();
-    const currentMinute = now.getUTCMinutes();
-    const currentDay = now.getUTCDay();
+    
+    // Convert current UTC time to IST (UTC+5:30)
+    const IST_OFFSET_HOURS = 5;
+    const IST_OFFSET_MINUTES = 30;
+    
+    // Calculate IST time
+    let istHours = now.getUTCHours() + IST_OFFSET_HOURS;
+    let istMinutes = now.getUTCMinutes() + IST_OFFSET_MINUTES;
+    
+    // Handle minute overflow
+    if (istMinutes >= 60) {
+      istMinutes -= 60;
+      istHours += 1;
+    }
+    
+    // Handle hour overflow (next day)
+    if (istHours >= 24) {
+      istHours -= 24;
+    }
+    
+    // For day calculation, we need to check if we crossed midnight
+    let istDay = now.getUTCDay();
+    const totalISTMinutes = (now.getUTCHours() + IST_OFFSET_HOURS) * 60 + now.getUTCMinutes() + IST_OFFSET_MINUTES;
+    if (totalISTMinutes >= 24 * 60) {
+      istDay = (istDay + 1) % 7;
+    }
+    
+    const currentHour = istHours;
+    const currentMinute = istMinutes;
+    const currentDay = istDay;
 
-    console.log(`Current UTC time: ${currentHour}:${currentMinute}, Day: ${currentDay}`);
+    console.log(`Current UTC time: ${now.getUTCHours()}:${now.getUTCMinutes()}`);
+    console.log(`Current IST time: ${currentHour}:${currentMinute}, Day: ${currentDay}`);
 
     // Find schedules that should run now
     const { data: schedules, error: schedulesError } = await supabase

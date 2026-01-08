@@ -36,7 +36,7 @@ const ElderSettings = () => {
 
   // Communication state
   const [preferredLanguage, setPreferredLanguage] = useState("english");
-  const [checkInMethod, setCheckInMethod] = useState("whatsapp");
+  // Check-in method is now auto-determined by subscription tier
   const [whatsappNumber, setWhatsappNumber] = useState("");
 
   // Schedule state
@@ -59,12 +59,7 @@ const ElderSettings = () => {
     }
   }, [user, elderId]);
 
-  // Auto-adjust check-in method if user doesn't have voice access
-  useEffect(() => {
-    if (!canUseVoice && (checkInMethod === "voice" || checkInMethod === "both")) {
-      setCheckInMethod("whatsapp");
-    }
-  }, [canUseVoice, checkInMethod]);
+  // Check-in method is auto-determined by subscription
 
   const loadSettings = async () => {
     try {
@@ -78,13 +73,6 @@ const ElderSettings = () => {
       if (elder) {
         setElderName(elder.full_name);
         setPreferredLanguage(elder.preferred_language || "english");
-        // Default to whatsapp if current method requires voice but user can't use it
-        const savedMethod = elder.check_in_method || "whatsapp";
-        if (!canUseVoice && (savedMethod === "voice" || savedMethod === "both")) {
-          setCheckInMethod("whatsapp");
-        } else {
-          setCheckInMethod(savedMethod);
-        }
         setWhatsappNumber(elder.whatsapp_number || "");
       }
 
@@ -133,12 +121,15 @@ const ElderSettings = () => {
   const saveSettings = async () => {
     setSaving(true);
     try {
+      // Determine check-in method based on subscription
+      const autoCheckInMethod = (isTrialActive || tier === "premium") ? "both" : "whatsapp";
+      
       // Update elder preferences
       await supabase
         .from("elders")
         .update({ 
           preferred_language: preferredLanguage, 
-          check_in_method: checkInMethod,
+          check_in_method: autoCheckInMethod,
           whatsapp_number: whatsappNumber || null
         })
         .eq("id", elderId);
@@ -288,8 +279,8 @@ const ElderSettings = () => {
             </Button>
             <div className="flex items-center gap-3">
               <h1 className="text-3xl font-bold">Settings for {elderName}</h1>
-              <Badge variant={tier === "premium" ? "default" : "secondary"}>
-                {tier === "premium" ? "Premium" : "Basic"}
+              <Badge variant={isTrialActive || tier === "premium" ? "default" : "secondary"}>
+                {isTrialActive ? "Premium Trial" : tier === "premium" ? "Premium" : "Basic"}
               </Badge>
             </div>
             <p className="text-muted-foreground mt-1">
@@ -327,97 +318,63 @@ const ElderSettings = () => {
                 </p>
               </div>
 
-              <div className="space-y-2">
-                <Label>Check-in Method</Label>
-                <Select value={checkInMethod} onValueChange={setCheckInMethod}>
-                  <SelectTrigger className="w-full md:w-[300px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="whatsapp">
-                      <div className="flex items-center gap-2">
-                        <MessageCircle className="h-4 w-4" />
-                        <span>WhatsApp Only</span>
-                      </div>
-                    </SelectItem>
-                    {canUseVoice ? (
-                      <>
-                        <SelectItem value="voice">
-                          <div className="flex items-center gap-2">
-                            <Phone className="h-4 w-4" />
-                            <span>Voice Calls Only</span>
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="both">
-                          <div className="flex items-center gap-2">
-                            <Phone className="h-4 w-4" />
-                            <MessageCircle className="h-4 w-4" />
-                            <span>Voice + WhatsApp</span>
-                          </div>
-                        </SelectItem>
-                      </>
-                    ) : (
-                      <>
-                        <SelectItem value="voice" disabled>
-                          <div className="flex items-center gap-2 opacity-50">
-                            <Lock className="h-4 w-4" />
-                            <span>Voice Calls Only</span>
-                            <Badge variant="outline" className="ml-2 text-xs">Premium</Badge>
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="both" disabled>
-                          <div className="flex items-center gap-2 opacity-50">
-                            <Lock className="h-4 w-4" />
-                            <span>Voice + WhatsApp</span>
-                            <Badge variant="outline" className="ml-2 text-xs">Premium</Badge>
-                          </div>
-                        </SelectItem>
-                      </>
-                    )}
-                  </SelectContent>
-                </Select>
-                {!canUseVoice && (
-                  <div className="flex items-center gap-2 p-3 rounded-lg bg-muted">
-                    <Lock className="h-4 w-4 text-muted-foreground" />
-                    <p className="text-sm text-muted-foreground">
-                      Voice calls require a Premium plan.{" "}
-                      <Button variant="link" className="p-0 h-auto" onClick={() => navigate("/select-plan")}>
-                        Upgrade now
-                      </Button>
-                    </p>
+              <div className="space-y-3">
+                <Label>Your Check-in Features</Label>
+                <p className="text-sm text-muted-foreground">
+                  Based on your {isTrialActive ? "Premium Trial" : tier === "premium" ? "Premium" : "Basic"} plan
+                </p>
+                {(isTrialActive || tier === "premium") ? (
+                  <div className="flex gap-3 flex-wrap">
+                    <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/10 text-primary">
+                      <Phone className="h-4 w-4" />
+                      <span className="text-sm font-medium">Voice Calls</span>
+                    </div>
+                    <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">
+                      <MessageCircle className="h-4 w-4" />
+                      <span className="text-sm font-medium">WhatsApp</span>
+                    </div>
                   </div>
-                )}
-                {canUseVoice && (
-                  <p className="text-sm text-muted-foreground">
-                    Choose how the AI will check in with {elderName}
-                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 w-fit">
+                      <MessageCircle className="h-4 w-4" />
+                      <span className="text-sm font-medium">WhatsApp</span>
+                    </div>
+                    <div className="flex items-center gap-2 p-3 rounded-lg bg-muted">
+                      <Lock className="h-4 w-4 text-muted-foreground" />
+                      <p className="text-sm text-muted-foreground">
+                        Voice calls require a Premium plan.{" "}
+                        <Button variant="link" className="p-0 h-auto" onClick={() => navigate("/select-plan")}>
+                          Upgrade now
+                        </Button>
+                      </p>
+                    </div>
+                  </div>
                 )}
               </div>
 
-              {/* WhatsApp Number - show when WhatsApp is enabled */}
-              {(checkInMethod === 'whatsapp' || checkInMethod === 'both') && (
-                <div className="space-y-2 p-4 border rounded-lg bg-green-50 dark:bg-green-950/20">
-                  <Label className="flex items-center gap-2">
-                    <MessageCircle className="h-4 w-4 text-green-600" />
-                    WhatsApp Number
-                  </Label>
-                  <Input
-                    type="tel"
-                    placeholder="+1234567890"
-                    value={whatsappNumber}
-                    onChange={(e) => setWhatsappNumber(e.target.value)}
-                    className="w-full md:w-[300px]"
-                  />
-                  <p className="text-sm text-muted-foreground">
-                    Include country code (e.g., +91 for India, +1 for US)
+              {/* WhatsApp Number - always show since all plans have WhatsApp */}
+              <div className="space-y-2 p-4 border rounded-lg bg-green-50 dark:bg-green-950/20">
+                <Label className="flex items-center gap-2">
+                  <MessageCircle className="h-4 w-4 text-green-600" />
+                  WhatsApp Number
+                </Label>
+                <Input
+                  type="tel"
+                  placeholder="+1234567890"
+                  value={whatsappNumber}
+                  onChange={(e) => setWhatsappNumber(e.target.value)}
+                  className="w-full md:w-[300px]"
+                />
+                <p className="text-sm text-muted-foreground">
+                  Include country code (e.g., +91 for India, +1 for US)
+                </p>
+                {!whatsappNumber && (
+                  <p className="text-sm text-amber-600 dark:text-amber-400">
+                    ⚠️ WhatsApp number is required for check-ins
                   </p>
-                  {!whatsappNumber && (
-                    <p className="text-sm text-amber-600 dark:text-amber-400">
-                      ⚠️ WhatsApp number is required for WhatsApp check-ins
-                    </p>
-                  )}
-                </div>
-              )}
+                )}
+              </div>
             </CardContent>
           </Card>
 
@@ -462,7 +419,7 @@ const ElderSettings = () => {
                   </div>
 
                   <div className="space-y-2">
-                    <Label>Time of Day (UTC)</Label>
+                    <Label>Time of Day (IST - India Standard Time)</Label>
                     <Input
                       type="time"
                       value={timeOfDay}
