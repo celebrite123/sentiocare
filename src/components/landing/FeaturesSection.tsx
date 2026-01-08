@@ -12,7 +12,7 @@ const features = [
     icon: MessageCircle,
     title: "WhatsApp Chat",
     description: "Familiar messaging interface for daily check-ins. Seniors respond at their own pace.",
-    color: "accent",
+    color: "whatsapp",
   },
   {
     icon: Bell,
@@ -49,6 +49,8 @@ const FeaturesSection = () => {
         return "bg-secondary/10 text-secondary group-hover:bg-secondary group-hover:text-secondary-foreground";
       case "accent":
         return "bg-accent/10 text-accent group-hover:bg-accent group-hover:text-accent-foreground";
+      case "whatsapp":
+        return "bg-whatsapp/10 text-whatsapp group-hover:bg-whatsapp group-hover:text-white";
       default:
         return "bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground";
     }

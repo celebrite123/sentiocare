@@ -8,8 +8,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { Heart, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
+import sentioLogo from "@/assets/sentio-logo.png";
 
 const Auth = () => {
   const navigate = useNavigate();
@@ -230,16 +231,17 @@ const Auth = () => {
 
   if (resetMode) {
     return (
-      <div className="min-h-screen bg-gradient-hero flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gradient-to-br from-secondary/10 via-primary/5 to-accent/10 flex items-center justify-center p-4">
         <div className="absolute inset-0 bg-background/95" />
         
         <div className="relative w-full max-w-md">
           <div className="text-center mb-8">
             <div className="inline-flex items-center gap-3 mb-4">
-              <div className="h-12 w-12 rounded-lg bg-gradient-primary flex items-center justify-center">
-                <Heart className="h-6 w-6 text-primary-foreground" />
-              </div>
-              <h1 className="text-3xl font-bold">Sentio AI</h1>
+              <img 
+                src={sentioLogo} 
+                alt="Sentio AI" 
+                className="h-16 w-auto"
+              />
             </div>
           </div>
 
@@ -266,7 +268,7 @@ const Auth = () => {
 
                 <Button
                   type="submit"
-                  className="w-full bg-gradient-primary"
+                  className="w-full bg-primary hover:bg-primary/90"
                   disabled={loading}
                 >
                   {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -290,16 +292,17 @@ const Auth = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-hero flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-secondary/10 via-primary/5 to-accent/10 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-background/95" />
       
       <div className="relative w-full max-w-md">
         <div className="text-center mb-8">
           <div className="inline-flex items-center gap-3 mb-4">
-            <div className="h-12 w-12 rounded-lg bg-gradient-primary flex items-center justify-center">
-              <Heart className="h-6 w-6 text-primary-foreground" />
-            </div>
-            <h1 className="text-3xl font-bold">Sentio AI</h1>
+            <img 
+              src={sentioLogo} 
+              alt="Sentio AI" 
+              className="h-16 w-auto"
+            />
           </div>
           <p className="text-muted-foreground">
             AI-powered care for your loved ones
@@ -402,7 +405,7 @@ const Auth = () => {
 
                   <Button
                     type="submit"
-                    className="w-full bg-gradient-primary"
+                    className="w-full bg-primary hover:bg-primary/90"
                     disabled={loading}
                   >
                     {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -488,7 +491,7 @@ const Auth = () => {
 
                   <Button
                     type="submit"
-                    className="w-full bg-gradient-primary"
+                    className="w-full bg-secondary hover:bg-secondary/90 text-secondary-foreground"
                     disabled={loading || !agreedToTerms}
                   >
                     {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -500,9 +503,9 @@ const Auth = () => {
           </CardContent>
         </Card>
 
-        <div className="text-center mt-4 text-sm text-muted-foreground">
-          <p>14-day free trial • No credit card required</p>
-        </div>
+        <p className="text-center text-sm text-muted-foreground mt-4">
+          By continuing, you agree to our Terms of Service and Privacy Policy
+        </p>
       </div>
     </div>
   );

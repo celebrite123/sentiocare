@@ -59,21 +59,21 @@ const PricingSection = () => {
               key={index}
               className={`relative p-8 bg-card border-2 transition-all duration-300 hover:shadow-xl ${
                 plan.popular 
-                  ? "border-primary shadow-lg scale-105" 
+                  ? "border-secondary shadow-lg shadow-secondary/10 scale-105" 
                   : "border-border hover:border-primary/30"
               }`}
             >
               {plan.popular && (
                 <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                  <span className="bg-primary text-primary-foreground text-xs font-medium px-4 py-1 rounded-full">
+                  <span className="bg-secondary text-secondary-foreground text-xs font-medium px-4 py-1 rounded-full">
                     Most Popular
                   </span>
                 </div>
               )}
 
               <div className="text-center mb-6">
-                <div className="mx-auto mb-4 p-3 rounded-full bg-primary/10 w-fit">
-                  <plan.icon className="h-6 w-6 text-primary" />
+                <div className={`mx-auto mb-4 p-3 rounded-full w-fit ${plan.popular ? 'bg-secondary/10' : 'bg-primary/10'}`}>
+                  <plan.icon className={`h-6 w-6 ${plan.popular ? 'text-secondary' : 'text-primary'}`} />
                 </div>
                 <h3 className="text-2xl font-semibold text-foreground mb-2">{plan.name}</h3>
                 <p className="text-muted-foreground text-sm mb-4">{plan.description}</p>
@@ -87,7 +87,7 @@ const PricingSection = () => {
               <ul className="space-y-3 mb-8">
                 {plan.features.map((feature, i) => (
                   <li key={i} className="flex items-start gap-3">
-                    <Check className="h-5 w-5 text-accent shrink-0 mt-0.5" />
+                    <Check className={`h-5 w-5 shrink-0 mt-0.5 ${plan.popular ? 'text-secondary' : 'text-primary'}`} />
                     <span className="text-sm text-muted-foreground">{feature}</span>
                   </li>
                 ))}
@@ -96,8 +96,8 @@ const PricingSection = () => {
               <Button
                 className={`w-full rounded-full py-6 text-base ${
                   plan.popular 
-                    ? "bg-primary hover:bg-primary/90 text-primary-foreground" 
-                    : "bg-muted hover:bg-muted/80 text-foreground"
+                    ? "bg-secondary hover:bg-secondary/90 text-secondary-foreground shadow-lg shadow-secondary/25" 
+                    : "bg-primary hover:bg-primary/90 text-primary-foreground"
                 }`}
                 onClick={() => navigate("/auth")}
               >

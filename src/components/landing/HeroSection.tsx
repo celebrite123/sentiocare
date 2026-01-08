@@ -11,15 +11,15 @@ const HeroSection = () => {
       {/* Subtle dot pattern background */}
       <div className="absolute inset-0 dot-pattern opacity-50" />
       
-      {/* Gradient orb - subtle */}
+      {/* Gradient orbs - using brand colors */}
       <div className="absolute top-20 right-1/4 w-[500px] h-[500px] bg-primary/5 rounded-full blur-3xl" />
-      <div className="absolute bottom-20 left-1/4 w-[400px] h-[400px] bg-secondary/5 rounded-full blur-3xl" />
+      <div className="absolute bottom-20 left-1/4 w-[400px] h-[400px] bg-secondary/10 rounded-full blur-3xl" />
       
       <div className="container mx-auto px-4 py-16 relative z-10">
         <div className="max-w-4xl mx-auto text-center space-y-6">
           {/* Badge */}
           <div className="animate-fade-in">
-            <Badge variant="secondary" className="bg-primary/10 text-primary border-0 px-4 py-1.5 text-sm font-medium">
+            <Badge variant="secondary" className="bg-secondary/10 text-secondary border-0 px-4 py-1.5 text-sm font-medium">
               Trusted by 500+ Indian Families
             </Badge>
           </div>
@@ -28,7 +28,7 @@ const HeroSection = () => {
           <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold tracking-tight animate-fade-in animation-delay-100">
             <span className="text-foreground">AI-Powered Care</span>
             <br />
-            <span className="bg-gradient-hero bg-clip-text text-transparent">
+            <span className="bg-gradient-to-r from-secondary via-primary to-accent bg-clip-text text-transparent">
               For Your Loved Ones
             </span>
           </h1>
@@ -52,10 +52,10 @@ const HeroSection = () => {
             <Button 
               size="lg" 
               variant="outline" 
-              className="text-base h-12 px-6 rounded-full group border-border hover:bg-muted"
+              className="text-base h-12 px-6 rounded-full group border-secondary/50 hover:bg-secondary/10 hover:border-secondary"
               onClick={() => document.getElementById('demo')?.scrollIntoView({ behavior: 'smooth' })}
             >
-              <Play className="mr-2 h-4 w-4" />
+              <Play className="mr-2 h-4 w-4 text-secondary" />
               Watch Demo
             </Button>
           </div>
@@ -63,8 +63,8 @@ const HeroSection = () => {
           {/* Trust indicators */}
           <div className="flex flex-wrap justify-center gap-8 pt-8 animate-fade-in animation-delay-400">
             <div className="flex items-center gap-2 text-muted-foreground">
-              <div className="w-8 h-8 rounded-full bg-accent/10 flex items-center justify-center">
-                <Shield className="h-4 w-4 text-accent" />
+              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                <Shield className="h-4 w-4 text-primary" />
               </div>
               <span className="text-sm font-medium">HIPAA Compliant</span>
             </div>
@@ -75,8 +75,8 @@ const HeroSection = () => {
               <span className="text-sm font-medium">50,000+ Check-ins</span>
             </div>
             <div className="flex items-center gap-2 text-muted-foreground">
-              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                <Phone className="h-4 w-4 text-primary" />
+              <div className="w-8 h-8 rounded-full bg-accent/10 flex items-center justify-center">
+                <Phone className="h-4 w-4 text-accent" />
               </div>
               <span className="text-sm font-medium">24/7 Support</span>
             </div>
@@ -85,8 +85,8 @@ const HeroSection = () => {
 
         {/* Scroll indicator */}
         <div className="absolute bottom-8 left-1/2 -translate-x-1/2 animate-scroll-hint">
-          <div className="w-6 h-10 border-2 border-muted-foreground/30 rounded-full flex justify-center pt-2">
-            <div className="w-1 h-2 bg-muted-foreground/50 rounded-full" />
+          <div className="w-6 h-10 border-2 border-primary/30 rounded-full flex justify-center pt-2">
+            <div className="w-1 h-2 bg-primary/50 rounded-full" />
           </div>
         </div>
       </div>

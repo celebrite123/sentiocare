@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Phone, Settings, User, BookHeart, Cog, Calendar } from "lucide-react";
+import { Plus, Phone, User, BookHeart, Cog, Calendar } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -114,16 +114,16 @@ const Elders = () => {
     <>
       <Navbar />
       <div className="min-h-screen bg-gradient-to-br from-background via-muted/20 to-background">
-        <div className="border-b bg-background/80 backdrop-blur-sm sticky top-0 z-10">
+        <div className="border-b bg-background/80 backdrop-blur-sm sticky top-16 z-10">
           <div className="container mx-auto px-4 py-6">
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-primary/70">
+                <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-accent">
                   Elder Profiles
                 </h1>
                 <p className="text-muted-foreground mt-1">Manage the elders you care for</p>
               </div>
-              <Button onClick={() => navigate("/elders/add")} className="gap-2 shadow-lg hover:shadow-xl transition-all">
+              <Button onClick={() => navigate("/elders/add")} className="gap-2 bg-secondary hover:bg-secondary/90 text-secondary-foreground shadow-lg hover:shadow-xl transition-all">
                 <Plus className="h-4 w-4" />
                 Add Elder
               </Button>
@@ -133,16 +133,16 @@ const Elders = () => {
 
         <div className="container mx-auto px-4 py-8">
           {elders.length === 0 ? (
-            <Card className="text-center py-16 border-dashed border-2">
+            <Card className="text-center py-16 border-dashed border-2 border-primary/30">
               <CardContent>
-                <div className="w-20 h-20 mx-auto rounded-full bg-primary/10 flex items-center justify-center mb-6">
+                <div className="w-20 h-20 mx-auto rounded-full bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center mb-6">
                   <User className="h-10 w-10 text-primary" />
                 </div>
                 <h3 className="text-2xl font-semibold mb-2">No Elders Added Yet</h3>
                 <p className="text-muted-foreground mb-8 max-w-md mx-auto">
                   Add your first elder profile to start monitoring their health with AI-powered check-ins
                 </p>
-                <Button onClick={() => navigate("/elders/add")} size="lg" className="gap-2">
+                <Button onClick={() => navigate("/elders/add")} size="lg" className="gap-2 bg-secondary hover:bg-secondary/90 text-secondary-foreground">
                   <Plus className="h-5 w-5" />
                   Add Your First Elder
                 </Button>
@@ -158,7 +158,7 @@ const Elders = () => {
                   <CardHeader className="pb-3">
                     <div className="flex items-start justify-between">
                       <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center">
+                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center">
                           <span className="text-lg font-bold text-primary">
                             {elder.full_name.charAt(0).toUpperCase()}
                           </span>
@@ -190,7 +190,7 @@ const Elders = () => {
                         </p>
                         <div className="flex flex-wrap gap-1.5">
                           {elder.medical_conditions.slice(0, 3).map((condition, idx) => (
-                            <Badge key={idx} variant="secondary" className="text-xs">
+                            <Badge key={idx} variant="secondary" className="text-xs bg-secondary/10 text-secondary">
                               {condition}
                             </Badge>
                           ))}
@@ -206,7 +206,7 @@ const Elders = () => {
                     <div className="flex gap-2 pt-4 border-t">
                       <Button
                         onClick={() => navigate(`/dashboard?elder=${elder.id}`)}
-                        className="flex-1 gap-2"
+                        className="flex-1 gap-2 bg-primary hover:bg-primary/90"
                       >
                         <Phone className="h-4 w-4" />
                         Dashboard
@@ -225,7 +225,7 @@ const Elders = () => {
                         variant="outline"
                         size="icon"
                         title="Schedule & Settings"
-                        className="hover:bg-primary/10 hover:text-primary hover:border-primary"
+                        className="hover:bg-secondary/10 hover:text-secondary hover:border-secondary"
                       >
                         <Calendar className="h-4 w-4" />
                       </Button>
@@ -234,7 +234,7 @@ const Elders = () => {
                         variant="outline"
                         size="icon"
                         title="Edit Profile"
-                        className="hover:bg-primary/10 hover:text-primary hover:border-primary"
+                        className="hover:bg-accent/10 hover:text-accent hover:border-accent"
                       >
                         <Cog className="h-4 w-4" />
                       </Button>

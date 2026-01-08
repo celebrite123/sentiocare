@@ -11,6 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import sentioLogo from "@/assets/sentio-logo.png";
 
 interface DashboardHeaderProps {
   elderName: string;
@@ -36,13 +37,11 @@ const DashboardHeader = ({ elderName, alertCount = 0, onAlertsClick }: Dashboard
               <ArrowLeft className="h-5 w-5" />
             </Button>
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shadow-lg shadow-primary/25">
-                <span className="text-xl font-bold text-primary-foreground">S</span>
-              </div>
-              <div>
-                <h1 className="text-xl font-bold text-foreground">Sentio AI</h1>
-                <p className="text-xs text-muted-foreground">Dashboard</p>
-              </div>
+              <img 
+                src={sentioLogo} 
+                alt="Sentio AI" 
+                className="h-10 w-auto"
+              />
             </div>
           </div>
 
@@ -71,7 +70,7 @@ const DashboardHeader = ({ elderName, alertCount = 0, onAlertsClick }: Dashboard
                   <Button variant="ghost" className="relative h-10 w-10 rounded-full ring-2 ring-primary/20 hover:ring-primary/40 transition-all">
                     <Avatar>
                       <AvatarImage src="" />
-                      <AvatarFallback className="bg-gradient-to-br from-primary to-primary/70 text-primary-foreground font-semibold">
+                      <AvatarFallback className="bg-gradient-to-br from-primary to-accent text-primary-foreground font-semibold">
                         {elderName.split(' ').map(n => n[0]).join('').slice(0, 2)}
                       </AvatarFallback>
                     </Avatar>

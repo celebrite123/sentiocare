@@ -2,40 +2,45 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Design System - Professional Elder Care Theme
-   Colors: Deep Slate + Indigo Primary + Rose Accent + Emerald Success
+/* Design System - Sentio AI Brand Colors
+   Primary: Teal (from caregiver figure) - Trust, calm, healthcare
+   Secondary: Warm Orange/Amber (from elder figure) - Warmth, care, energy
+   Foreground: Dark Slate Blue - Professionalism, stability
    All colors MUST be HSL.
 */
 
 @layer base {
   :root {
-    --background: 220 20% 98%;
-    --foreground: 222 47% 11%;
+    --background: 180 15% 98%;
+    --foreground: 200 25% 25%;
 
     --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
+    --card-foreground: 200 25% 25%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
+    --popover-foreground: 200 25% 25%;
 
-    --primary: 239 84% 67%;
+    /* Primary: Teal from logo */
+    --primary: 183 45% 42%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 347 77% 50%;
+    /* Secondary: Warm Orange/Amber from logo */
+    --secondary: 36 91% 55%;
     --secondary-foreground: 0 0% 100%;
 
-    --muted: 220 14% 96%;
-    --muted-foreground: 220 9% 46%;
+    --muted: 180 10% 96%;
+    --muted-foreground: 200 15% 46%;
 
-    --accent: 160 84% 39%;
+    /* Accent: Lighter Teal */
+    --accent: 183 40% 55%;
     --accent-foreground: 0 0% 100%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 220 13% 91%;
-    --input: 220 13% 91%;
-    --ring: 239 84% 67%;
+    --border: 180 10% 90%;
+    --input: 180 10% 90%;
+    --ring: 183 45% 42%;
 
     --radius: 0.75rem;
 
@@ -45,7 +50,7 @@
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 100%;
     
-    --info: 217 91% 60%;
+    --info: 183 45% 42%;
     --info-foreground: 0 0% 100%;
 
     /* WhatsApp colors */
@@ -53,67 +58,68 @@
     --whatsapp-light: 142 70% 95%;
     --whatsapp-bubble: 142 70% 90%;
 
-    --gradient-primary: linear-gradient(135deg, hsl(239 84% 67%), hsl(239 84% 57%));
-    --gradient-secondary: linear-gradient(135deg, hsl(347 77% 50%), hsl(347 77% 60%));
-    --gradient-hero: linear-gradient(135deg, hsl(239 84% 67%) 0%, hsl(280 70% 60%) 50%, hsl(347 77% 50%) 100%);
-    --gradient-subtle: linear-gradient(180deg, hsl(220 20% 98%) 0%, hsl(220 14% 96%) 100%);
+    /* Brand Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(183 45% 42%), hsl(183 45% 35%));
+    --gradient-secondary: linear-gradient(135deg, hsl(36 91% 55%), hsl(36 91% 65%));
+    --gradient-hero: linear-gradient(135deg, hsl(36 91% 55%) 0%, hsl(183 45% 42%) 100%);
+    --gradient-subtle: linear-gradient(180deg, hsl(180 15% 98%) 0%, hsl(180 10% 96%) 100%);
     
-    --shadow-sm: 0 1px 2px 0 hsl(222 47% 11% / 0.03);
-    --shadow-md: 0 4px 6px -1px hsl(222 47% 11% / 0.07);
-    --shadow-lg: 0 10px 15px -3px hsl(222 47% 11% / 0.08);
-    --shadow-xl: 0 20px 25px -5px hsl(222 47% 11% / 0.1);
+    --shadow-sm: 0 1px 2px 0 hsl(200 25% 25% / 0.03);
+    --shadow-md: 0 4px 6px -1px hsl(200 25% 25% / 0.07);
+    --shadow-lg: 0 10px 15px -3px hsl(200 25% 25% / 0.08);
+    --shadow-xl: 0 20px 25px -5px hsl(200 25% 25% / 0.1);
 
     --sidebar-background: 0 0% 100%;
-    --sidebar-foreground: 222 47% 20%;
-    --sidebar-primary: 239 84% 67%;
+    --sidebar-foreground: 200 25% 25%;
+    --sidebar-primary: 183 45% 42%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 220 14% 96%;
-    --sidebar-accent-foreground: 222 47% 20%;
-    --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 239 84% 67%;
+    --sidebar-accent: 180 10% 96%;
+    --sidebar-accent-foreground: 200 25% 25%;
+    --sidebar-border: 180 10% 90%;
+    --sidebar-ring: 183 45% 42%;
   }
 
   .dark {
-    --background: 222 47% 8%;
-    --foreground: 220 14% 96%;
+    --background: 200 25% 8%;
+    --foreground: 180 10% 96%;
 
-    --card: 222 47% 11%;
-    --card-foreground: 220 14% 96%;
+    --card: 200 25% 11%;
+    --card-foreground: 180 10% 96%;
 
-    --popover: 222 47% 11%;
-    --popover-foreground: 220 14% 96%;
+    --popover: 200 25% 11%;
+    --popover-foreground: 180 10% 96%;
 
-    --primary: 239 84% 67%;
+    --primary: 183 45% 50%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 347 77% 55%;
+    --secondary: 36 91% 60%;
     --secondary-foreground: 0 0% 100%;
 
-    --muted: 222 47% 15%;
-    --muted-foreground: 220 9% 60%;
+    --muted: 200 25% 15%;
+    --muted-foreground: 180 10% 60%;
 
-    --accent: 160 84% 45%;
+    --accent: 183 40% 55%;
     --accent-foreground: 0 0% 100%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 222 47% 18%;
-    --input: 222 47% 18%;
-    --ring: 239 84% 67%;
+    --border: 200 25% 18%;
+    --input: 200 25% 18%;
+    --ring: 183 45% 50%;
 
     --whatsapp: 142 70% 50%;
     --whatsapp-light: 142 70% 15%;
     --whatsapp-bubble: 142 70% 20%;
     
-    --sidebar-background: 222 47% 11%;
-    --sidebar-foreground: 220 14% 90%;
-    --sidebar-primary: 239 84% 67%;
+    --sidebar-background: 200 25% 11%;
+    --sidebar-foreground: 180 10% 90%;
+    --sidebar-primary: 183 45% 50%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 222 47% 15%;
-    --sidebar-accent-foreground: 220 14% 90%;
-    --sidebar-border: 222 47% 18%;
-    --sidebar-ring: 239 84% 67%;
+    --sidebar-accent: 200 25% 15%;
+    --sidebar-accent-foreground: 180 10% 90%;
+    --sidebar-border: 200 25% 18%;
+    --sidebar-ring: 183 45% 50%;
   }
 }
 

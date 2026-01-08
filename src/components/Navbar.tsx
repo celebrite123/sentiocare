@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Heart, Menu, X, Bell, LogOut, User, LayoutDashboard } from "lucide-react";
+import { Menu, X, Bell, LogOut, User, LayoutDashboard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -12,6 +12,7 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useAuth } from "@/contexts/AuthContext";
 import AlertsPanel from "./AlertsPanel";
+import sentioLogo from "@/assets/sentio-logo.png";
 
 const Navbar = () => {
   const navigate = useNavigate();
@@ -29,13 +30,14 @@ const Navbar = () => {
           <div className="flex h-16 items-center justify-between">
             {/* Logo */}
             <div
-              className="flex items-center gap-2 cursor-pointer"
+              className="flex items-center gap-3 cursor-pointer"
               onClick={() => navigate(user ? "/elders" : "/")}
             >
-              <div className="h-9 w-9 rounded-lg bg-primary flex items-center justify-center">
-                <Heart className="h-5 w-5 text-primary-foreground" />
-              </div>
-              <span className="text-xl font-bold text-foreground">Sentio AI</span>
+              <img 
+                src={sentioLogo} 
+                alt="Sentio AI" 
+                className="h-10 w-auto"
+              />
             </div>
 
             {/* Desktop Navigation */}
