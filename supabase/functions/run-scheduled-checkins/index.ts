@@ -128,6 +128,7 @@ serve(async (req) => {
         try {
           // Run voice call if applicable (using Bolna)
           if (shouldRunVoice) {
+            console.log(`Initiating voice call for ${elder?.full_name}...`);
             const voiceResponse = await fetch(`${supabaseUrl}/functions/v1/bolna-voice-call`, {
               method: "POST",
               headers: {
@@ -144,11 +145,18 @@ serve(async (req) => {
               }),
             });
             const voiceResult = await voiceResponse.json();
-            console.log("Voice call result:", voiceResult);
+            console.log("Voice call FULL result:", JSON.stringify(voiceResult));
+            
+            if (!voiceResult.success) {
+              console.error("Voice call failed:", voiceResult.error || voiceResult);
+            } else {
+              console.log(`Voice call initiated successfully. Execution ID: ${voiceResult.execution_id || voiceResult.callId}`);
+            }
           }
 
           // Run WhatsApp check-in if applicable
           if (shouldRunWhatsApp && elder?.whatsapp_number) {
+            console.log(`Initiating WhatsApp check-in for ${elder?.full_name}...`);
             const whatsappResponse = await fetch(`${supabaseUrl}/functions/v1/send-whatsapp-checkin`, {
               method: "POST",
               headers: {
@@ -160,7 +168,13 @@ serve(async (req) => {
               }),
             });
             const whatsappResult = await whatsappResponse.json();
-            console.log("WhatsApp check-in result:", whatsappResult);
+            console.log("WhatsApp check-in FULL result:", JSON.stringify(whatsappResult));
+            
+            if (!whatsappResult.success) {
+              console.error("WhatsApp check-in failed:", whatsappResult.error || whatsappResult);
+            } else {
+              console.log(`WhatsApp sent successfully. SID: ${whatsappResult.messageSid}`);
+            }
           }
 
           // Also run simulate-checkin for demo data
