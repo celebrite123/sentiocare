@@ -40,7 +40,7 @@ const DemoSection = () => {
   const [voiceIndex, setVoiceIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(true);
   const [audioEnabled, setAudioEnabled] = useState(false);
-  const [language, setLanguage] = useState<"english" | "hindi">("english");
+  const [language, setLanguage] = useState<"english" | "hindi">("hindi"); // Default to Hindi
   const speechRef = useRef<SpeechSynthesisUtterance | null>(null);
 
   const whatsappMessages = language === "hindi" ? whatsappMessagesHindi : whatsappMessagesEnglish;

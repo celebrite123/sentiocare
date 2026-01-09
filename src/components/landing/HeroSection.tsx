@@ -20,7 +20,7 @@ const HeroSection = () => {
           {/* Badge */}
           <div className="animate-fade-in">
             <Badge variant="secondary" className="bg-secondary/10 text-secondary border-0 px-4 py-1.5 text-sm font-medium">
-              Trusted by 500+ Indian Families
+              🇮🇳 Made in India • Trusted by 500+ Families
             </Badge>
           </div>
           
@@ -35,8 +35,8 @@ const HeroSection = () => {
           
           {/* Subheadline */}
           <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto animate-fade-in animation-delay-200 leading-relaxed">
-            Daily voice calls and WhatsApp check-ins for your elderly parents. 
-            Get instant alerts when something needs your attention.
+            Daily voice calls and WhatsApp check-ins for your elderly parents in <strong>Hindi & English</strong>. 
+            Get instant alerts when something needs your attention. Peace of mind, delivered daily.
           </p>
 
           {/* CTA Buttons */}

@@ -263,6 +263,36 @@ serve(async (req) => {
             description: alertReason,
             resolved: false,
           });
+          
+          // Notify caregiver for high-severity alerts
+          if (severity === "high" || severity === "critical") {
+            try {
+              console.log("Notifying caregiver for WhatsApp alert...");
+              const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+              const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+              
+              await fetch(`${supabaseUrl}/functions/v1/notify-caregiver`, {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  "Authorization": `Bearer ${supabaseServiceKey}`,
+                },
+                body: JSON.stringify({
+                  elderId: elder.id,
+                  alertType: "health",
+                  severity: severity,
+                  title: analysis.wellBeingScore <= 3 
+                    ? "Low Well-being via WhatsApp" 
+                    : "Health Concern via WhatsApp",
+                  description: alertReason,
+                  initiateCall: false,
+                }),
+              });
+              console.log("Caregiver notification sent");
+            } catch (notifyError) {
+              console.error("Error notifying caregiver:", notifyError);
+            }
+          }
         }
       }
     }
