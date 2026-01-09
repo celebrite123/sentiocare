@@ -1,5 +1,7 @@
 import { Card } from "@/components/ui/card";
 import { Phone, MessageCircle, Bell, Brain, Heart, Shield } from "lucide-react";
+import elderPhoneCall from "@/assets/elder-phone-call.png";
+import caregiverPeaceOfMind from "@/assets/caregiver-peace-of-mind.png";
 
 const features = [
   {
@@ -59,13 +61,34 @@ const FeaturesSection = () => {
   return (
     <section className="py-20 bg-muted/30">
       <div className="container mx-auto px-4">
-        <div className="text-center mb-16">
-          <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">
-            Everything You Need
-          </h2>
-          <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-            Comprehensive care features designed for Indian families
-          </p>
+        {/* Section Header with Illustration */}
+        <div className="grid lg:grid-cols-2 gap-12 items-center mb-16">
+          <div className="order-2 lg:order-1">
+            <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">
+              Everything You Need
+            </h2>
+            <p className="text-muted-foreground text-lg max-w-2xl">
+              Comprehensive care features designed for Indian families. Keep your parents safe and connected with technology they already know and love.
+            </p>
+          </div>
+          <div className="order-1 lg:order-2 flex justify-center lg:justify-end gap-4">
+            <div className="relative">
+              <div className="absolute inset-0 bg-primary/10 rounded-2xl blur-xl" />
+              <img 
+                src={elderPhoneCall} 
+                alt="Elder receiving care call"
+                className="relative w-48 h-48 object-cover rounded-2xl shadow-lg border border-primary/10"
+              />
+            </div>
+            <div className="relative mt-8">
+              <div className="absolute inset-0 bg-secondary/10 rounded-2xl blur-xl" />
+              <img 
+                src={caregiverPeaceOfMind} 
+                alt="Caregiver feeling at peace"
+                className="relative w-48 h-48 object-cover rounded-2xl shadow-lg border border-secondary/10"
+              />
+            </div>
+          </div>
         </div>
 
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
