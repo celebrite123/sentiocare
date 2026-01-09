@@ -13,6 +13,7 @@ import EditElder from "./pages/EditElder";
 import ManageMedicines from "./pages/ManageMedicines";
 import HealthBook from "./pages/HealthBook";
 import ElderSettings from "./pages/ElderSettings";
+import Profile from "./pages/Profile";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsOfService from "./pages/TermsOfService";
 import NotFound from "./pages/NotFound";
@@ -96,6 +97,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <ElderSettings />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/profile" 
+              element={
+                <ProtectedRoute>
+                  <Profile />
                 </ProtectedRoute>
               } 
             />
