@@ -53,11 +53,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const signOut = async () => {
     try {
-      await supabase.auth.signOut();
+      // Use scope: 'local' to ensure localStorage is cleared even if server call fails
+      await supabase.auth.signOut({ scope: 'local' });
     } catch (error) {
       console.error('Sign out error:', error);
+      // Manually clear Supabase auth storage if signOut fails
+      localStorage.removeItem('sb-hcdwbpbvuvbrozttahfz-auth-token');
     } finally {
-      // Always clear state and redirect, even if API call fails
       setUser(null);
       setSession(null);
       navigate("/auth");
