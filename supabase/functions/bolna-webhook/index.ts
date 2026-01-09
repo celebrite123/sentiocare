@@ -269,32 +269,76 @@ Respond ONLY in valid JSON format:
     
     console.log("Check-in saved successfully:", checkIn.id);
 
-    // If alert triggered, create alert record
+    // If alert triggered, create alert record and notify caregiver
     if (analysis.alertTriggered) {
       console.log("Creating alert for elder:", elderId, "Reason:", analysis.alertReason);
       
       // Determine severity based on the issue
       let severity = "medium";
-      if (analysis.wellBeingScore <= 2 || analysis.symptomsReported.length > 2) {
+      const isEmergency = (analysis as any).emergencyDetected || false;
+      const isMentalHealth = (analysis as any).mentalHealthConcern || false;
+      
+      if (isEmergency || isMentalHealth || analysis.wellBeingScore <= 2) {
+        severity = "critical";
+      } else if (analysis.wellBeingScore <= 3 || analysis.symptomsReported.length > 2) {
         severity = "high";
       }
       
       const { error: alertError } = await supabase.from("alerts").insert({
         elder_id: elderId,
-        title: analysis.wellBeingScore <= 3 
-          ? "Low Well-being Detected" 
-          : analysis.medicinesTaken === false 
-            ? "Medication Not Taken"
-            : "Health Concern Detected",
+        title: isEmergency 
+          ? "Emergency Detected"
+          : isMentalHealth
+            ? "Mental Health Concern"
+            : analysis.wellBeingScore <= 3 
+              ? "Low Well-being Detected" 
+              : analysis.medicinesTaken === false 
+                ? "Medication Not Taken"
+                : "Health Concern Detected",
         description: analysis.alertReason || "AI detected a potential health concern during the call",
         severity: severity,
-        alert_type: "health",
+        alert_type: isEmergency ? "emergency" : "health",
       });
 
       if (alertError) {
         console.error("Error creating alert:", alertError);
       } else {
-        console.log("Alert created successfully");
+        console.log("Alert created successfully with severity:", severity);
+        
+        // Notify caregiver for high/critical alerts
+        if (severity === "high" || severity === "critical") {
+          try {
+            console.log("Notifying caregiver for high-severity alert...");
+            const notifyResponse = await fetch(`${supabaseUrl}/functions/v1/notify-caregiver`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${supabaseKey}`,
+              },
+              body: JSON.stringify({
+                elderId: elderId,
+                alertType: isEmergency ? "emergency" : "health",
+                severity: severity,
+                title: isEmergency 
+                  ? "Emergency Detected During Check-in"
+                  : isMentalHealth
+                    ? "Mental Health Concern Detected"
+                    : "Health Alert During Check-in",
+                description: analysis.alertReason || "A health concern was detected during the voice check-in.",
+                initiateCall: severity === "critical", // Call caregiver for critical alerts
+              }),
+            });
+            
+            if (notifyResponse.ok) {
+              const notifyResult = await notifyResponse.json();
+              console.log("Caregiver notification result:", notifyResult);
+            } else {
+              console.error("Caregiver notification failed:", await notifyResponse.text());
+            }
+          } catch (notifyError) {
+            console.error("Error notifying caregiver:", notifyError);
+          }
+        }
       }
     }
 

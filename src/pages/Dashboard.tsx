@@ -31,7 +31,7 @@ import WhatsAppChat from "@/components/dashboard/WhatsAppChat";
 import AlertsPanel from "@/components/AlertsPanel";
 import { WellbeingTrendChart } from "@/components/dashboard/WellbeingTrendChart";
 import { MedicationAdherenceChart } from "@/components/dashboard/MedicationAdherenceChart";
-import { format, differenceInHours, differenceInMinutes } from "date-fns";
+import { format } from "date-fns";
 
 interface Elder {
   id: string;
@@ -41,6 +41,7 @@ interface Elder {
   check_in_method: string;
   last_manual_call_at: string | null;
   medicines: { id: string; name: string; dosage: string; timing: string }[];
+  preferred_language?: string;
 }
 
 interface DashboardStats {
@@ -50,7 +51,13 @@ interface DashboardStats {
   alertCount: number;
 }
 
-const CALL_COOLDOWN_HOURS = 4;
+interface EmergencyCallStatus {
+  used: number;
+  remaining: number;
+  resetsIn: number;
+}
+
+const MAX_EMERGENCY_CALLS_PER_MONTH = 5;
 
 const Dashboard = () => {
   const { user } = useAuth();
@@ -67,43 +74,58 @@ const Dashboard = () => {
   });
   const [loading, setLoading] = useState(true);
   const [calling, setCalling] = useState(false);
-  const [cooldownRemaining, setCooldownRemaining] = useState<string | null>(null);
+  const [emergencyCallStatus, setEmergencyCallStatus] = useState<EmergencyCallStatus>({
+    used: 0,
+    remaining: MAX_EMERGENCY_CALLS_PER_MONTH,
+    resetsIn: 30,
+  });
   const [alertsOpen, setAlertsOpen] = useState(false);
 
   useEffect(() => {
     if (elderId) {
       loadElderData();
       loadDashboardStats();
+      loadEmergencyCallStatus();
     }
   }, [elderId]);
 
-  // Update cooldown timer every minute
-  useEffect(() => {
-    if (!elder?.last_manual_call_at) {
-      setCooldownRemaining(null);
-      return;
-    }
-
-    const updateCooldown = () => {
-      const lastCallTime = new Date(elder.last_manual_call_at!);
-      const now = new Date();
-      const hoursSinceCall = differenceInHours(now, lastCallTime);
+  // Load emergency call status from profile
+  const loadEmergencyCallStatus = async () => {
+    if (!user) return;
+    
+    try {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("monthly_emergency_calls_used, emergency_calls_reset_at")
+        .eq("id", user.id)
+        .single();
       
-      if (hoursSinceCall >= CALL_COOLDOWN_HOURS) {
-        setCooldownRemaining(null);
-      } else {
-        const cooldownEnd = new Date(lastCallTime.getTime() + CALL_COOLDOWN_HOURS * 60 * 60 * 1000);
-        const minutesRemaining = differenceInMinutes(cooldownEnd, now);
-        const hours = Math.floor(minutesRemaining / 60);
-        const mins = minutesRemaining % 60;
-        setCooldownRemaining(`${hours}h ${mins}m`);
+      if (profile) {
+        const now = new Date();
+        const resetAt = profile.emergency_calls_reset_at ? new Date(profile.emergency_calls_reset_at) : null;
+        let used = profile.monthly_emergency_calls_used || 0;
+        
+        // Check if counter should reset (new month)
+        if (resetAt) {
+          const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+          if (resetAt < monthStart) {
+            used = 0;
+          }
+        }
+        
+        const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+        const daysUntilReset = Math.ceil((nextMonth.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+        
+        setEmergencyCallStatus({
+          used,
+          remaining: MAX_EMERGENCY_CALLS_PER_MONTH - used,
+          resetsIn: daysUntilReset,
+        });
       }
-    };
-
-    updateCooldown();
-    const interval = setInterval(updateCooldown, 60000);
-    return () => clearInterval(interval);
-  }, [elder?.last_manual_call_at]);
+    } catch (error) {
+      console.error("Error loading emergency call status:", error);
+    }
+  };
 
   useEffect(() => {
     if (!elderId) return;
@@ -203,7 +225,7 @@ const Dashboard = () => {
     }
   };
 
-  const initiateCall = async (isEmergency: boolean = false) => {
+  const initiateEmergencyCall = async () => {
     if (!elder) return;
 
     if (!canUseVoice) {
@@ -215,11 +237,10 @@ const Dashboard = () => {
       return;
     }
 
-    // Check cooldown (unless emergency)
-    if (!isEmergency && cooldownRemaining) {
+    if (emergencyCallStatus.remaining <= 0) {
       toast({
-        title: "Call Cooldown Active",
-        description: `Please wait ${cooldownRemaining} before calling again, or use Emergency Call.`,
+        title: "Emergency Call Limit Reached",
+        description: `You've used all ${MAX_EMERGENCY_CALLS_PER_MONTH} emergency calls this month. Limit resets in ${emergencyCallStatus.resetsIn} days.`,
         variant: "destructive",
       });
       return;
@@ -234,34 +255,43 @@ const Dashboard = () => {
           elderPhone: elder.phone_number,
           medicines: elder.medicines || [],
           medicalConditions: elder.medical_conditions || [],
-          isEmergency,
+          preferredLanguage: elder.preferred_language || "english",
+          isEmergency: true,
         },
       });
 
       if (error) throw error;
 
-      // Update last_manual_call_at
-      await supabase
-        .from("elders")
-        .update({ last_manual_call_at: new Date().toISOString() })
-        .eq("id", elder.id);
-
-      // Refresh elder data to get updated cooldown
-      loadElderData();
+      // Update local state
+      setEmergencyCallStatus(prev => ({
+        ...prev,
+        used: prev.used + 1,
+        remaining: prev.remaining - 1,
+      }));
 
       toast({
-        title: isEmergency ? "Emergency Call Initiated" : "Call Initiated",
-        description: `AI assistant is calling ${elder.full_name}...`,
+        title: "Emergency Call Initiated",
+        description: `AI assistant is calling ${elder.full_name}. ${data.remainingEmergencyCalls} emergency calls remaining this month.`,
       });
 
       setTimeout(loadDashboardStats, 5000);
     } catch (error: any) {
       console.error("Error initiating call:", error);
-      toast({
-        title: "Call Failed",
-        description: error.message || "Failed to initiate call",
-        variant: "destructive",
-      });
+      
+      // Handle specific error codes
+      if (error.message?.includes("EMERGENCY_LIMIT_REACHED")) {
+        toast({
+          title: "Emergency Call Limit Reached",
+          description: "You've used all emergency calls this month.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Call Failed",
+          description: error.message || "Failed to initiate call",
+          variant: "destructive",
+        });
+      }
     } finally {
       setCalling(false);
     }
@@ -304,7 +334,7 @@ const Dashboard = () => {
     );
   }
 
-  const isOnCooldown = !!cooldownRemaining;
+  const hasEmergencyCallsRemaining = emergencyCallStatus.remaining > 0;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-muted/20 to-background">
@@ -346,60 +376,57 @@ const Dashboard = () => {
             )}
           </div>
 
-          {/* Action Buttons */}
+          {/* Action Buttons - Emergency Only */}
           <div className="mb-6 flex flex-col sm:flex-row flex-wrap justify-center gap-3 sm:gap-4">
             {canUseVoice ? (
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button
                     size="lg"
-                    className="gap-2 bg-gradient-primary hover:opacity-90"
-                    disabled={calling}
+                    variant="destructive"
+                    className="gap-2"
+                    disabled={calling || !hasEmergencyCallsRemaining}
                   >
                     {calling ? (
                       <Loader2 className="h-5 w-5 animate-spin" />
-                    ) : isOnCooldown ? (
-                      <Clock className="h-5 w-5" />
                     ) : (
-                      <Phone className="h-5 w-5" />
+                      <AlertTriangle className="h-5 w-5" />
                     )}
-                    {calling ? "Calling..." : isOnCooldown ? `Call ${elder.full_name} (${cooldownRemaining})` : `Call ${elder.full_name}`}
+                    {calling ? "Calling..." : `Emergency Call (${emergencyCallStatus.remaining}/${MAX_EMERGENCY_CALLS_PER_MONTH})`}
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>Call {elder.full_name}</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      {isOnCooldown ? (
-                        <>
-                          <div className="flex items-center gap-2 mb-3 text-warning">
-                            <Clock className="h-4 w-4" />
-                            <span>Cooldown active: {cooldownRemaining} remaining</span>
-                          </div>
-                          <p>Regular calls are limited to once every {CALL_COOLDOWN_HOURS} hours. You can still make an emergency call if urgent.</p>
-                        </>
-                      ) : (
-                        <p>Our AI assistant will call {elder.full_name} to check on their health and medication adherence.</p>
-                      )}
+                    <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+                      <AlertTriangle className="h-5 w-5" />
+                      Emergency Call to {elder.full_name}
+                    </AlertDialogTitle>
+                    <AlertDialogDescription className="space-y-3">
+                      <p>
+                        This will immediately initiate an AI voice call to check on {elder.full_name}'s well-being.
+                      </p>
+                      <div className="bg-muted p-3 rounded-lg">
+                        <p className="font-medium text-foreground">Emergency Call Limits:</p>
+                        <p className="text-sm mt-1">
+                          <span className="font-semibold">{emergencyCallStatus.remaining}</span> of {MAX_EMERGENCY_CALLS_PER_MONTH} calls remaining this month
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Resets in {emergencyCallStatus.resetsIn} days
+                        </p>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        Use only for genuine emergencies when you cannot reach your loved one.
+                      </p>
                     </AlertDialogDescription>
                   </AlertDialogHeader>
-                  <AlertDialogFooter className="flex-col gap-2 sm:flex-row">
+                  <AlertDialogFooter>
                     <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    {!isOnCooldown && (
-                      <AlertDialogAction
-                        onClick={() => initiateCall(false)}
-                        className="bg-primary text-primary-foreground"
-                      >
-                        <Phone className="h-4 w-4 mr-2" />
-                        Call Now
-                      </AlertDialogAction>
-                    )}
                     <AlertDialogAction
-                      onClick={() => initiateCall(true)}
+                      onClick={initiateEmergencyCall}
                       className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                     >
-                      <AlertTriangle className="h-4 w-4 mr-2" />
-                      Emergency Call
+                      <Phone className="h-4 w-4 mr-2" />
+                      Confirm Emergency Call
                     </AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>
@@ -414,12 +441,12 @@ const Dashboard = () => {
                     onClick={() => navigate("/select-plan")}
                   >
                     <Lock className="h-5 w-5" />
-                    Voice Calls
+                    Emergency Calls
                     <Badge variant="secondary" className="ml-2">Premium</Badge>
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
-                  <p>Upgrade to Premium for AI voice calls</p>
+                  <p>Upgrade to Premium for emergency voice calls</p>
                 </TooltipContent>
               </Tooltip>
             )}

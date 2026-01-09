@@ -7,6 +7,7 @@ const corsHeaders = {
 };
 
 const CALL_COOLDOWN_HOURS = 4;
+const MAX_EMERGENCY_CALLS_PER_MONTH = 5;
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -54,36 +55,10 @@ serve(async (req) => {
       throw new Error("Elder not found");
     }
 
-    // Check cooldown (unless emergency)
-    if (!isEmergency && elder.last_manual_call_at) {
-      const lastCallTime = new Date(elder.last_manual_call_at);
-      const now = new Date();
-      const hoursSinceCall = (now.getTime() - lastCallTime.getTime()) / (1000 * 60 * 60);
-      
-      if (hoursSinceCall < CALL_COOLDOWN_HOURS) {
-        const remainingMinutes = Math.ceil((CALL_COOLDOWN_HOURS * 60) - (hoursSinceCall * 60));
-        const hours = Math.floor(remainingMinutes / 60);
-        const mins = remainingMinutes % 60;
-        
-        console.log("Call blocked - cooldown active", { hoursSinceCall, remainingMinutes });
-        return new Response(
-          JSON.stringify({ 
-            error: `Please wait ${hours}h ${mins}m before calling again. Use Emergency Call for urgent situations.`,
-            code: "COOLDOWN_ACTIVE",
-            remainingMinutes
-          }),
-          {
-            status: 429,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          }
-        );
-      }
-    }
-
-    // Get the family member's profile to check subscription
+    // Get the family member's profile to check subscription and emergency call limits
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
-      .select("subscription_tier, subscription_status, trial_ends_at")
+      .select("subscription_tier, subscription_status, trial_ends_at, monthly_emergency_calls_used, emergency_calls_reset_at")
       .eq("id", elder.family_member_id)
       .single();
 
@@ -111,6 +86,58 @@ serve(async (req) => {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         }
       );
+    }
+
+    // Check emergency call limits
+    if (isEmergency) {
+      let emergencyCallsUsed = profile?.monthly_emergency_calls_used || 0;
+      const resetAt = profile?.emergency_calls_reset_at ? new Date(profile.emergency_calls_reset_at) : null;
+      
+      // Reset counter if it's a new month
+      if (resetAt) {
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        if (resetAt < monthStart) {
+          emergencyCallsUsed = 0;
+          // Reset the counter in the database
+          await supabase
+            .from("profiles")
+            .update({ 
+              monthly_emergency_calls_used: 0, 
+              emergency_calls_reset_at: now.toISOString() 
+            })
+            .eq("id", elder.family_member_id);
+        }
+      }
+
+      if (emergencyCallsUsed >= MAX_EMERGENCY_CALLS_PER_MONTH) {
+        const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+        const daysUntilReset = Math.ceil((nextMonth.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+        
+        console.log("Emergency call limit reached:", { emergencyCallsUsed, daysUntilReset });
+        return new Response(
+          JSON.stringify({ 
+            error: `You've used all ${MAX_EMERGENCY_CALLS_PER_MONTH} emergency calls this month. Limit resets in ${daysUntilReset} days.`,
+            code: "EMERGENCY_LIMIT_REACHED",
+            remainingCalls: 0,
+            resetsIn: daysUntilReset
+          }),
+          {
+            status: 429,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          }
+        );
+      }
+
+      // Increment emergency call counter
+      await supabase
+        .from("profiles")
+        .update({ 
+          monthly_emergency_calls_used: emergencyCallsUsed + 1,
+          emergency_calls_reset_at: profile?.emergency_calls_reset_at || now.toISOString()
+        })
+        .eq("id", elder.family_member_id);
+
+      console.log("Emergency call count updated:", emergencyCallsUsed + 1);
     }
 
     console.log('Initiating Bolna voice call:', {
@@ -180,7 +207,6 @@ serve(async (req) => {
     const hasCaregiver = !!(notificationSettings?.caregiver_name && notificationSettings?.caregiver_phone);
 
     // Build user data with comprehensive context for the AI agent
-    // isHindi is already defined above when selecting the agent
     const medicineList = medicines.map((m: any) => m.name).join(', ');
     const medicineDetails = medicines.map((m: any) => 
       `${m.name} - ${m.dosage} (${m.timing})`
@@ -273,13 +299,19 @@ serve(async (req) => {
     // Bolna returns execution_id, not call_id
     const callId = callData.execution_id || callData.call_id || callData.id;
     
+    // Get remaining emergency calls
+    const remainingEmergencyCalls = isEmergency 
+      ? MAX_EMERGENCY_CALLS_PER_MONTH - ((profile?.monthly_emergency_calls_used || 0) + 1)
+      : MAX_EMERGENCY_CALLS_PER_MONTH - (profile?.monthly_emergency_calls_used || 0);
+    
     console.log('Voice call initiated successfully:', { 
       callId,
       execution_id: callData.execution_id,
       language: preferredLanguage,
       medicinesCount: medicines.length,
       previousCheckInsLoaded: previousCheckIns?.length || 0,
-      isEmergency
+      isEmergency,
+      remainingEmergencyCalls
     });
 
     return new Response(
@@ -290,6 +322,7 @@ serve(async (req) => {
         message: isEmergency ? 'Emergency voice call initiated' : 'Voice call initiated successfully',
         language: preferredLanguage,
         isEmergency,
+        remainingEmergencyCalls,
         contextLoaded: {
           medicines: medicines.length,
           previousCheckIns: previousCheckIns?.length || 0,

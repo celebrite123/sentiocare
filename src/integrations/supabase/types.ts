@@ -430,9 +430,13 @@ export type Database = {
       }
       profiles: {
         Row: {
+          api_calls_reset_at: string | null
           created_at: string | null
+          emergency_calls_reset_at: string | null
           full_name: string
           id: string
+          monthly_api_calls_used: number | null
+          monthly_emergency_calls_used: number | null
           phone_number: string | null
           privacy_accepted_at: string | null
           subscription_status: string | null
@@ -443,9 +447,13 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          api_calls_reset_at?: string | null
           created_at?: string | null
+          emergency_calls_reset_at?: string | null
           full_name: string
           id?: string
+          monthly_api_calls_used?: number | null
+          monthly_emergency_calls_used?: number | null
           phone_number?: string | null
           privacy_accepted_at?: string | null
           subscription_status?: string | null
@@ -456,9 +464,13 @@ export type Database = {
           user_id: string
         }
         Update: {
+          api_calls_reset_at?: string | null
           created_at?: string | null
+          emergency_calls_reset_at?: string | null
           full_name?: string
           id?: string
+          monthly_api_calls_used?: number | null
+          monthly_emergency_calls_used?: number | null
           phone_number?: string | null
           privacy_accepted_at?: string | null
           subscription_status?: string | null
