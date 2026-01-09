@@ -17,15 +17,26 @@ serve(async (req) => {
     const { elderId, elderName, elderPhone, medicines, medicalConditions, preferredLanguage = 'english', isEmergency = false } = await req.json();
     
     const BOLNA_API_KEY = Deno.env.get('BOLNA_API_KEY');
-    const BOLNA_AGENT_ID = Deno.env.get('BOLNA_AGENT_ID');
+    const BOLNA_AGENT_ID_ENGLISH = Deno.env.get('BOLNA_AGENT_ID');
+    const BOLNA_AGENT_ID_HINDI = Deno.env.get('BOLNA_AGENT_ID_HINDI');
     
     if (!BOLNA_API_KEY) {
       throw new Error('BOLNA_API_KEY not configured');
     }
     
+    // Select agent based on preferred language
+    const isHindi = preferredLanguage === 'hindi';
+    const BOLNA_AGENT_ID = isHindi ? BOLNA_AGENT_ID_HINDI : BOLNA_AGENT_ID_ENGLISH;
+    
     if (!BOLNA_AGENT_ID) {
-      throw new Error('BOLNA_AGENT_ID not configured');
+      throw new Error(`BOLNA_AGENT_ID${isHindi ? '_HINDI' : ''} not configured`);
     }
+    
+    console.log('Selected Bolna agent:', { 
+      language: preferredLanguage, 
+      agentType: isHindi ? 'Hindi' : 'English',
+      agentId: BOLNA_AGENT_ID.substring(0, 8) + '...'
+    });
 
     // Initialize Supabase client
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -169,8 +180,7 @@ serve(async (req) => {
     const hasCaregiver = !!(notificationSettings?.caregiver_name && notificationSettings?.caregiver_phone);
 
     // Build user data with comprehensive context for the AI agent
-    const isHindi = preferredLanguage === 'hindi';
-    
+    // isHindi is already defined above when selecting the agent
     const medicineList = medicines.map((m: any) => m.name).join(', ');
     const medicineDetails = medicines.map((m: any) => 
       `${m.name} - ${m.dosage} (${m.timing})`
