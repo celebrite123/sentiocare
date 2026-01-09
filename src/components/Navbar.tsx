@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Menu, X, Bell, LogOut, User, LayoutDashboard } from "lucide-react";
+import { Menu, X, Bell, LogOut, User, LayoutDashboard, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useAuth } from "@/contexts/AuthContext";
+import { useAdminRole } from "@/hooks/useAdminRole";
 import AlertsPanel from "./AlertsPanel";
 import sentioLogo from "@/assets/sentio-logo.png";
 
@@ -18,6 +19,7 @@ const Navbar = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, signOut } = useAuth();
+  const { isAdmin } = useAdminRole();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [alertsOpen, setAlertsOpen] = useState(false);
 
@@ -91,6 +93,12 @@ const Navbar = () => {
                         <LayoutDashboard className="h-4 w-4 mr-2" />
                         Dashboard
                       </DropdownMenuItem>
+                      {isAdmin && (
+                        <DropdownMenuItem onClick={() => navigate("/admin")}>
+                          <Shield className="h-4 w-4 mr-2" />
+                          Admin Center
+                        </DropdownMenuItem>
+                      )}
                       <DropdownMenuSeparator />
                       <DropdownMenuItem onClick={signOut} className="text-destructive">
                         <LogOut className="h-4 w-4 mr-2" />

@@ -1,5 +1,8 @@
 project_id = "hcdwbpbvuvbrozttahfz"
 
+[functions.admin-analytics]
+verify_jwt = false
+
 [functions.vapi-voice-call]
 verify_jwt = true
 
