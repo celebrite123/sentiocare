@@ -29,6 +29,8 @@ import MedicineTracker from "@/components/dashboard/MedicineTracker";
 import AIInsights from "@/components/dashboard/AIInsights";
 import WhatsAppChat from "@/components/dashboard/WhatsAppChat";
 import AlertsPanel from "@/components/AlertsPanel";
+import { WellbeingTrendChart } from "@/components/dashboard/WellbeingTrendChart";
+import { MedicationAdherenceChart } from "@/components/dashboard/MedicationAdherenceChart";
 import { format, differenceInHours, differenceInMinutes } from "date-fns";
 
 interface Elder {
@@ -576,9 +578,10 @@ const Dashboard = () => {
 
           {/* Tabs */}
           <Tabs defaultValue="checkins" className="space-y-6">
-            <TabsList className="grid w-full grid-cols-2 lg:w-[400px]">
+            <TabsList className="grid w-full grid-cols-3 lg:w-[600px]">
               <TabsTrigger value="checkins">Check-in History</TabsTrigger>
               <TabsTrigger value="medicines">Medicines</TabsTrigger>
+              <TabsTrigger value="analytics">Analytics</TabsTrigger>
             </TabsList>
 
             <TabsContent value="checkins">
@@ -587,6 +590,13 @@ const Dashboard = () => {
 
             <TabsContent value="medicines">
               <MedicineTracker elderId={elderId} />
+            </TabsContent>
+
+            <TabsContent value="analytics">
+              <div className="grid gap-6 md:grid-cols-2">
+                <WellbeingTrendChart elderId={elderId} />
+                <MedicationAdherenceChart elderId={elderId} />
+              </div>
             </TabsContent>
           </Tabs>
         </main>
