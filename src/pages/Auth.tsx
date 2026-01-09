@@ -25,15 +25,36 @@ const Auth = () => {
   const [agreedToTerms, setAgreedToTerms] = useState(false);
 
   useEffect(() => {
-    // Check if user is already logged in
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        checkAndRedirect(session.user.id);
+    const checkSession = async () => {
+      const { data: { session }, error } = await supabase.auth.getSession();
+      
+      // If there's an error or no session, ensure clean state
+      if (error || !session) {
+        return;
       }
-    });
+      
+      // Verify the session is actually valid by making a server request
+      // getUser() validates the token against the server, unlike getSession() which only reads localStorage
+      const { error: userError } = await supabase.auth.getUser();
+      if (userError) {
+        // Session is stale/invalid, clear it
+        console.log('Stale session detected, clearing...');
+        await supabase.auth.signOut({ scope: 'local' });
+        return;
+      }
+      
+      // Session is valid, redirect
+      checkAndRedirect(session.user.id);
+    };
+    
+    checkSession();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (session && (event === "SIGNED_IN" || event === "USER_UPDATED")) {
+      if (event === 'SIGNED_OUT') {
+        return;
+      }
+      
+      if (session && (event === "SIGNED_IN" || event === "USER_UPDATED" || event === "TOKEN_REFRESHED")) {
         checkAndRedirect(session.user.id);
       }
     });
