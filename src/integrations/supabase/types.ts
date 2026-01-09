@@ -187,6 +187,47 @@ export type Database = {
           },
         ]
       }
+      elder_access: {
+        Row: {
+          created_at: string | null
+          elder_id: string
+          id: string
+          invite_status: string | null
+          invited_email: string | null
+          role: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          elder_id: string
+          id?: string
+          invite_status?: string | null
+          invited_email?: string | null
+          role: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          elder_id?: string
+          id?: string
+          invite_status?: string | null
+          invited_email?: string | null
+          role?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "elder_access_elder_id_fkey"
+            columns: ["elder_id"]
+            isOneToOne: false
+            referencedRelation: "elders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       elders: {
         Row: {
           age: number | null
@@ -340,6 +381,7 @@ export type Database = {
           notify_on_missed_checkin: boolean | null
           notify_sms: boolean | null
           updated_at: string | null
+          weekly_summary_enabled: boolean | null
           wellbeing_threshold: number | null
         }
         Insert: {
@@ -356,6 +398,7 @@ export type Database = {
           notify_on_missed_checkin?: boolean | null
           notify_sms?: boolean | null
           updated_at?: string | null
+          weekly_summary_enabled?: boolean | null
           wellbeing_threshold?: number | null
         }
         Update: {
@@ -372,6 +415,7 @@ export type Database = {
           notify_on_missed_checkin?: boolean | null
           notify_sms?: boolean | null
           updated_at?: string | null
+          weekly_summary_enabled?: boolean | null
           wellbeing_threshold?: number | null
         }
         Relationships: [

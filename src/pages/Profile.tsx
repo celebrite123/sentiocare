@@ -39,6 +39,9 @@ const Profile = () => {
     canAddElder,
     loading: subscriptionLoading 
   } = useSubscription();
+  
+  // Dynamic pricing based on subscription tier
+  const additionalElderPrice = tier === "premium" || isTrialActive ? 999 : 299;
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
   const [upgradeDialogOpen, setUpgradeDialogOpen] = useState(false);
@@ -239,8 +242,8 @@ const Profile = () => {
                         <Card className="border-primary/50">
                           <CardContent className="pt-6">
                             <div className="text-center space-y-2">
-                              <p className="text-2xl font-bold">₹299<span className="text-sm font-normal text-muted-foreground">/month</span></p>
-                              <p className="text-sm text-muted-foreground">per additional elder</p>
+                              <p className="text-2xl font-bold">₹{additionalElderPrice}<span className="text-sm font-normal text-muted-foreground">/month</span></p>
+                              <p className="text-sm text-muted-foreground">per additional elder ({tier === "premium" || isTrialActive ? "Premium" : "Basic"} rate)</p>
                             </div>
                             <Separator className="my-4" />
                             <ul className="space-y-2 text-sm">

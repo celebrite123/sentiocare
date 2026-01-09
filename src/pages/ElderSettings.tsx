@@ -52,7 +52,7 @@ const ElderSettings = () => {
   const [notifyOnLowWellbeing, setNotifyOnLowWellbeing] = useState(true);
   const [wellbeingThreshold, setWellbeingThreshold] = useState(5);
   const [notifyOnMissedCheckin, setNotifyOnMissedCheckin] = useState(true);
-
+  const [weeklySummaryEnabled, setWeeklySummaryEnabled] = useState(true);
   useEffect(() => {
     if (user && elderId) {
       loadSettings();
