@@ -49,10 +49,22 @@ const DAYS_OF_WEEK = [
 const AddElder = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { tier, canUseVoice, isTrialActive } = useSubscription();
+  const { tier, canUseVoice, isTrialActive, canAddElder, elderCount, maxElders, loading: subscriptionLoading } = useSubscription();
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(1);
   const totalSteps = 6;
+
+  // Redirect if user already has max elders
+  useEffect(() => {
+    if (!subscriptionLoading && !canAddElder) {
+      toast({
+        title: "Elder Limit Reached",
+        description: `Your plan includes ${maxElders} elder. You already have ${elderCount} elder(s) registered.`,
+        variant: "destructive",
+      });
+      navigate("/elders");
+    }
+  }, [subscriptionLoading, canAddElder, elderCount, maxElders, navigate]);
 
   const [formData, setFormData] = useState({
     full_name: "",

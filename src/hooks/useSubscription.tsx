@@ -14,6 +14,9 @@ interface SubscriptionState {
   canUseWhatsApp: boolean;
   isTrialActive: boolean;
   trialDaysLeft: number;
+  elderCount: number;
+  maxElders: number;
+  canAddElder: boolean;
 }
 
 export const useSubscription = () => {
@@ -27,6 +30,9 @@ export const useSubscription = () => {
     canUseWhatsApp: true,
     isTrialActive: false,
     trialDaysLeft: 0,
+    elderCount: 0,
+    maxElders: 1,
+    canAddElder: true,
   });
 
   useEffect(() => {
@@ -41,7 +47,7 @@ export const useSubscription = () => {
     try {
       const { data: profile, error } = await supabase
         .from("profiles")
-        .select("subscription_tier, subscription_status, trial_ends_at")
+        .select("id, subscription_tier, subscription_status, trial_ends_at")
         .eq("user_id", user!.id)
         .single();
 
@@ -49,6 +55,16 @@ export const useSubscription = () => {
         console.error("Error loading subscription:", error);
         setState(prev => ({ ...prev, loading: false }));
         return;
+      }
+
+      // Count current elders
+      let elderCount = 0;
+      if (profile) {
+        const { count } = await supabase
+          .from("elders")
+          .select("*", { count: "exact", head: true })
+          .eq("family_member_id", profile.id);
+        elderCount = count || 0;
       }
 
       const tier = (profile?.subscription_tier as SubscriptionTier) || "basic";
@@ -67,6 +83,10 @@ export const useSubscription = () => {
       // After trial, features depend on tier
       const isPremiumOrTrial = tier === "premium" || isTrialActive;
       
+      // 1 elder per subscription
+      const maxElders = 1;
+      const canAddElder = elderCount < maxElders;
+      
       setState({
         tier,
         status,
@@ -76,6 +96,9 @@ export const useSubscription = () => {
         canUseWhatsApp: true, // All tiers get WhatsApp
         isTrialActive,
         trialDaysLeft,
+        elderCount,
+        maxElders,
+        canAddElder,
       });
     } catch (error) {
       console.error("Error loading subscription:", error);

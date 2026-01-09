@@ -23,13 +23,14 @@ interface Elder {
 const Elders = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { tier, isTrialActive } = useSubscription();
+  const { tier, isTrialActive, canAddElder, maxElders, refetch } = useSubscription();
   const [elders, setElders] = useState<Elder[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (user) {
       loadElders();
+      refetch(); // Refresh subscription state including elder count
     }
   }, [user]);
 
@@ -123,10 +124,21 @@ const Elders = () => {
                 </h1>
                 <p className="text-muted-foreground mt-1">Manage the elders you care for</p>
               </div>
-              <Button onClick={() => navigate("/elders/add")} className="gap-2 bg-secondary hover:bg-secondary/90 text-secondary-foreground shadow-lg hover:shadow-xl transition-all">
-                <Plus className="h-4 w-4" />
-                Add Elder
-              </Button>
+              <div className="flex items-center gap-3">
+                {!canAddElder && (
+                  <p className="text-sm text-muted-foreground hidden sm:block">
+                    Your plan includes {maxElders} elder
+                  </p>
+                )}
+                <Button 
+                  onClick={() => navigate("/elders/add")} 
+                  disabled={!canAddElder}
+                  className="gap-2 bg-secondary hover:bg-secondary/90 text-secondary-foreground shadow-lg hover:shadow-xl transition-all disabled:opacity-50"
+                >
+                  <Plus className="h-4 w-4" />
+                  {canAddElder ? "Add Elder" : "Limit Reached"}
+                </Button>
+              </div>
             </div>
           </div>
         </div>
@@ -142,7 +154,12 @@ const Elders = () => {
                 <p className="text-muted-foreground mb-8 max-w-md mx-auto">
                   Add your first elder profile to start monitoring their health with AI-powered check-ins
                 </p>
-                <Button onClick={() => navigate("/elders/add")} size="lg" className="gap-2 bg-secondary hover:bg-secondary/90 text-secondary-foreground">
+                <Button 
+                  onClick={() => navigate("/elders/add")} 
+                  size="lg" 
+                  disabled={!canAddElder}
+                  className="gap-2 bg-secondary hover:bg-secondary/90 text-secondary-foreground"
+                >
                   <Plus className="h-5 w-5" />
                   Add Your First Elder
                 </Button>
