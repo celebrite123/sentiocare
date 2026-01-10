@@ -87,6 +87,7 @@ serve(async (req) => {
       wellBeingScore: 7,
       medicinesTaken: true,
       symptomsReported: [] as string[],
+      resolvedSymptoms: [] as string[],
       alertTriggered: false,
       alertReason: null as string | null,
     };
@@ -95,7 +96,7 @@ serve(async (req) => {
       try {
         console.log("Analyzing transcript with AI...");
         
-        // Enhanced analysis prompt with emergency and mental health detection
+        // Enhanced analysis prompt with symptom resolution detection
         const analysisPrompt = `You are an AI health analyst for Sentio, an elder care check-in system. Analyze this call transcript carefully.
 
 EMERGENCY KEYWORDS TO CHECK (CRITICAL - requires immediate escalation):
@@ -114,6 +115,13 @@ Mental Health Concerns (CRITICAL - requires careful handling):
 - Abuse or fear of someone
 - Extreme loneliness or hopelessness
 
+SYMPTOM RESOLUTION DETECTION:
+Look for phrases indicating a symptom has been RESOLVED:
+Hindi phrases: "ठीक हो गया", "बिल्कुल ठीक", "अब नहीं है", "अब ठीक है", "दर्द नहीं है", "अब तकलीफ नहीं", "बेहतर है"
+English phrases: "better now", "resolved", "gone", "no more", "fine now", "cleared up", "not anymore", "healed"
+
+When the elder says something like "पीठ का दर्द बिल्कुल ठीक हो गया" (back pain is completely better), add "back pain" or "पीठ का दर्द" to resolvedSymptoms.
+
 ANALYSIS REQUIRED - Extract ALL of the following:
 
 1. sentiment: "positive" | "neutral" | "negative"
@@ -131,30 +139,35 @@ ANALYSIS REQUIRED - Extract ALL of the following:
    - true: Explicitly confirmed taking medicines
    - false: Said no, uncertain, didn't mention, or couldn't confirm
 
-4. symptomsReported: Array of symptoms mentioned
-   - Include any physical complaints, pain, discomfort
+4. symptomsReported: Array of NEW or ONGOING symptoms mentioned
+   - Include any physical complaints, pain, discomfort that is CURRENT
    - Include emotional symptoms like sadness, anxiety
+   - Do NOT include symptoms that the user said are resolved
 
-5. alertTriggered: true if ANY of these conditions:
+5. resolvedSymptoms: Array of symptoms the user said are NOW BETTER/RESOLVED
+   - Include any symptom the user explicitly said is "ठीक", "better", "gone", etc.
+   - This is CRITICAL for not asking about these issues in future calls
+
+6. alertTriggered: true if ANY of these conditions:
    - Any emergency keywords detected (physical or mental)
    - Well-being score is 3 or below
    - Medicines explicitly not taken
    - Negative sentiment with concerning content
    - Pain severity 7 or higher mentioned
 
-6. alertSeverity: "low" | "medium" | "high" | "critical"
+7. alertSeverity: "low" | "medium" | "high" | "critical"
    - critical: Emergency keywords, immediate danger
    - high: Low well-being (1-3), multiple symptoms, missed medicines
    - medium: Moderate concerns, negative sentiment
    - low: Minor issues, just noting for follow-up
 
-7. alertReason: Clear explanation if alert triggered, null otherwise
+8. alertReason: Clear explanation if alert triggered, null otherwise
 
-8. emergencyDetected: true if any life-threatening symptoms mentioned (chest pain, breathing, fainting, etc.)
+9. emergencyDetected: true if any life-threatening symptoms mentioned (chest pain, breathing, fainting, etc.)
 
-9. mentalHealthConcern: true if any self-harm, suicidal thoughts, or abuse mentioned
+10. mentalHealthConcern: true if any self-harm, suicidal thoughts, or abuse mentioned
 
-10. conversationQuality: "good" | "partial" | "poor"
+11. conversationQuality: "good" | "partial" | "poor"
     - good: Full conversation completed, all questions answered
     - partial: Some responses, incomplete
     - poor: Minimal or no meaningful exchange
@@ -165,6 +178,7 @@ Respond ONLY in valid JSON format:
   "wellBeingScore": 1-10,
   "medicinesTaken": true|false,
   "symptomsReported": ["symptom1", "symptom2"],
+  "resolvedSymptoms": ["symptom that is now better"],
   "alertTriggered": true|false,
   "alertSeverity": "low|medium|high|critical",
   "alertReason": "reason or null",
@@ -234,6 +248,44 @@ Respond ONLY in valid JSON format:
     // If Bolna provides its own analysis, merge it
     if (call_analysis) {
       console.log("Bolna call analysis:", call_analysis);
+    }
+
+    // SAVE RESOLVED SYMPTOMS to the resolved_symptoms table
+    // This ensures we don't ask about these issues in future calls
+    const resolvedSymptoms = (analysis as any).resolvedSymptoms || [];
+    if (resolvedSymptoms.length > 0) {
+      console.log("Saving resolved symptoms:", resolvedSymptoms);
+      
+      for (const symptom of resolvedSymptoms) {
+        // Check if this symptom is already marked as resolved
+        const { data: existing } = await supabase
+          .from("resolved_symptoms")
+          .select("id")
+          .eq("elder_id", elderId)
+          .ilike("symptom", `%${symptom}%`)
+          .limit(1);
+        
+        if (!existing || existing.length === 0) {
+          // Insert new resolved symptom
+          const { error: insertError } = await supabase
+            .from("resolved_symptoms")
+            .insert({
+              elder_id: elderId,
+              symptom: symptom,
+              reported_at: new Date().toISOString(),
+              resolved_at: new Date().toISOString(),
+              resolution_note: `Confirmed resolved during voice check-in on ${new Date().toLocaleDateString()}`,
+            });
+          
+          if (insertError) {
+            console.error("Error saving resolved symptom:", insertError);
+          } else {
+            console.log("Saved resolved symptom:", symptom);
+          }
+        } else {
+          console.log("Symptom already marked as resolved:", symptom);
+        }
+      }
     }
 
     // Save check-in to database with recording URL
@@ -370,6 +422,7 @@ Respond ONLY in valid JSON format:
         success: true, 
         checkInId: checkIn.id, 
         analysis,
+        resolvedSymptomsDetected: resolvedSymptoms.length,
         recordingUrl,
         callDuration 
       }),
