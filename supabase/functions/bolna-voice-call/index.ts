@@ -9,6 +9,71 @@ const corsHeaders = {
 const CALL_COOLDOWN_HOURS = 4;
 const MAX_EMERGENCY_CALLS_PER_MONTH = 5;
 
+// Helper to extract first name and create affectionate variations
+function getNameVariations(fullName: string, isHindi: boolean) {
+  const firstName = fullName.split(' ')[0];
+  return {
+    firstName,
+    shortName: firstName,
+    affectionateName: isHindi ? `${firstName} जी` : firstName,
+    fullName,
+  };
+}
+
+// Helper to build warm opening based on days since last call
+function getWarmOpening(daysSinceLastCall: number | null, firstName: string, isHindi: boolean) {
+  if (isHindi) {
+    if (daysSinceLastCall === 0) {
+      return `${firstName} जी, आज फिर बात हो रही है। कैसे हैं आप?`;
+    } else if (daysSinceLastCall === 1) {
+      return `${firstName} जी, कल बात हुई थी। आज कैसी तबीयत है?`;
+    } else if (daysSinceLastCall && daysSinceLastCall <= 3) {
+      return `${firstName} जी, ${daysSinceLastCall} दिन हो गए। आज कैसा महसूस हो रहा है?`;
+    } else if (daysSinceLastCall && daysSinceLastCall <= 7) {
+      return `${firstName} जी, कुछ दिन हो गए बात हुए। सब ठीक है ना?`;
+    }
+    return `नमस्ते ${firstName} जी! आज कैसी तबीयत है?`;
+  } else {
+    if (daysSinceLastCall === 0) {
+      return `${firstName}, good to talk again today. How are you?`;
+    } else if (daysSinceLastCall === 1) {
+      return `${firstName}, we spoke yesterday. How are you feeling today?`;
+    } else if (daysSinceLastCall && daysSinceLastCall <= 3) {
+      return `${firstName}, it's been ${daysSinceLastCall} days. How have you been?`;
+    } else if (daysSinceLastCall && daysSinceLastCall <= 7) {
+      return `${firstName}, it's been a few days. Everything okay?`;
+    }
+    return `Hello ${firstName}! How are you feeling today?`;
+  }
+}
+
+// Helper to build positive context from resolved symptoms
+function getResolvedContext(resolvedSymptoms: string[], isHindi: boolean) {
+  if (resolvedSymptoms.length === 0) return '';
+  
+  const symptoms = resolvedSymptoms.slice(0, 2).join(isHindi ? ' और ' : ' and ');
+  return isHindi
+    ? `अच्छी बात है कि आपकी ${symptoms} की तकलीफ ठीक हो गई।`
+    : `I'm glad your ${symptoms} has gotten better.`;
+}
+
+// Helper to get last check-in mood context
+function getLastMoodContext(lastCheckIn: any, isHindi: boolean) {
+  if (!lastCheckIn) return '';
+  
+  const wellbeing = lastCheckIn.well_being_score;
+  if (!wellbeing) return '';
+  
+  if (wellbeing >= 8) {
+    return isHindi ? 'पिछली बार आप बहुत अच्छा महसूस कर रहे थे।' : 'You were feeling great last time.';
+  } else if (wellbeing >= 6) {
+    return isHindi ? 'पिछली बार आप ठीक थे।' : 'You were doing okay last time.';
+  } else if (wellbeing >= 4) {
+    return isHindi ? 'पिछली बार थोड़ी तकलीफ थी।' : 'You had some discomfort last time.';
+  }
+  return isHindi ? 'पिछली बार आपने कुछ परेशानी बताई थी।' : 'You mentioned some issues last time.';
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -162,13 +227,36 @@ serve(async (req) => {
       console.error("Error fetching previous check-ins:", checkInsError);
     }
 
+    // Fetch resolved symptoms - these should NOT be asked about again
+    const { data: resolvedSymptomsData, error: resolvedError } = await supabase
+      .from("resolved_symptoms")
+      .select("symptom, resolved_at")
+      .eq("elder_id", elderId)
+      .order("resolved_at", { ascending: false })
+      .limit(10);
+
+    if (resolvedError) {
+      console.error("Error fetching resolved symptoms:", resolvedError);
+    }
+
+    const resolvedSymptomNames = resolvedSymptomsData?.map(s => s.symptom.toLowerCase()) || [];
+    console.log("Resolved symptoms to exclude:", resolvedSymptomNames);
+
     // Build context from previous check-ins
     let previousSymptoms: string[] = [];
     let recentConcerns = "";
     let averageWellbeing = 0;
     let checkInCount = 0;
+    let daysSinceLastCall: number | null = null;
     
     if (previousCheckIns && previousCheckIns.length > 0) {
+      // Calculate days since last call
+      const lastCheckInDate = previousCheckIns[0]?.created_at;
+      if (lastCheckInDate) {
+        const lastDate = new Date(lastCheckInDate);
+        daysSinceLastCall = Math.floor((now.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24));
+      }
+
       previousCheckIns.forEach(checkIn => {
         if (checkIn.symptoms_reported && checkIn.symptoms_reported.length > 0) {
           previousSymptoms = [...previousSymptoms, ...checkIn.symptoms_reported];
@@ -193,9 +281,17 @@ serve(async (req) => {
       console.log("Previous context loaded:", {
         symptomsCount: previousSymptoms.length,
         averageWellbeing,
-        hasRecentConcerns: !!recentConcerns
+        hasRecentConcerns: !!recentConcerns,
+        daysSinceLastCall
       });
     }
+
+    // Filter out resolved symptoms from active symptoms
+    const activeSymptoms = previousSymptoms.filter(
+      s => !resolvedSymptomNames.some(r => s.toLowerCase().includes(r) || r.includes(s.toLowerCase()))
+    );
+
+    console.log("Active symptoms (after filtering resolved):", activeSymptoms);
 
     // Fetch caregiver info from notification_settings
     const { data: notificationSettings } = await supabase
@@ -206,6 +302,18 @@ serve(async (req) => {
 
     const hasCaregiver = !!(notificationSettings?.caregiver_name && notificationSettings?.caregiver_phone);
 
+    // Get name variations for warm addressing
+    const nameVariations = getNameVariations(elderName, isHindi);
+    
+    // Build warm opening based on time since last call
+    const warmOpening = getWarmOpening(daysSinceLastCall, nameVariations.firstName, isHindi);
+    
+    // Build positive context from resolved symptoms
+    const resolvedContext = getResolvedContext(resolvedSymptomNames.slice(0, 3), isHindi);
+    
+    // Get last mood context
+    const lastMoodContext = getLastMoodContext(previousCheckIns?.[0], isHindi);
+
     // Build user data with comprehensive context for the AI agent
     const medicineList = medicines.map((m: any) => m.name).join(', ');
     const medicineDetails = medicines.map((m: any) => 
@@ -213,25 +321,44 @@ serve(async (req) => {
     ).join('; ');
     
     const conditionsList = (medicalConditions || []).join(', ') || 'None reported';
-    const symptomsList = previousSymptoms.length > 0 
-      ? previousSymptoms.join(', ') 
-      : 'No symptoms reported recently';
     
-    // Enhanced user_data with all variables for FAQs and guardrails
+    // Only include ACTIVE symptoms, not resolved ones
+    const activeSymptomsList = activeSymptoms.length > 0 
+      ? activeSymptoms.join(', ') 
+      : '';
+    
+    const resolvedSymptomsList = resolvedSymptomNames.length > 0
+      ? resolvedSymptomNames.join(', ')
+      : '';
+    
+    // Enhanced user_data with warm, contextual variables
     const userData = {
-      // Core identification
+      // Core identification - SHORT names for natural conversation
       elder_id: elderId,
-      elder_name: elderName,
+      elder_name: nameVariations.fullName,
+      first_name: nameVariations.firstName,
+      short_name: nameVariations.shortName,
+      affectionate_name: nameVariations.affectionateName,
       preferred_language: preferredLanguage,
+      
+      // Warm, personalized greeting (use this as the opening)
+      greeting: warmOpening,
+      warm_opening: warmOpening,
+      resolved_context: resolvedContext,
+      last_mood_context: lastMoodContext,
+      
+      // Days since last interaction for continuity
+      days_since_last_call: daysSinceLastCall,
       
       // Medicine context
       medicines: medicineList || 'No medicines prescribed',
       medicine_details: medicineDetails || 'No medicine details',
       medicine_count: medicines?.length || 0,
       
-      // Health context
+      // Health context - SEPARATED active vs resolved
       medical_conditions: conditionsList,
-      previous_symptoms: symptomsList,
+      active_symptoms: activeSymptomsList,  // ONLY these should be discussed
+      resolved_symptoms: resolvedSymptomsList,  // Do NOT ask about these
       recent_concerns: recentConcerns,
       average_wellbeing: averageWellbeing || 'No data',
       
@@ -240,35 +367,50 @@ serve(async (req) => {
       check_in_type: isEmergency ? 'emergency_voice' : 'scheduled_voice',
       total_previous_checkins: previousCheckIns?.length || 0,
       
-      // Language-specific greetings
-      greeting_hindi: `नमस्ते ${elderName} जी, मैं Sentio हूं। आज आपकी तबीयत कैसी है?`,
-      greeting_english: `Hello ${elderName}, this is Sentio, your health check-in assistant. How are you feeling today?`,
-      greeting: isHindi 
-        ? `नमस्ते ${elderName} जी, मैं Sentio हूं। आज आपकी तबीयत कैसी है?`
-        : `Hello ${elderName}, this is Sentio, your health check-in assistant. How are you feeling today?`,
-      
       // Caregiver context
       has_caregiver: hasCaregiver,
       caregiver_name: notificationSettings?.caregiver_name || '',
       caregiver_relation: notificationSettings?.caregiver_relation || '',
       
+      // CRITICAL: Warm communication rules for the agent
+      name_usage_rule: isHindi
+        ? `${nameVariations.firstName} जी को पूरी कॉल में केवल एक बार नाम से बुलाएं (greeting में)। बाद में "आप" या "आपको" का उपयोग करें।`
+        : `Use ${nameVariations.firstName} only ONCE at greeting. After that, use "you" instead of repeating the name.`,
+      
+      resolved_symptoms_rule: isHindi
+        ? `ये तकलीफें ठीक हो चुकी हैं: ${resolvedSymptomsList || 'कोई नहीं'}। इनके बारे में मत पूछें!`
+        : `These issues are RESOLVED: ${resolvedSymptomsList || 'None'}. Do NOT ask about them!`,
+      
+      active_symptoms_rule: isHindi
+        ? `ये वर्तमान तकलीफें हैं जिनके बारे में पूछ सकते हैं: ${activeSymptomsList || 'कोई खास नहीं'}`
+        : `These are CURRENT issues you may gently ask about: ${activeSymptomsList || 'None specific'}`,
+      
+      tone_instruction: isHindi
+        ? 'प्यार से बात करें जैसे परिवार का कोई सदस्य। छोटे वाक्य, गर्मजोशी।'
+        : 'Speak warmly like a caring family member. Short sentences, genuine warmth.',
+      
       // Agent instructions with guardrails context
       agent_instructions: isHindi
-        ? `इस बुजुर्ग का नाम ${elderName} है। इनकी दवाइयां हैं: ${medicineList || 'कोई नहीं'}। कृपया नाम से संबोधित करें। अधिकतम 3 प्रश्न पूछें। कॉल 60-120 सेकंड में समाप्त करें।${isEmergency ? ' यह एक आपातकालीन कॉल है - अतिरिक्त सतर्क रहें।' : ''}`
-        : `This elder's name is ${elderName}. Their medicines are: ${medicineList || 'None'}. Address them by name. Maximum 3 questions. Complete call in 60-120 seconds.${isEmergency ? ' This is an EMERGENCY call - be extra attentive.' : ''}`,
+        ? `इनका नाम ${nameVariations.firstName} जी है। प्यार से बात करें। नाम सिर्फ greeting में एक बार बोलें। जो तकलीफें ठीक हो गई हैं उनके बारे में मत पूछें। दवाइयां: ${medicineList || 'कोई नहीं'}। 2-3 सवाल, 60-90 सेकंड में कॉल खत्म करें।${isEmergency ? ' यह आपातकालीन कॉल है।' : ''}`
+        : `Their name is ${nameVariations.firstName}. Speak warmly. Use name ONLY ONCE at greeting. Don't ask about resolved issues. Medicines: ${medicineList || 'None'}. 2-3 questions, complete in 60-90 seconds.${isEmergency ? ' This is an EMERGENCY call.' : ''}`,
       
-      // FAQ quick references
+      // FAQ quick references (unchanged but with warm tone)
       identity_response: isHindi
-        ? "मैं Sentio हूं, आपका स्वास्थ्य जांच सहायक। मैं आपकी तबीयत और दवाइयों पर नज़र रखने में मदद करता हूं।"
-        : "I'm Sentio, your health check-in assistant. I'm here to help track how you're feeling and your medicines.",
+        ? "मैं Sentio हूं, आपके स्वास्थ्य का ख्याल रखने वाला। आपकी देखभाल करने वाले ने मुझे आपसे बात करने के लिए कहा है।"
+        : "I'm Sentio, here to check on how you're doing. Your family asked me to give you a call.",
       
       call_purpose_response: isHindi
-        ? `मैं आपकी नियमित स्वास्थ्य जांच के लिए कॉल कर रहा हूं, ${elderName} जी, यह सुनिश्चित करने के लिए कि आप आज ठीक हैं।`
-        : `I'm calling for your regular health check-in, ${elderName}, to make sure you're doing okay today.`,
+        ? `बस आपकी तबीयत जानने के लिए कॉल किया, ${nameVariations.firstName} जी। सब ठीक है ना?`
+        : `Just calling to check on you, ${nameVariations.firstName}. Making sure everything's okay.`,
       
       privacy_response: isHindi
-        ? "मैं इस कॉल का उपयोग केवल आपकी देखभाल में मदद करने और ज़रूरत पड़ने पर आपके परिवार या डॉक्टर को अपडेट साझा करने के लिए करता हूं।"
-        : "I only use this call to help with your care and to share updates with your family or doctor if needed.",
+        ? "जो आप बताएंगे वो सिर्फ आपके परिवार के साथ साझा होगा ताकि वो आपका ख्याल रख सकें।"
+        : "What you share stays with your family so they can make sure you're well cared for.",
+      
+      // Caring closing phrases
+      closing_phrase: isHindi
+        ? "अपना ख्याल रखिए। कोई भी परेशानी हो तो बताइएगा।"
+        : "Take care of yourself. Let us know if you need anything.",
     };
 
     console.log('Sending user_data to Bolna:', JSON.stringify(userData, null, 2));
@@ -310,6 +452,9 @@ serve(async (req) => {
       language: preferredLanguage,
       medicinesCount: medicines.length,
       previousCheckInsLoaded: previousCheckIns?.length || 0,
+      activeSymptoms: activeSymptoms.length,
+      resolvedSymptoms: resolvedSymptomNames.length,
+      daysSinceLastCall,
       isEmergency,
       remainingEmergencyCalls
     });
@@ -326,7 +471,9 @@ serve(async (req) => {
         contextLoaded: {
           medicines: medicines.length,
           previousCheckIns: previousCheckIns?.length || 0,
-          previousSymptoms: previousSymptoms.length
+          activeSymptoms: activeSymptoms.length,
+          resolvedSymptoms: resolvedSymptomNames.length,
+          daysSinceLastCall
         }
       }),
       {

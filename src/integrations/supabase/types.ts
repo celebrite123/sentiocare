@@ -482,6 +482,44 @@ export type Database = {
         }
         Relationships: []
       }
+      resolved_symptoms: {
+        Row: {
+          created_at: string
+          elder_id: string
+          id: string
+          reported_at: string
+          resolution_note: string | null
+          resolved_at: string
+          symptom: string
+        }
+        Insert: {
+          created_at?: string
+          elder_id: string
+          id?: string
+          reported_at?: string
+          resolution_note?: string | null
+          resolved_at?: string
+          symptom: string
+        }
+        Update: {
+          created_at?: string
+          elder_id?: string
+          id?: string
+          reported_at?: string
+          resolution_note?: string | null
+          resolved_at?: string
+          symptom?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resolved_symptoms_elder_id_fkey"
+            columns: ["elder_id"]
+            isOneToOne: false
+            referencedRelation: "elders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string | null
