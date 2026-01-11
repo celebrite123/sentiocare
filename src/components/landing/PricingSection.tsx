@@ -21,7 +21,7 @@ const plans = [
   },
   {
     name: "Premium",
-    price: "₹999",
+    price: "₹699",
     period: "/month",
     description: "Complete care with voice + WhatsApp",
     icon: Phone,

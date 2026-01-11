@@ -90,7 +90,7 @@ const TermsOfService = () => {
             <ul className="list-disc pl-6 space-y-2">
               <li>Free trial: 14 days with all Premium features</li>
               <li>Basic Plan: ₹299/month per elder (WhatsApp only)</li>
-              <li>Premium Plan: ₹999/month per elder (Voice + WhatsApp)</li>
+              <li>Premium Plan: ₹699/month per elder (Voice + WhatsApp)</li>
               <li>Billing occurs monthly on the date of subscription</li>
               <li>You may cancel your subscription at any time</li>
               <li>Refunds are provided pro-rata for unused periods</li>
