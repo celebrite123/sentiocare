@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Menu, X, Bell, LogOut, User, LayoutDashboard, Shield } from "lucide-react";
+import { Menu, X, Bell, LogOut, User, LayoutDashboard, Shield, BookOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -44,6 +44,14 @@ const Navbar = () => {
 
             {/* Desktop Navigation */}
             <nav className="hidden md:flex items-center gap-4">
+              <Button
+                variant="ghost"
+                className={isActive("/blog") ? "bg-muted" : ""}
+                onClick={() => navigate("/blog")}
+              >
+                <BookOpen className="h-4 w-4 mr-2" />
+                Blog
+              </Button>
               {user ? (
                 <>
                   <Button
