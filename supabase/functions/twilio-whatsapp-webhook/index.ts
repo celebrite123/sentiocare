@@ -20,7 +20,7 @@ serve(async (req) => {
     const body = formData.get('Body')?.toString() || '';
     const messageSid = formData.get('MessageSid')?.toString() || '';
 
-    console.log('Incoming WhatsApp message:', { from, body: body.substring(0, 50), messageSid });
+    console.log('Incoming WhatsApp message:', { messageSid, bodyLength: body.length });
 
     // Extract and normalize phone number (remove whatsapp: prefix and spaces)
     const rawPhone = from.replace('whatsapp:', '').trim();
@@ -28,7 +28,7 @@ serve(async (req) => {
     const phoneNumber = rawPhone.replace(/[\s-]/g, '');
     const phoneWithoutPlus = phoneNumber.replace(/^\+/, '');
 
-    console.log('Normalized phone:', phoneNumber, 'Without plus:', phoneWithoutPlus);
+    // Phone number normalized for lookup (not logged for PII protection)
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -84,7 +84,6 @@ serve(async (req) => {
 
     console.log('Found elder:', {
       id: elder.id,
-      name: elder.full_name,
       language: elder.preferred_language,
       checkInMethod: elder.check_in_method
     });

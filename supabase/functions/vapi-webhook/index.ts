@@ -16,7 +16,10 @@ serve(async (req) => {
 
   try {
     const payload = await req.json();
-    console.log("Vapi webhook received:", JSON.stringify(payload, null, 2));
+    console.log("Vapi webhook received:", { 
+      messageType: payload.message?.type,
+      hasArtifact: !!payload.message?.artifact 
+    });
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -45,7 +48,7 @@ serve(async (req) => {
     const elderId = variableValues.elder_id;
     
     console.log("Extracted elder_id:", elderId);
-    console.log("Variable values:", JSON.stringify(variableValues, null, 2));
+    // PII removed from logs - only logging identifiers
     
     if (!elderId) {
       console.error("No elder ID found in payload");
