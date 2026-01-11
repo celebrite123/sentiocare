@@ -65,7 +65,7 @@ const FeaturesSection = () => {
         <div className="grid lg:grid-cols-2 gap-12 items-center mb-16">
           <div className="order-2 lg:order-1">
             <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">
-              Everything You Need
+              What We Do For You
             </h2>
             <p className="text-muted-foreground text-lg max-w-2xl">
               Comprehensive care features designed for Indian families. Keep your parents safe and connected with technology they already know and love.

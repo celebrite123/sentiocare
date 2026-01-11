@@ -17,12 +17,12 @@ const Footer = () => {
           <nav className="flex flex-wrap justify-center gap-6 text-sm text-muted-foreground">
             <Link to="/privacy-policy" className="hover:text-foreground transition-colors">Privacy Policy</Link>
             <Link to="/terms-of-service" className="hover:text-foreground transition-colors">Terms of Service</Link>
-            <a href="mailto:support@sentio.ai" className="hover:text-foreground transition-colors">Contact</a>
-            <a href="mailto:support@sentio.ai" className="hover:text-foreground transition-colors">Support</a>
+            <a href="mailto:info@sentio.in.net" className="hover:text-foreground transition-colors">Contact</a>
+            <a href="mailto:info@sentio.in.net" className="hover:text-foreground transition-colors">Support</a>
           </nav>
 
           <p className="text-sm text-muted-foreground">
-            © 2024 Sentio AI. Made with ❤️ in India
+            © 2026 Sentio AI. Made with ❤️ in India
           </p>
         </div>
       </div>

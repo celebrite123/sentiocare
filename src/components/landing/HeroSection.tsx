@@ -23,7 +23,7 @@ const HeroSection = () => {
             {/* Badge */}
             <div className="animate-fade-in">
               <Badge variant="secondary" className="bg-secondary/10 text-secondary border-0 px-4 py-1.5 text-sm font-medium">
-                🇮🇳 Made in India • Trusted by 500+ Families
+                🇮🇳 Made in India • Now in Early Access
               </Badge>
             </div>
             
@@ -75,7 +75,7 @@ const HeroSection = () => {
                 <div className="w-8 h-8 rounded-full bg-secondary/10 flex items-center justify-center">
                   <Heart className="h-4 w-4 text-secondary" />
                 </div>
-                <span className="text-sm font-medium">50,000+ Check-ins</span>
+                <span className="text-sm font-medium">14-Day Free Trial</span>
               </div>
               <div className="flex items-center gap-2 text-muted-foreground">
                 <div className="w-8 h-8 rounded-full bg-accent/10 flex items-center justify-center">

@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 
 const stats = [
-  { value: 50000, label: "Check-ins Completed", suffix: "+" },
-  { value: 500, label: "Happy Families", suffix: "+" },
-  { value: 99.9, label: "Uptime", suffix: "%" },
-  { value: 2, label: "Min Response Time", suffix: " min" },
+  { value: 15, label: "Languages Supported", suffix: "+" },
+  { value: 24, label: "AI Availability", suffix: "/7" },
+  { value: 99.9, label: "Uptime Guarantee", suffix: "%" },
+  { value: 14, label: "Day Free Trial", suffix: "" },
 ];
 
 const AnimatedCounter = ({ value, suffix }: { value: number; suffix: string }) => {
