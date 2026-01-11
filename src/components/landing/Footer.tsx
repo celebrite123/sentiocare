@@ -18,8 +18,8 @@ const Footer = () => {
             <Link to="/blog" className="hover:text-foreground transition-colors">Blog</Link>
             <Link to="/privacy-policy" className="hover:text-foreground transition-colors">Privacy Policy</Link>
             <Link to="/terms-of-service" className="hover:text-foreground transition-colors">Terms of Service</Link>
-            <a href="mailto:info@sentio.in.net" className="hover:text-foreground transition-colors">Contact</a>
-            <a href="mailto:info@sentio.in.net" className="hover:text-foreground transition-colors">Support</a>
+            <Link to="/contact-us" className="hover:text-foreground transition-colors">Contact Us</Link>
+            <Link to="/cancellation-refund" className="hover:text-foreground transition-colors">Cancellation & Refund</Link>
           </nav>
 
           <p className="text-sm text-muted-foreground">

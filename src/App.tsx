@@ -17,6 +17,8 @@ import ManageAccess from "./pages/ManageAccess";
 import Profile from "./pages/Profile";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsOfService from "./pages/TermsOfService";
+import ContactUs from "./pages/ContactUs";
+import CancellationRefund from "./pages/CancellationRefund";
 import NotFound from "./pages/NotFound";
 import AdminCenter from "./pages/AdminCenter";
 import Blog from "./pages/Blog";
@@ -41,6 +43,8 @@ const App = () => (
             <Route path="/blog/:slug" element={<BlogPost />} />
             <Route path="/privacy-policy" element={<PrivacyPolicy />} />
             <Route path="/terms-of-service" element={<TermsOfService />} />
+            <Route path="/contact-us" element={<ContactUs />} />
+            <Route path="/cancellation-refund" element={<CancellationRefund />} />
             <Route 
               path="/select-plan" 
               element={
