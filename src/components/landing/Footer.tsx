@@ -15,6 +15,7 @@ const Footer = () => {
           </div>
 
           <nav className="flex flex-wrap justify-center gap-6 text-sm text-muted-foreground">
+            <Link to="/blog" className="hover:text-foreground transition-colors">Blog</Link>
             <Link to="/privacy-policy" className="hover:text-foreground transition-colors">Privacy Policy</Link>
             <Link to="/terms-of-service" className="hover:text-foreground transition-colors">Terms of Service</Link>
             <a href="mailto:info@sentio.in.net" className="hover:text-foreground transition-colors">Contact</a>
