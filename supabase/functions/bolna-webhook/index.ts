@@ -16,7 +16,11 @@ serve(async (req) => {
 
   try {
     const payload = await req.json();
-    console.log("Bolna webhook received:", JSON.stringify(payload, null, 2));
+    console.log("Bolna webhook received:", { 
+      status: payload.status, 
+      call_id: payload.call_id,
+      hasTranscript: !!payload.transcript 
+    });
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -59,8 +63,7 @@ serve(async (req) => {
       payload.elder_id;
     
     console.log("Extracted elder_id:", elderId);
-    console.log("context_details:", JSON.stringify(context_details, null, 2));
-    console.log("user_data:", JSON.stringify(user_data, null, 2));
+    // PII removed from logs - only logging identifiers
     
     if (!elderId) {
       console.error("No elder ID found in payload. Available keys:", Object.keys(payload));

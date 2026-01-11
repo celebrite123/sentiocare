@@ -207,8 +207,6 @@ serve(async (req) => {
 
     console.log('Initiating Bolna voice call:', {
       elderId,
-      elderName,
-      phone: elderPhone,
       language: preferredLanguage,
       tier,
       isTrialActive,

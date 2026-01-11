@@ -98,7 +98,7 @@ serve(async (req) => {
         const isTrialActive = status === "trial" && trialEndsAt && trialEndsAt > now;
         const canUseVoice = tier === "premium" || isTrialActive;
 
-        console.log(`Elder ${elder?.full_name}: method=${checkInMethod}, tier=${tier}, canUseVoice=${canUseVoice}`);
+        console.log(`Elder ${elder?.id}: method=${checkInMethod}, tier=${tier}, canUseVoice=${canUseVoice}`);
 
         // Determine what type of check-in to run
         let shouldRunVoice = false;
@@ -117,18 +117,18 @@ serve(async (req) => {
           // User has voice selected but can't use it - fall back to WhatsApp if available
           if (elder?.whatsapp_number) {
             shouldRunWhatsApp = true;
-            console.log(`Falling back to WhatsApp for ${elder?.full_name} (voice requires Premium)`);
+            console.log(`Falling back to WhatsApp for ${elder?.id} (voice requires Premium)`);
           } else {
-            console.log(`Skipping check-in for ${elder?.full_name} - voice requires Premium and no WhatsApp configured`);
+            console.log(`Skipping check-in for ${elder?.id} - voice requires Premium and no WhatsApp configured`);
           }
         }
 
-        console.log(`Triggering check-in for elder: ${elder?.full_name}, voice=${shouldRunVoice}, whatsapp=${shouldRunWhatsApp}`);
+        console.log(`Triggering check-in for elder: ${elder?.id}, voice=${shouldRunVoice}, whatsapp=${shouldRunWhatsApp}`);
 
         try {
           // Run voice call if applicable (using Bolna)
           if (shouldRunVoice) {
-            console.log(`Initiating voice call for ${elder?.full_name}...`);
+            console.log(`Initiating voice call for elder ${elder?.id}...`);
             const voiceResponse = await fetch(`${supabaseUrl}/functions/v1/bolna-voice-call`, {
               method: "POST",
               headers: {
@@ -156,7 +156,7 @@ serve(async (req) => {
 
           // Run WhatsApp check-in if applicable
           if (shouldRunWhatsApp && elder?.whatsapp_number) {
-            console.log(`Initiating WhatsApp check-in for ${elder?.full_name}...`);
+            console.log(`Initiating WhatsApp check-in for elder ${elder?.id}...`);
             const whatsappResponse = await fetch(`${supabaseUrl}/functions/v1/send-whatsapp-checkin`, {
               method: "POST",
               headers: {
@@ -201,12 +201,10 @@ serve(async (req) => {
           results.push({
             schedule_id: schedule.id,
             elder_id: schedule.elder_id,
-            elder_name: elder?.full_name,
             status: "completed",
             check_in_method: checkInMethod,
             voice_enabled: shouldRunVoice,
             whatsapp_enabled: shouldRunWhatsApp,
-            result,
           });
 
           // Send notifications based on check-in result
