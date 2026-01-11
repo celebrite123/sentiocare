@@ -13,8 +13,8 @@ const CTASection = () => {
             Give Your Parents the Care They Deserve
           </h2>
           <p className="text-muted-foreground text-lg mb-8 max-w-xl mx-auto">
-            Join hundreds of Indian families who trust Sentio AI for daily elder care. 
-            Start your free 14-day trial today.
+            Try Sentio AI free for 14 days. Daily voice calls and WhatsApp check-ins 
+            for your elderly parents. No credit card required.
           </p>
           
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
