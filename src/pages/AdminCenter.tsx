@@ -9,8 +9,10 @@ import AlertsOverview from "@/components/admin/AlertsOverview";
 import RecentActivity from "@/components/admin/RecentActivity";
 import UsersList from "@/components/admin/UsersList";
 import LanguageDistribution from "@/components/admin/LanguageDistribution";
-import { Loader2, RefreshCw, Shield } from "lucide-react";
+import BlogManager from "@/components/admin/BlogManager";
+import { Loader2, RefreshCw, Shield, BarChart3, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 
 interface AnalyticsData {
@@ -85,6 +87,7 @@ const AdminCenter = () => {
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [activeTab, setActiveTab] = useState("analytics");
 
   const fetchAnalytics = async () => {
     try {
@@ -159,51 +162,83 @@ const AdminCenter = () => {
             <Shield className="h-8 w-8 text-primary" />
             <div>
               <h1 className="text-2xl font-bold">Admin Center</h1>
-              <p className="text-muted-foreground">Platform analytics and insights</p>
+              <p className="text-muted-foreground">Platform management and insights</p>
             </div>
           </div>
-          <Button 
-            variant="outline" 
-            onClick={handleRefresh}
-            disabled={refreshing}
-          >
-            <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
+          {activeTab === "analytics" && (
+            <Button 
+              variant="outline" 
+              onClick={handleRefresh}
+              disabled={refreshing}
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+          )}
         </div>
 
-        <div className="space-y-6">
-          {/* Overview Cards */}
-          <AdminOverviewCards 
-            overview={analytics.overview}
-            checkInStats={analytics.checkInStats}
-            alertStats={analytics.alertStats}
-          />
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList className="mb-6">
+            <TabsTrigger value="analytics" className="gap-2">
+              <BarChart3 className="h-4 w-4" />
+              Analytics
+            </TabsTrigger>
+            <TabsTrigger value="blog" className="gap-2">
+              <FileText className="h-4 w-4" />
+              Blog
+            </TabsTrigger>
+          </TabsList>
 
-          {/* Check-in Analytics */}
-          <CheckInAnalytics 
-            checkInStats={analytics.checkInStats}
-            dailyCheckIns={analytics.trends.dailyCheckIns}
-          />
+          <TabsContent value="analytics">
+            {!analytics ? (
+              <div className="text-center py-12">
+                <Shield className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                <h2 className="text-xl font-semibold">Unable to load analytics</h2>
+                <p className="text-muted-foreground mt-2">Please try again later</p>
+                <Button onClick={handleRefresh} className="mt-4">
+                  Retry
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {/* Overview Cards */}
+                <AdminOverviewCards 
+                  overview={analytics.overview}
+                  checkInStats={analytics.checkInStats}
+                  alertStats={analytics.alertStats}
+                />
 
-          {/* Sentiment and Language */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <SentimentChart sentimentBreakdown={analytics.sentimentBreakdown} />
-            <LanguageDistribution languageDistribution={analytics.languageDistribution} />
-          </div>
+                {/* Check-in Analytics */}
+                <CheckInAnalytics 
+                  checkInStats={analytics.checkInStats}
+                  dailyCheckIns={analytics.trends.dailyCheckIns}
+                />
 
-          {/* Alerts */}
-          <AlertsOverview 
-            alertStats={analytics.alertStats}
-            unresolvedAlerts={analytics.unresolvedAlerts}
-          />
+                {/* Sentiment and Language */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  <SentimentChart sentimentBreakdown={analytics.sentimentBreakdown} />
+                  <LanguageDistribution languageDistribution={analytics.languageDistribution} />
+                </div>
 
-          {/* Recent Activity and Users */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <RecentActivity recentCheckIns={analytics.recentCheckIns} />
-            <UsersList users={analytics.users} />
-          </div>
-        </div>
+                {/* Alerts */}
+                <AlertsOverview 
+                  alertStats={analytics.alertStats}
+                  unresolvedAlerts={analytics.unresolvedAlerts}
+                />
+
+                {/* Recent Activity and Users */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  <RecentActivity recentCheckIns={analytics.recentCheckIns} />
+                  <UsersList users={analytics.users} />
+                </div>
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="blog">
+            <BlogManager />
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );
