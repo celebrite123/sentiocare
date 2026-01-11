@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Clock, Bell, Save, Loader2, Globe, Phone, MessageCircle, Lock } from "lucide-react";
+import { ArrowLeft, Clock, Bell, Save, Loader2, Globe, Phone, MessageCircle, Lock, User, Trash2 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,6 +9,17 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSubscription } from "@/hooks/useSubscription";
@@ -32,7 +43,15 @@ const ElderSettings = () => {
   const { canUseVoice, tier, isTrialActive } = useSubscription();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [elderName, setElderName] = useState("");
+
+  // Elder profile state
+  const [fullName, setFullName] = useState("");
+  const [age, setAge] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [emergencyContact, setEmergencyContact] = useState("");
+  const [medicalConditions, setMedicalConditions] = useState("");
 
   // Communication state
   const [preferredLanguage, setPreferredLanguage] = useState("english");
@@ -53,6 +72,7 @@ const ElderSettings = () => {
   const [wellbeingThreshold, setWellbeingThreshold] = useState(5);
   const [notifyOnMissedCheckin, setNotifyOnMissedCheckin] = useState(true);
   const [weeklySummaryEnabled, setWeeklySummaryEnabled] = useState(true);
+
   useEffect(() => {
     if (user && elderId) {
       loadSettings();
@@ -63,17 +83,22 @@ const ElderSettings = () => {
 
   const loadSettings = async () => {
     try {
-      // Load elder info
+      // Load elder info (full profile)
       const { data: elder } = await supabase
         .from("elders")
-        .select("full_name, preferred_language, check_in_method, whatsapp_number")
+        .select("*")
         .eq("id", elderId)
         .single();
 
       if (elder) {
         setElderName(elder.full_name);
-        setPreferredLanguage(elder.preferred_language || "english");
+        setFullName(elder.full_name);
+        setAge(elder.age?.toString() || "");
+        setPhoneNumber(elder.phone_number);
         setWhatsappNumber(elder.whatsapp_number || "");
+        setEmergencyContact(elder.emergency_contact || "");
+        setPreferredLanguage(elder.preferred_language || "english");
+        setMedicalConditions(elder.medical_conditions?.join(", ") || "");
       }
 
       // Load schedule
@@ -119,20 +144,43 @@ const ElderSettings = () => {
   };
 
   const saveSettings = async () => {
+    if (!fullName || !phoneNumber) {
+      toast({
+        title: "Missing Information",
+        description: "Please fill in the required fields (Name and Phone Number)",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setSaving(true);
     try {
       // Determine check-in method based on subscription
       const autoCheckInMethod = (isTrialActive || tier === "premium") ? "both" : "whatsapp";
       
-      // Update elder preferences
+      // Parse medical conditions
+      const conditions = medicalConditions
+        .split(",")
+        .map(c => c.trim())
+        .filter(c => c.length > 0);
+      
+      // Update elder profile + preferences
       await supabase
         .from("elders")
         .update({ 
+          full_name: fullName,
+          age: age ? parseInt(age) : null,
+          phone_number: phoneNumber,
+          emergency_contact: emergencyContact || null,
+          medical_conditions: conditions.length > 0 ? conditions : null,
           preferred_language: preferredLanguage, 
           check_in_method: autoCheckInMethod,
           whatsapp_number: whatsappNumber || null
         })
         .eq("id", elderId);
+      
+      // Update local elderName for display
+      setElderName(fullName);
 
       // Upsert schedule
       const { error: scheduleError } = await supabase
@@ -252,6 +300,33 @@ const ElderSettings = () => {
     );
   };
 
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      const { error } = await supabase
+        .from("elders")
+        .delete()
+        .eq("id", elderId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Elder Removed",
+        description: "The elder profile has been deleted",
+      });
+      navigate("/elders");
+    } catch (error) {
+      console.error("Error deleting elder:", error);
+      toast({
+        title: "Error",
+        description: "Failed to delete elder profile",
+        variant: "destructive",
+      });
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   if (loading) {
     return (
       <>
@@ -290,6 +365,113 @@ const ElderSettings = () => {
         </div>
 
         <div className="container mx-auto px-4 py-8 space-y-6">
+          {/* Elder Profile Section */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <User className="h-5 w-5 text-primary" />
+                <CardTitle>Elder Profile</CardTitle>
+              </div>
+              <CardDescription>
+                Update basic information for {elderName}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Basic Info */}
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="fullName">Full Name *</Label>
+                  <Input
+                    id="fullName"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    placeholder="Enter full name"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="age">Age</Label>
+                  <Input
+                    id="age"
+                    type="number"
+                    value={age}
+                    onChange={(e) => setAge(e.target.value)}
+                    placeholder="Enter age"
+                    min="1"
+                    max="120"
+                  />
+                </div>
+              </div>
+
+              {/* Contact Info */}
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="phoneNumber">Phone Number *</Label>
+                  <Input
+                    id="phoneNumber"
+                    value={phoneNumber}
+                    onChange={(e) => setPhoneNumber(e.target.value)}
+                    placeholder="+91 98765 43210"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="emergencyContact">Emergency Contact</Label>
+                  <Input
+                    id="emergencyContact"
+                    value={emergencyContact}
+                    onChange={(e) => setEmergencyContact(e.target.value)}
+                    placeholder="+91 98765 43210"
+                  />
+                </div>
+              </div>
+
+              {/* Medical Conditions */}
+              <div className="space-y-2">
+                <Label htmlFor="medicalConditions">Medical Conditions</Label>
+                <Input
+                  id="medicalConditions"
+                  value={medicalConditions}
+                  onChange={(e) => setMedicalConditions(e.target.value)}
+                  placeholder="Diabetes, Hypertension, Heart Disease"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Separate multiple conditions with commas
+                </p>
+              </div>
+
+              {/* Delete Profile */}
+              <div className="pt-4 border-t">
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="destructive" size="sm" disabled={deleting}>
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete Elder Profile
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete Elder Profile</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Are you sure you want to delete {elderName}'s profile? This action cannot be undone and will remove all check-in history, health data, and scheduled calls.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={handleDelete}
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      >
+                        {deleting ? (
+                          <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        ) : null}
+                        Delete Permanently
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Language Settings */}
           <Card>
             <CardHeader>
