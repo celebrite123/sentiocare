@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, User, BookHeart, Settings, Pencil, Activity } from "lucide-react";
+import { Plus, User, BookHeart, Settings, Activity } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -230,14 +230,14 @@ const Elders = () => {
                       </Button>
                       
                       {/* Secondary actions */}
-                      <div className="grid grid-cols-3 gap-2">
+                      <div className="grid grid-cols-2 gap-2">
                         <Button
                           onClick={() => navigate(`/elders/${elder.id}/health-book`)}
                           variant="outline"
                           className="flex flex-col items-center gap-1 h-auto py-3 hover:bg-primary/5 hover:border-primary/50"
                         >
                           <BookHeart className="h-5 w-5 text-primary" />
-                          <span className="text-xs font-medium">Health</span>
+                          <span className="text-xs font-medium">Health Book</span>
                         </Button>
                         <Button
                           onClick={() => navigate(`/elders/${elder.id}/settings`)}
@@ -245,15 +245,7 @@ const Elders = () => {
                           className="flex flex-col items-center gap-1 h-auto py-3 hover:bg-secondary/5 hover:border-secondary/50"
                         >
                           <Settings className="h-5 w-5 text-secondary" />
-                          <span className="text-xs font-medium">Settings</span>
-                        </Button>
-                        <Button
-                          onClick={() => navigate(`/elders/${elder.id}/edit`)}
-                          variant="outline"
-                          className="flex flex-col items-center gap-1 h-auto py-3 hover:bg-muted"
-                        >
-                          <Pencil className="h-5 w-5 text-muted-foreground" />
-                          <span className="text-xs font-medium">Edit</span>
+                          <span className="text-xs font-medium">Manage</span>
                         </Button>
                       </div>
                     </div>
