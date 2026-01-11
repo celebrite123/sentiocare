@@ -41,7 +41,7 @@ const Profile = () => {
   } = useSubscription();
   
   // Dynamic pricing based on subscription tier
-  const additionalElderPrice = tier === "premium" || isTrialActive ? 999 : 299;
+  const additionalElderPrice = tier === "premium" || isTrialActive ? 699 : 299;
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
   const [upgradeDialogOpen, setUpgradeDialogOpen] = useState(false);
