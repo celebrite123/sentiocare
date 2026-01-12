@@ -329,8 +329,8 @@ serve(async (req) => {
       ? resolvedSymptomNames.join(', ')
       : '';
     
-    // SIMPLIFIED user_data - focused on medicines, no symptom mentions
-    // This prevents the agent from making up or mentioning symptoms on its own
+    // Build user_data with symptom tracking context
+    // Agent should ASK about symptoms, LISTEN, and FOLLOW UP on unresolved ones
     const userData = {
       // Core identification - ONLY first name for warm conversation
       elder_id: elderId,
@@ -345,8 +345,17 @@ serve(async (req) => {
       medicines: medicineList || (isHindi ? 'कोई दवाई नहीं' : 'No medicines'),
       medicine_count: medicines?.length || 0,
       
-      // Minimal health context - NEVER mention symptoms
+      // Health context
       medical_conditions: conditionsList,
+      
+      // ACTIVE SYMPTOMS - unresolved issues to follow up on
+      // Agent should ask: "Last time you mentioned [symptom]. Is it better now?"
+      active_symptoms: activeSymptomsList || (isHindi ? 'कोई नहीं' : 'None'),
+      has_active_symptoms: activeSymptoms.length > 0,
+      
+      // Resolved symptoms - for positive reinforcement only
+      resolved_symptoms: resolvedSymptomsList || '',
+      resolved_context: resolvedContext,
       
       // Call metadata
       is_emergency: isEmergency,
@@ -356,10 +365,9 @@ serve(async (req) => {
       caregiver_name: notificationSettings?.caregiver_name || '',
       
       // CRITICAL INSTRUCTIONS - embedded in user_data
-      // These reinforce the guardrails at runtime
       critical_rules: isHindi
-        ? `नियम: (1) नाम सिर्फ एक बार greeting में बोलें। (2) कभी भी खुद से कोई तकलीफ का जिक्र न करें। (3) सिर्फ दवाई याद दिलाएं। (4) 60-90 सेकंड में कॉल खत्म करें।`
-        : `Rules: (1) Use name ONLY once in greeting. (2) NEVER mention any symptoms yourself. (3) Focus on medicine reminder. (4) Keep call under 90 seconds.`,
+        ? `नियम: (1) नाम सिर्फ एक बार। (2) दवाई याद दिलाएं। (3) पूछें "कैसी तबीयत है?" (4) अगर active_symptoms है तो पूछें "पिछली बार [symptom] था, अब कैसा है?" (5) कोई नई तकलीफ सुनें। (6) 2 मिनट में खत्म करें।`
+        : `Rules: (1) Name ONCE only. (2) Remind about medicines. (3) Ask "How are you feeling?" (4) If active_symptoms exists, ask "Last time you mentioned [symptom]. How is it now?" (5) Listen for new symptoms. (6) Keep under 2 minutes.`,
       
       // Simple, warm closing
       closing: isHindi
