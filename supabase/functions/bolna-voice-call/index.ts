@@ -329,86 +329,42 @@ serve(async (req) => {
       ? resolvedSymptomNames.join(', ')
       : '';
     
-    // Enhanced user_data with warm, contextual variables
+    // SIMPLIFIED user_data - focused on medicines, no symptom mentions
+    // This prevents the agent from making up or mentioning symptoms on its own
     const userData = {
-      // Core identification - SHORT names for natural conversation
+      // Core identification - ONLY first name for warm conversation
       elder_id: elderId,
-      elder_name: nameVariations.fullName,
       first_name: nameVariations.firstName,
-      short_name: nameVariations.shortName,
       affectionate_name: nameVariations.affectionateName,
       preferred_language: preferredLanguage,
       
-      // Warm, personalized greeting (use this as the opening)
+      // Simple warm greeting - use {greeting} in Bolna Dashboard
       greeting: warmOpening,
-      warm_opening: warmOpening,
-      resolved_context: resolvedContext,
-      last_mood_context: lastMoodContext,
       
-      // Days since last interaction for continuity
-      days_since_last_call: daysSinceLastCall,
-      
-      // Medicine context
-      medicines: medicineList || 'No medicines prescribed',
-      medicine_details: medicineDetails || 'No medicine details',
+      // Medicine info - THIS IS THE PRIMARY FOCUS
+      medicines: medicineList || (isHindi ? 'कोई दवाई नहीं' : 'No medicines'),
       medicine_count: medicines?.length || 0,
       
-      // Health context - SEPARATED active vs resolved
+      // Minimal health context - NEVER mention symptoms
       medical_conditions: conditionsList,
-      active_symptoms: activeSymptomsList,  // ONLY these should be discussed
-      resolved_symptoms: resolvedSymptomsList,  // Do NOT ask about these
-      recent_concerns: recentConcerns,
-      average_wellbeing: averageWellbeing || 'No data',
       
       // Call metadata
       is_emergency: isEmergency,
-      check_in_type: isEmergency ? 'emergency_voice' : 'scheduled_voice',
-      total_previous_checkins: previousCheckIns?.length || 0,
       
-      // Caregiver context
+      // Caregiver context (for escalation only)
       has_caregiver: hasCaregiver,
       caregiver_name: notificationSettings?.caregiver_name || '',
-      caregiver_relation: notificationSettings?.caregiver_relation || '',
       
-      // CRITICAL: Warm communication rules for the agent
-      name_usage_rule: isHindi
-        ? `${nameVariations.firstName} जी को पूरी कॉल में केवल एक बार नाम से बुलाएं (greeting में)। बाद में "आप" या "आपको" का उपयोग करें।`
-        : `Use ${nameVariations.firstName} only ONCE at greeting. After that, use "you" instead of repeating the name.`,
+      // CRITICAL INSTRUCTIONS - embedded in user_data
+      // These reinforce the guardrails at runtime
+      critical_rules: isHindi
+        ? `नियम: (1) नाम सिर्फ एक बार greeting में बोलें। (2) कभी भी खुद से कोई तकलीफ का जिक्र न करें। (3) सिर्फ दवाई याद दिलाएं। (4) 60-90 सेकंड में कॉल खत्म करें।`
+        : `Rules: (1) Use name ONLY once in greeting. (2) NEVER mention any symptoms yourself. (3) Focus on medicine reminder. (4) Keep call under 90 seconds.`,
       
-      resolved_symptoms_rule: isHindi
-        ? `ये तकलीफें ठीक हो चुकी हैं: ${resolvedSymptomsList || 'कोई नहीं'}। इनके बारे में मत पूछें!`
-        : `These issues are RESOLVED: ${resolvedSymptomsList || 'None'}. Do NOT ask about them!`,
-      
-      active_symptoms_rule: isHindi
-        ? `ये वर्तमान तकलीफें हैं जिनके बारे में पूछ सकते हैं: ${activeSymptomsList || 'कोई खास नहीं'}`
-        : `These are CURRENT issues you may gently ask about: ${activeSymptomsList || 'None specific'}`,
-      
-      tone_instruction: isHindi
-        ? 'प्यार से बात करें जैसे परिवार का कोई सदस्य। छोटे वाक्य, गर्मजोशी।'
-        : 'Speak warmly like a caring family member. Short sentences, genuine warmth.',
-      
-      // Agent instructions with guardrails context
-      agent_instructions: isHindi
-        ? `इनका नाम ${nameVariations.firstName} जी है। प्यार से बात करें। नाम सिर्फ greeting में एक बार बोलें। जो तकलीफें ठीक हो गई हैं उनके बारे में मत पूछें। दवाइयां: ${medicineList || 'कोई नहीं'}। 2-3 सवाल, 60-90 सेकंड में कॉल खत्म करें।${isEmergency ? ' यह आपातकालीन कॉल है।' : ''}`
-        : `Their name is ${nameVariations.firstName}. Speak warmly. Use name ONLY ONCE at greeting. Don't ask about resolved issues. Medicines: ${medicineList || 'None'}. 2-3 questions, complete in 60-90 seconds.${isEmergency ? ' This is an EMERGENCY call.' : ''}`,
-      
-      // FAQ quick references (unchanged but with warm tone)
-      identity_response: isHindi
-        ? "मैं Sentio हूं, आपके स्वास्थ्य का ख्याल रखने वाला। आपकी देखभाल करने वाले ने मुझे आपसे बात करने के लिए कहा है।"
-        : "I'm Sentio, here to check on how you're doing. Your family asked me to give you a call.",
-      
-      call_purpose_response: isHindi
-        ? `बस आपकी तबीयत जानने के लिए कॉल किया, ${nameVariations.firstName} जी। सब ठीक है ना?`
-        : `Just calling to check on you, ${nameVariations.firstName}. Making sure everything's okay.`,
-      
-      privacy_response: isHindi
-        ? "जो आप बताएंगे वो सिर्फ आपके परिवार के साथ साझा होगा ताकि वो आपका ख्याल रख सकें।"
-        : "What you share stays with your family so they can make sure you're well cared for.",
-      
-      // Caring closing phrases
-      closing_phrase: isHindi
-        ? "अपना ख्याल रखिए। कोई भी परेशानी हो तो बताइएगा।"
-        : "Take care of yourself. Let us know if you need anything.",
+      // Simple, warm closing
+      closing: isHindi
+        ? "अपना ख्याल रखिए!"
+        : "Take care!",
     };
 
     console.log('Sending user_data to Bolna:', JSON.stringify(userData, null, 2));
