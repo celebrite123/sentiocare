@@ -109,6 +109,75 @@ export type Database = {
         }
         Relationships: []
       }
+      call_attempts: {
+        Row: {
+          attempt_number: number
+          call_type: string
+          completed_at: string | null
+          created_at: string
+          elder_id: string
+          execution_id: string | null
+          id: string
+          initiated_at: string
+          max_retries: number
+          next_retry_at: string | null
+          notification_sent: boolean | null
+          retry_count: number
+          schedule_id: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempt_number?: number
+          call_type?: string
+          completed_at?: string | null
+          created_at?: string
+          elder_id: string
+          execution_id?: string | null
+          id?: string
+          initiated_at?: string
+          max_retries?: number
+          next_retry_at?: string | null
+          notification_sent?: boolean | null
+          retry_count?: number
+          schedule_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attempt_number?: number
+          call_type?: string
+          completed_at?: string | null
+          created_at?: string
+          elder_id?: string
+          execution_id?: string | null
+          id?: string
+          initiated_at?: string
+          max_retries?: number
+          next_retry_at?: string | null
+          notification_sent?: boolean | null
+          retry_count?: number
+          schedule_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "call_attempts_elder_id_fkey"
+            columns: ["elder_id"]
+            isOneToOne: false
+            referencedRelation: "elders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "call_attempts_schedule_id_fkey"
+            columns: ["schedule_id"]
+            isOneToOne: false
+            referencedRelation: "check_in_schedules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       check_in_schedules: {
         Row: {
           active: boolean | null

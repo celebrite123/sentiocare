@@ -2,14 +2,11 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // Webhook endpoints don't need CORS headers as they're server-to-server
-// Only include minimal headers for response content type
 const responseHeaders = {
   "Content-Type": "application/json",
 };
 
 serve(async (req) => {
-  // Webhooks are server-to-server - no CORS preflight needed
-  // If we receive an OPTIONS request, just return 200
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 200 });
   }
@@ -19,7 +16,9 @@ serve(async (req) => {
     console.log("Bolna webhook received:", { 
       status: payload.status, 
       call_id: payload.call_id,
-      hasTranscript: !!payload.transcript 
+      execution_id: payload.execution_id,
+      hasTranscript: !!payload.transcript,
+      hangup_reason: payload.hangup_reason
     });
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -27,35 +26,34 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // Extract call data from Bolna webhook
-    // Bolna sends different payload structures - handle multiple formats
     const { 
       call_id,
+      execution_id,
       status,
       transcript,
       duration,
       hangup_reason,
       call_analysis,
-      // Bolna's actual structure
       context_details,
       telephony_data,
       conversation_duration,
     } = payload;
 
-    // Also check for user_data directly (for backwards compatibility)
     const user_data = payload.user_data;
+    const actualExecutionId = execution_id || call_id;
 
     // Check if this is an end-of-call event
-    const isCallEnded = status === 'completed' || status === 'ended' || status === 'failed';
+    const isCallEnded = status === 'completed' || status === 'ended' || status === 'failed' || 
+                        status === 'no-answer' || status === 'busy' || status === 'canceled';
     
     if (!isCallEnded) {
-      console.log(`Call status update: ${status} for call ${call_id}`);
+      console.log(`Call status update: ${status} for call ${actualExecutionId}`);
       return new Response(JSON.stringify({ success: true, status }), {
         headers: responseHeaders,
       });
     }
 
-    // Extract elder ID from multiple possible locations in Bolna's payload
-    // Priority: context_details.recipient_data > user_data > direct payload
+    // Extract elder ID
     const elderId = 
       context_details?.recipient_data?.elder_id ||
       context_details?.user_data?.elder_id ||
@@ -63,27 +61,124 @@ serve(async (req) => {
       payload.elder_id;
     
     console.log("Extracted elder_id:", elderId);
-    // PII removed from logs - only logging identifiers
-    
+
+    // Find the call attempt by execution_id first
+    let callAttempt = null;
+    if (actualExecutionId) {
+      const { data: attempt } = await supabase
+        .from("call_attempts")
+        .select("*")
+        .eq("execution_id", actualExecutionId)
+        .single();
+      callAttempt = attempt;
+    }
+
+    // Determine if call was answered
+    const callDuration = conversation_duration || duration || 0;
+    const wasAnswered = (
+      status === 'completed' || 
+      status === 'ended' ||
+      callDuration > 30 || 
+      (transcript && transcript.length > 50)
+    );
+
+    const wasNoAnswer = (
+      status === 'no-answer' || 
+      status === 'busy' ||
+      status === 'failed' ||
+      status === 'canceled' ||
+      hangup_reason === 'no_answer' ||
+      hangup_reason === 'busy' ||
+      (callDuration < 15 && !transcript)
+    );
+
+    console.log("Call analysis:", { wasAnswered, wasNoAnswer, status, callDuration, hasAttempt: !!callAttempt });
+
+    // Handle callback retry logic if we have a call attempt record
+    if (callAttempt && !wasAnswered && wasNoAnswer) {
+      const retryCount = callAttempt.retry_count || 0;
+      const maxRetries = callAttempt.max_retries || 2;
+
+      console.log("Call not answered - handling retry logic:", { retryCount, maxRetries });
+
+      if (retryCount < maxRetries) {
+        // Schedule retry: 10 min after first attempt, 2 hours after second
+        const nextRetryMinutes = retryCount === 0 ? 10 : 120;
+        const nextRetryAt = new Date(Date.now() + nextRetryMinutes * 60 * 1000);
+
+        await supabase
+          .from("call_attempts")
+          .update({
+            status: 'no_answer',
+            completed_at: new Date().toISOString(),
+            retry_count: retryCount + 1,
+            next_retry_at: nextRetryAt.toISOString()
+          })
+          .eq("id", callAttempt.id);
+
+        console.log(`Retry scheduled for ${nextRetryMinutes} minutes from now`);
+
+        // After first failed attempt, notify both elder and caregiver via WhatsApp
+        if (retryCount === 0 && elderId) {
+          await sendMissedCallNotifications(supabase, elderId);
+        }
+
+        // Skip creating check-in for unanswered calls
+        return new Response(JSON.stringify({ 
+          success: true, 
+          message: "Call not answered, retry scheduled",
+          nextRetryAt: nextRetryAt.toISOString()
+        }), { headers: responseHeaders });
+
+      } else {
+        // Max retries reached
+        await supabase
+          .from("call_attempts")
+          .update({
+            status: 'failed',
+            completed_at: new Date().toISOString(),
+            next_retry_at: null,
+            notification_sent: true
+          })
+          .eq("id", callAttempt.id);
+
+        // Send final failure alert
+        if (elderId) {
+          await sendFinalFailureAlert(supabase, elderId, supabaseUrl, supabaseKey);
+        }
+
+        console.log("Max retries reached, final alert sent");
+        return new Response(JSON.stringify({ 
+          success: true, 
+          message: "Max retries reached, alert sent"
+        }), { headers: responseHeaders });
+      }
+    }
+
+    // Mark call attempt as answered if we have one
+    if (callAttempt && wasAnswered) {
+      await supabase
+        .from("call_attempts")
+        .update({
+          status: 'answered',
+          completed_at: new Date().toISOString(),
+          next_retry_at: null
+        })
+        .eq("id", callAttempt.id);
+    }
+
     if (!elderId) {
       console.error("No elder ID found in payload. Available keys:", Object.keys(payload));
       return new Response(JSON.stringify({ 
         success: false, 
         message: "No elder ID found in webhook payload",
-        availableKeys: Object.keys(payload)
-      }), {
-        headers: responseHeaders,
-      });
+      }), { headers: responseHeaders });
     }
 
-    // Extract recording URL from telephony_data or direct payload
+    // Extract recording URL
     const recordingUrl = telephony_data?.recording_url || payload.recording_url || null;
-    console.log("Recording URL:", recordingUrl);
-    
-    // Extract duration from multiple sources
-    const callDuration = conversation_duration || duration;
 
-    // Use Lovable AI to analyze the conversation
+    // Use AI to analyze the conversation
     const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
     let analysis = {
       sentiment: "neutral",
@@ -99,81 +194,19 @@ serve(async (req) => {
       try {
         console.log("Analyzing transcript with AI...");
         
-        // Enhanced analysis prompt with symptom resolution detection
         const analysisPrompt = `You are an AI health analyst for Sentio, an elder care check-in system. Analyze this call transcript carefully.
 
-EMERGENCY KEYWORDS TO CHECK (CRITICAL - requires immediate escalation):
-Physical Emergencies:
-- Chest pain, heart pain, heart attack symptoms
-- Difficulty breathing, can't breathe, shortness of breath
-- Fainting, collapse, fell down, fall
-- Heavy bleeding, blood
-- Sudden confusion, can't speak properly, speech difficulty
-- Severe weakness on one side, stroke symptoms
+EMERGENCY KEYWORDS TO CHECK (CRITICAL):
+- Chest pain, heart pain, heart attack
+- Difficulty breathing, can't breathe
+- Fainting, collapse, fell down
 - Severe pain (rating 7+)
-
-Mental Health Concerns (CRITICAL - requires careful handling):
-- "I want to die", "don't want to live", "want to end it"
-- Self-harm mentions
-- Abuse or fear of someone
-- Extreme loneliness or hopelessness
+- "I want to die", "don't want to live"
 
 SYMPTOM RESOLUTION DETECTION:
 Look for phrases indicating a symptom has been RESOLVED:
-Hindi phrases: "ठीक हो गया", "बिल्कुल ठीक", "अब नहीं है", "अब ठीक है", "दर्द नहीं है", "अब तकलीफ नहीं", "बेहतर है"
-English phrases: "better now", "resolved", "gone", "no more", "fine now", "cleared up", "not anymore", "healed"
-
-When the elder says something like "पीठ का दर्द बिल्कुल ठीक हो गया" (back pain is completely better), add "back pain" or "पीठ का दर्द" to resolvedSymptoms.
-
-ANALYSIS REQUIRED - Extract ALL of the following:
-
-1. sentiment: "positive" | "neutral" | "negative"
-   - positive: happy, content, feeling good
-   - neutral: okay, fine, normal
-   - negative: sad, unwell, distressed, in pain
-
-2. wellBeingScore: 1-10
-   - 1-3: Very poor health, severe distress, emergency symptoms
-   - 4-5: Unwell, concerning symptoms, needs attention
-   - 6-7: Moderate, some minor issues
-   - 8-10: Good to excellent health
-
-3. medicinesTaken: true | false
-   - true: Explicitly confirmed taking medicines
-   - false: Said no, uncertain, didn't mention, or couldn't confirm
-
-4. symptomsReported: Array of NEW or ONGOING symptoms mentioned
-   - Include any physical complaints, pain, discomfort that is CURRENT
-   - Include emotional symptoms like sadness, anxiety
-   - Do NOT include symptoms that the user said are resolved
-
-5. resolvedSymptoms: Array of symptoms the user said are NOW BETTER/RESOLVED
-   - Include any symptom the user explicitly said is "ठीक", "better", "gone", etc.
-   - This is CRITICAL for not asking about these issues in future calls
-
-6. alertTriggered: true if ANY of these conditions:
-   - Any emergency keywords detected (physical or mental)
-   - Well-being score is 3 or below
-   - Medicines explicitly not taken
-   - Negative sentiment with concerning content
-   - Pain severity 7 or higher mentioned
-
-7. alertSeverity: "low" | "medium" | "high" | "critical"
-   - critical: Emergency keywords, immediate danger
-   - high: Low well-being (1-3), multiple symptoms, missed medicines
-   - medium: Moderate concerns, negative sentiment
-   - low: Minor issues, just noting for follow-up
-
-8. alertReason: Clear explanation if alert triggered, null otherwise
-
-9. emergencyDetected: true if any life-threatening symptoms mentioned (chest pain, breathing, fainting, etc.)
-
-10. mentalHealthConcern: true if any self-harm, suicidal thoughts, or abuse mentioned
-
-11. conversationQuality: "good" | "partial" | "poor"
-    - good: Full conversation completed, all questions answered
-    - partial: Some responses, incomplete
-    - poor: Minimal or no meaningful exchange
+Hindi: "ठीक हो गया", "अब ठीक है", "बेहतर है"
+English: "better now", "resolved", "gone", "no more", "fine now"
 
 Respond ONLY in valid JSON format:
 {
@@ -183,11 +216,9 @@ Respond ONLY in valid JSON format:
   "symptomsReported": ["symptom1", "symptom2"],
   "resolvedSymptoms": ["symptom that is now better"],
   "alertTriggered": true|false,
-  "alertSeverity": "low|medium|high|critical",
   "alertReason": "reason or null",
   "emergencyDetected": true|false,
-  "mentalHealthConcern": true|false,
-  "conversationQuality": "good|partial|poor"
+  "mentalHealthConcern": true|false
 }`;
 
         const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -199,14 +230,8 @@ Respond ONLY in valid JSON format:
           body: JSON.stringify({
             model: "google/gemini-2.5-flash",
             messages: [
-              {
-                role: "system",
-                content: analysisPrompt,
-              },
-              {
-                role: "user",
-                content: `Analyze this call transcript:\n\n${transcript}`,
-              },
+              { role: "system", content: analysisPrompt },
+              { role: "user", content: `Analyze this call transcript:\n\n${transcript}` },
             ],
           }),
         });
@@ -214,53 +239,34 @@ Respond ONLY in valid JSON format:
         if (aiResponse.ok) {
           const aiData = await aiResponse.json();
           const content = aiData.choices?.[0]?.message?.content;
-          console.log("AI analysis response:", content);
           if (content) {
-            // Parse JSON from AI response
             const jsonMatch = content.match(/\{[\s\S]*\}/);
             if (jsonMatch) {
               analysis = JSON.parse(jsonMatch[0]);
               console.log("Parsed analysis:", analysis);
             }
           }
-        } else {
-          console.error("AI analysis failed:", await aiResponse.text());
         }
       } catch (aiError) {
         console.error("AI analysis error:", aiError);
       }
-    } else {
-      console.log("Skipping AI analysis - no API key or transcript");
     }
 
-    // Post-analysis validation: Ensure alerts are triggered for concerning situations
-    // even if the AI didn't flag them
+    // Post-analysis validation
     if (!analysis.alertTriggered) {
       if (analysis.wellBeingScore <= 3) {
         analysis.alertTriggered = true;
-        analysis.alertReason = `Low well-being score (${analysis.wellBeingScore}/10) reported during call`;
+        analysis.alertReason = `Low well-being score (${analysis.wellBeingScore}/10)`;
       } else if (analysis.medicinesTaken === false) {
         analysis.alertTriggered = true;
         analysis.alertReason = "Medicines not taken as scheduled";
-      } else if (analysis.sentiment === "negative") {
-        analysis.alertTriggered = true;
-        analysis.alertReason = "Negative sentiment detected during check-in - possible distress";
       }
     }
 
-    // If Bolna provides its own analysis, merge it
-    if (call_analysis) {
-      console.log("Bolna call analysis:", call_analysis);
-    }
-
-    // SAVE RESOLVED SYMPTOMS to the resolved_symptoms table
-    // This ensures we don't ask about these issues in future calls
+    // Save resolved symptoms
     const resolvedSymptoms = (analysis as any).resolvedSymptoms || [];
     if (resolvedSymptoms.length > 0) {
-      console.log("Saving resolved symptoms:", resolvedSymptoms);
-      
       for (const symptom of resolvedSymptoms) {
-        // Check if this symptom is already marked as resolved
         const { data: existing } = await supabase
           .from("resolved_symptoms")
           .select("id")
@@ -269,36 +275,24 @@ Respond ONLY in valid JSON format:
           .limit(1);
         
         if (!existing || existing.length === 0) {
-          // Insert new resolved symptom
-          const { error: insertError } = await supabase
-            .from("resolved_symptoms")
-            .insert({
-              elder_id: elderId,
-              symptom: symptom,
-              reported_at: new Date().toISOString(),
-              resolved_at: new Date().toISOString(),
-              resolution_note: `Confirmed resolved during voice check-in on ${new Date().toLocaleDateString()}`,
-            });
-          
-          if (insertError) {
-            console.error("Error saving resolved symptom:", insertError);
-          } else {
-            console.log("Saved resolved symptom:", symptom);
-          }
-        } else {
-          console.log("Symptom already marked as resolved:", symptom);
+          await supabase.from("resolved_symptoms").insert({
+            elder_id: elderId,
+            symptom: symptom,
+            reported_at: new Date().toISOString(),
+            resolved_at: new Date().toISOString(),
+            resolution_note: `Confirmed resolved during voice check-in`,
+          });
         }
       }
     }
 
-    // Save check-in to database with recording URL
-    console.log("Saving check-in for elder:", elderId);
+    // Save check-in
     const { data: checkIn, error: checkInError } = await supabase
       .from("check_ins")
       .insert({
         elder_id: elderId,
         check_in_type: "voice",
-        status: status === 'completed' ? "completed" : "failed",
+        status: wasAnswered ? "completed" : "failed",
         sentiment: analysis.sentiment,
         well_being_score: analysis.wellBeingScore,
         medicines_taken: analysis.medicinesTaken,
@@ -313,94 +307,56 @@ Respond ONLY in valid JSON format:
 
     if (checkInError) {
       console.error("Error saving check-in:", checkInError);
-      return new Response(JSON.stringify({ 
-        success: false, 
-        error: checkInError.message 
-      }), {
+      return new Response(JSON.stringify({ success: false, error: checkInError.message }), {
         status: 500,
         headers: responseHeaders,
       });
     }
-    
-    console.log("Check-in saved successfully:", checkIn.id);
 
-    // If alert triggered, create alert record and notify caregiver
+    // Create alert if needed
     if (analysis.alertTriggered) {
-      console.log("Creating alert for elder:", elderId, "Reason:", analysis.alertReason);
-      
-      // Determine severity based on the issue
-      let severity = "medium";
       const isEmergency = (analysis as any).emergencyDetected || false;
       const isMentalHealth = (analysis as any).mentalHealthConcern || false;
+      let severity = "medium";
       
       if (isEmergency || isMentalHealth || analysis.wellBeingScore <= 2) {
         severity = "critical";
-      } else if (analysis.wellBeingScore <= 3 || analysis.symptomsReported.length > 2) {
+      } else if (analysis.wellBeingScore <= 3) {
         severity = "high";
       }
-      
-      const { error: alertError } = await supabase.from("alerts").insert({
+
+      await supabase.from("alerts").insert({
         elder_id: elderId,
-        title: isEmergency 
-          ? "Emergency Detected"
-          : isMentalHealth
-            ? "Mental Health Concern"
-            : analysis.wellBeingScore <= 3 
-              ? "Low Well-being Detected" 
-              : analysis.medicinesTaken === false 
-                ? "Medication Not Taken"
-                : "Health Concern Detected",
-        description: analysis.alertReason || "AI detected a potential health concern during the call",
+        title: isEmergency ? "Emergency Detected" : 
+               analysis.wellBeingScore <= 3 ? "Low Well-being Detected" : 
+               "Health Concern Detected",
+        description: analysis.alertReason,
         severity: severity,
         alert_type: isEmergency ? "emergency" : "health",
       });
 
-      if (alertError) {
-        console.error("Error creating alert:", alertError);
-      } else {
-        console.log("Alert created successfully with severity:", severity);
-        
-        // Notify caregiver for high/critical alerts
-        if (severity === "high" || severity === "critical") {
-          try {
-            console.log("Notifying caregiver for high-severity alert...");
-            const notifyResponse = await fetch(`${supabaseUrl}/functions/v1/notify-caregiver`, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${supabaseKey}`,
-              },
-              body: JSON.stringify({
-                elderId: elderId,
-                alertType: isEmergency ? "emergency" : "health",
-                severity: severity,
-                title: isEmergency 
-                  ? "Emergency Detected During Check-in"
-                  : isMentalHealth
-                    ? "Mental Health Concern Detected"
-                    : "Health Alert During Check-in",
-                description: analysis.alertReason || "A health concern was detected during the voice check-in.",
-                initiateCall: severity === "critical", // Call caregiver for critical alerts
-              }),
-            });
-            
-            if (notifyResponse.ok) {
-              const notifyResult = await notifyResponse.json();
-              console.log("Caregiver notification result:", notifyResult);
-            } else {
-              console.error("Caregiver notification failed:", await notifyResponse.text());
-            }
-          } catch (notifyError) {
-            console.error("Error notifying caregiver:", notifyError);
-          }
-        }
+      // Notify caregiver for serious alerts
+      if (severity === "high" || severity === "critical") {
+        await fetch(`${supabaseUrl}/functions/v1/notify-caregiver`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${supabaseKey}`,
+          },
+          body: JSON.stringify({
+            elderId: elderId,
+            alertType: isEmergency ? "emergency" : "health",
+            severity: severity,
+            title: analysis.alertReason,
+            description: transcript?.substring(0, 200) || "Health concern detected during voice check-in",
+            initiateCall: severity === "critical",
+          }),
+        });
       }
     }
 
     // Save conversation logs
     if (transcript) {
-      console.log("Saving conversation logs...");
-      // Parse transcript into messages
       const lines = transcript.split("\n").filter((l: string) => l.trim());
       for (const line of lines) {
         const isAI = line.toLowerCase().startsWith("assistant:") || 
@@ -417,7 +373,6 @@ Respond ONLY in valid JSON format:
           });
         }
       }
-      console.log("Conversation logs saved");
     }
 
     return new Response(
@@ -425,12 +380,12 @@ Respond ONLY in valid JSON format:
         success: true, 
         checkInId: checkIn.id, 
         analysis,
-        resolvedSymptomsDetected: resolvedSymptoms.length,
         recordingUrl,
         callDuration 
       }),
       { headers: responseHeaders }
     );
+
   } catch (error: unknown) {
     console.error("Webhook error:", error);
     const message = error instanceof Error ? error.message : "Unknown error";
@@ -440,3 +395,139 @@ Respond ONLY in valid JSON format:
     });
   }
 });
+
+// Send WhatsApp notifications when elder doesn't answer
+async function sendMissedCallNotifications(supabase: any, elderId: string) {
+  // Get elder and notification settings
+  const { data: elder } = await supabase
+    .from("elders")
+    .select("full_name, preferred_language, whatsapp_number, phone_number")
+    .eq("id", elderId)
+    .single();
+
+  const { data: settings } = await supabase
+    .from("notification_settings")
+    .select("caregiver_name, caregiver_phone")
+    .eq("elder_id", elderId)
+    .single();
+
+  if (!elder) return;
+
+  const TWILIO_ACCOUNT_SID = Deno.env.get("TWILIO_ACCOUNT_SID");
+  const TWILIO_AUTH_TOKEN = Deno.env.get("TWILIO_AUTH_TOKEN");
+  const TWILIO_WHATSAPP_NUMBER = Deno.env.get("TWILIO_WHATSAPP_NUMBER");
+
+  if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN || !TWILIO_WHATSAPP_NUMBER) return;
+
+  const isHindi = elder.preferred_language === 'hindi';
+  const firstName = elder.full_name?.split(' ')[0] || 'जी';
+
+  // Send to elder
+  const elderPhone = elder.whatsapp_number || elder.phone_number;
+  if (elderPhone) {
+    const elderMessage = isHindi
+      ? `🙏 ${firstName} जी, हमने आपको कॉल किया था पर जवाब नहीं मिला। सब ठीक है? कृपया जवाब दें या हम वापस कॉल करेंगे। 💚`
+      : `Hi ${firstName}! 👋 We tried calling but couldn't reach you. Is everything okay? Please reply or we'll try calling again. 💚`;
+
+    const formattedElderPhone = elderPhone.startsWith("+") ? elderPhone : `+91${elderPhone.replace(/^0+/, "")}`;
+
+    try {
+      await fetch(
+        `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Messages.json`,
+        {
+          method: "POST",
+          headers: {
+            "Authorization": `Basic ${btoa(`${TWILIO_ACCOUNT_SID}:${TWILIO_AUTH_TOKEN}`)}`,
+            "Content-Type": "application/x-www-form-urlencoded",
+          },
+          body: new URLSearchParams({
+            From: `whatsapp:${TWILIO_WHATSAPP_NUMBER}`,
+            To: `whatsapp:${formattedElderPhone}`,
+            Body: elderMessage,
+          }),
+        }
+      );
+      console.log("Missed call WhatsApp sent to elder");
+    } catch (error) {
+      console.error("Error sending WhatsApp to elder:", error);
+    }
+  }
+
+  // Send to caregiver
+  if (settings?.caregiver_phone) {
+    const caregiverMessage = isHindi
+      ? `📞 Sentio सूचना: ${elder.full_name} ने कॉल का जवाब नहीं दिया। हम 10 मिनट में दोबारा कोशिश करेंगे।`
+      : `📞 Sentio Notice: ${elder.full_name} didn't answer our check-in call. We'll try again in 10 minutes.`;
+
+    const formattedCaregiverPhone = settings.caregiver_phone.startsWith("+") 
+      ? settings.caregiver_phone 
+      : `+91${settings.caregiver_phone.replace(/^0+/, "")}`;
+
+    try {
+      await fetch(
+        `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Messages.json`,
+        {
+          method: "POST",
+          headers: {
+            "Authorization": `Basic ${btoa(`${TWILIO_ACCOUNT_SID}:${TWILIO_AUTH_TOKEN}`)}`,
+            "Content-Type": "application/x-www-form-urlencoded",
+          },
+          body: new URLSearchParams({
+            From: `whatsapp:${TWILIO_WHATSAPP_NUMBER}`,
+            To: `whatsapp:${formattedCaregiverPhone}`,
+            Body: caregiverMessage,
+          }),
+        }
+      );
+      console.log("Missed call WhatsApp sent to caregiver");
+    } catch (error) {
+      console.error("Error sending WhatsApp to caregiver:", error);
+    }
+  }
+}
+
+// Send final alert when all retries fail
+async function sendFinalFailureAlert(
+  supabase: any, 
+  elderId: string, 
+  supabaseUrl: string, 
+  supabaseServiceKey: string
+) {
+  const { data: elder } = await supabase
+    .from("elders")
+    .select("full_name, preferred_language")
+    .eq("id", elderId)
+    .single();
+
+  const elderName = elder?.full_name || 'Elder';
+  const isHindi = elder?.preferred_language === 'hindi';
+
+  // Create alert
+  await supabase.from("alerts").insert({
+    elder_id: elderId,
+    alert_type: 'missed_checkin',
+    severity: 'high',
+    title: isHindi ? 'कॉल का कोई जवाब नहीं' : 'No Response to Calls',
+    description: isHindi 
+      ? `${elderName} ने 3 कॉल का जवाब नहीं दिया। कृपया उनसे संपर्क करें।`
+      : `${elderName} didn't answer 3 call attempts. Please check on them.`,
+    resolved: false
+  });
+
+  // Notify caregiver urgently
+  await fetch(`${supabaseUrl}/functions/v1/notify-caregiver`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${supabaseServiceKey}`,
+    },
+    body: JSON.stringify({
+      elderId: elderId,
+      alertType: "missed_checkin",
+      severity: "high",
+      title: "Unable to Reach Elder",
+      description: `We tried calling ${elderName} 3 times but couldn't reach them. Please check on them immediately.`,
+      initiateCall: false
+    }),
+  });
+}
