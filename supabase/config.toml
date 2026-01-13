@@ -26,3 +26,15 @@ verify_jwt = false
 
 [functions.send-whatsapp-checkin]
 verify_jwt = true
+
+[functions.bolna-voice-call]
+verify_jwt = true
+
+[functions.bolna-webhook]
+verify_jwt = false
+
+[functions.notify-caregiver]
+verify_jwt = true
+
+[functions.process-call-retries]
+verify_jwt = false
