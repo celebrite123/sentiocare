@@ -403,6 +403,28 @@ serve(async (req) => {
     // Bolna returns execution_id, not call_id
     const callId = callData.execution_id || callData.call_id || callData.id;
     
+    // Create a call_attempts record to track this call for retry logic
+    const { data: callAttempt, error: callAttemptError } = await supabase
+      .from("call_attempts")
+      .insert({
+        elder_id: elderId,
+        execution_id: callId,
+        call_type: isEmergency ? 'emergency' : 'scheduled',
+        status: 'initiated',
+        attempt_number: 1,
+        retry_count: 0,
+        max_retries: 2,
+      })
+      .select()
+      .single();
+
+    if (callAttemptError) {
+      console.error("Error creating call attempt record:", callAttemptError);
+      // Don't fail the call if we can't create the tracking record
+    } else {
+      console.log("Call attempt record created:", callAttempt?.id);
+    }
+    
     // Get remaining emergency calls
     const remainingEmergencyCalls = isEmergency 
       ? MAX_EMERGENCY_CALLS_PER_MONTH - ((profile?.monthly_emergency_calls_used || 0) + 1)
@@ -411,6 +433,7 @@ serve(async (req) => {
     console.log('Voice call initiated successfully:', { 
       callId,
       execution_id: callData.execution_id,
+      callAttemptId: callAttempt?.id,
       language: preferredLanguage,
       medicinesCount: medicines.length,
       previousCheckInsLoaded: previousCheckIns?.length || 0,
@@ -426,6 +449,7 @@ serve(async (req) => {
         success: true, 
         callId,
         execution_id: callData.execution_id,
+        callAttemptId: callAttempt?.id,
         message: isEmergency ? 'Emergency voice call initiated' : 'Voice call initiated successfully',
         language: preferredLanguage,
         isEmergency,
