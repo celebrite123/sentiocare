@@ -75,7 +75,7 @@ serve(async (req) => {
     })[0];
 
     if (!elder) {
-      console.log('Elder not found for number:', phoneNumber);
+      console.log('Elder not found for incoming WhatsApp message');
       return new Response(
         `<?xml version="1.0" encoding="UTF-8"?><Response></Response>`,
         { headers: responseHeaders }

@@ -38,3 +38,6 @@ verify_jwt = true
 
 [functions.process-call-retries]
 verify_jwt = false
+
+[functions.cleanup-old-recordings]
+verify_jwt = false

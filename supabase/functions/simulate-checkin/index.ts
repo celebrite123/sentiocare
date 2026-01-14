@@ -109,7 +109,7 @@ serve(async (req) => {
   try {
     const { elderId, elderName, scenario } = await req.json();
     
-    console.log(`Starting simulated check-in for elder: ${elderName} (${elderId})`);
+    console.log(`Starting simulated check-in for elder: ${elderId}`);
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
