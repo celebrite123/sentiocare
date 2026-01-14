@@ -112,7 +112,7 @@ serve(async (req) => {
 
           if (emailResponse.ok) {
             results.email = true;
-            console.log("Email sent successfully to:", settings.email_address);
+            console.log("Email sent successfully to caregiver");
           } else {
             console.error("Email send failed:", await emailResponse.text());
           }
@@ -158,7 +158,7 @@ serve(async (req) => {
 
           if (smsResponse.ok) {
             results.sms = true;
-            console.log("WhatsApp sent to caregiver:", caregiverPhone);
+            console.log("WhatsApp sent to caregiver");
           } else {
             console.error("WhatsApp send failed:", await smsResponse.text());
           }
@@ -207,7 +207,7 @@ serve(async (req) => {
 
           if (callResponse.ok) {
             results.call = true;
-            console.log("Emergency call initiated to caregiver:", caregiverPhone);
+            console.log("Emergency call initiated to caregiver");
           } else {
             console.error("Call failed:", await callResponse.text());
           }

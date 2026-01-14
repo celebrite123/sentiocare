@@ -50,7 +50,7 @@ serve(async (req) => {
         continue;
       }
 
-      console.log(`Retrying call for ${elder.full_name} (attempt #${attempt.retry_count + 1})`);
+      console.log(`Retrying call for elder ${elder.id} (attempt #${attempt.retry_count + 1})`);
 
       try {
         // Create a new call attempt for the retry
@@ -119,7 +119,7 @@ serve(async (req) => {
             executionId: callResult.execution_id
           });
 
-          console.log(`Retry call initiated for ${elder.full_name}`);
+          console.log(`Retry call initiated for elder ${elder.id}`);
 
         } else {
           console.error("Call initiation failed:", callResult.error);

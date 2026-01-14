@@ -238,7 +238,7 @@ const handler = async (req: Request): Promise<Response> => {
           html: emailHtml,
         });
 
-        console.log(`Email sent for ${elder.full_name}:`, emailResponse);
+        console.log(`Weekly summary email sent for elder ${settings.elder_id}`);
         emailsSent.push(settings.email_address!);
       } catch (elderError) {
         console.error(`Error processing elder ${settings.elder_id}:`, elderError);
