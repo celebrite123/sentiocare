@@ -40,11 +40,25 @@ const DemoSection = () => {
   const [voiceIndex, setVoiceIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(true);
   const [audioEnabled, setAudioEnabled] = useState(false);
-  const [language, setLanguage] = useState<"english" | "hindi">("hindi"); // Default to Hindi
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [voicesAvailable, setVoicesAvailable] = useState(false);
+  const [language, setLanguage] = useState<"english" | "hindi">("hindi");
   const speechRef = useRef<SpeechSynthesisUtterance | null>(null);
 
   const whatsappMessages = language === "hindi" ? whatsappMessagesHindi : whatsappMessagesEnglish;
   const voiceCallScript = language === "hindi" ? voiceCallScriptHindi : voiceCallScriptEnglish;
+
+  // Check if speech synthesis is available
+  useEffect(() => {
+    if ('speechSynthesis' in window) {
+      const loadVoices = () => {
+        const voices = window.speechSynthesis.getVoices();
+        setVoicesAvailable(voices.length > 0);
+      };
+      loadVoices();
+      window.speechSynthesis.onvoiceschanged = loadVoices;
+    }
+  }, []);
 
   useEffect(() => {
     if (!isPlaying) return;
@@ -61,23 +75,31 @@ const DemoSection = () => {
     voiceCallScript.forEach((msg, index) => {
       const timer = setTimeout(() => {
         setVoiceIndex(index + 1);
-        if (audioEnabled && msg.role === "ai") {
+        if (audioEnabled && msg.role === "ai" && voicesAvailable) {
           speakText(msg.text);
         }
       }, msg.delay);
       timers.push(timer);
     });
 
-    return () => timers.forEach(clearTimeout);
-  }, [isPlaying, audioEnabled, language]);
+    return () => {
+      timers.forEach(clearTimeout);
+      setIsSpeaking(false);
+    };
+  }, [isPlaying, audioEnabled, language, voicesAvailable]);
 
   const speakText = (text: string) => {
-    if ('speechSynthesis' in window) {
+    if ('speechSynthesis' in window && voicesAvailable) {
       window.speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.rate = 0.9;
       utterance.pitch = 1;
       utterance.lang = language === "hindi" ? 'hi-IN' : 'en-IN';
+      
+      utterance.onstart = () => setIsSpeaking(true);
+      utterance.onend = () => setIsSpeaking(false);
+      utterance.onerror = () => setIsSpeaking(false);
+      
       speechRef.current = utterance;
       window.speechSynthesis.speak(utterance);
     }
@@ -235,18 +257,29 @@ const DemoSection = () => {
               
               {/* Call transcript */}
               <div className="p-4 space-y-4 min-h-[300px]">
-                {/* Audio waveform visualization */}
-                <div className="flex items-center justify-center gap-1 py-4">
-                  {[...Array(12)].map((_, i) => (
-                    <div
-                      key={i}
-                      className="w-1 bg-secondary/60 rounded-full animate-wave"
-                      style={{
-                        height: `${Math.random() * 24 + 8}px`,
-                        animationDelay: `${i * 0.1}s`,
-                      }}
-                    />
-                  ))}
+                {/* Audio waveform visualization with speaking indicator */}
+                <div className="flex flex-col items-center gap-2 py-4">
+                  <div className="flex items-center justify-center gap-1">
+                    {[...Array(12)].map((_, i) => (
+                      <div
+                        key={i}
+                        className={`w-1 rounded-full transition-all ${isSpeaking ? 'bg-secondary animate-wave' : 'bg-secondary/40'}`}
+                        style={{
+                          height: isSpeaking ? `${Math.random() * 24 + 8}px` : '8px',
+                          animationDelay: `${i * 0.1}s`,
+                        }}
+                      />
+                    ))}
+                  </div>
+                  {isSpeaking && audioEnabled && (
+                    <div className="flex items-center gap-2 text-xs text-secondary">
+                      <Volume2 className="h-3 w-3 animate-pulse" />
+                      <span>{language === "hindi" ? "बोल रहा है..." : "Speaking..."}</span>
+                    </div>
+                  )}
+                  {audioEnabled && !voicesAvailable && (
+                    <p className="text-xs text-muted-foreground">Audio not available in this browser</p>
+                  )}
                 </div>
                 
                 {/* Transcript */}

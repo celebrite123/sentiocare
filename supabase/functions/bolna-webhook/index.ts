@@ -13,19 +13,15 @@ serve(async (req) => {
 
   try {
     const payload = await req.json();
-    console.log("Bolna webhook received:", { 
-      status: payload.status, 
-      call_id: payload.call_id,
-      execution_id: payload.execution_id,
-      hasTranscript: !!payload.transcript,
-      hangup_reason: payload.hangup_reason
-    });
+    
+    // CRITICAL: Log full payload for debugging callback issues
+    console.log("Bolna webhook FULL payload:", JSON.stringify(payload, null, 2));
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Extract call data from Bolna webhook
+    // Extract call data from Bolna webhook - handle multiple payload structures
     const { 
       call_id,
       execution_id,
@@ -40,11 +36,11 @@ serve(async (req) => {
     } = payload;
 
     const user_data = payload.user_data;
-    const actualExecutionId = execution_id || call_id;
+    const actualExecutionId = execution_id || call_id || payload.id;
 
-    // Check if this is an end-of-call event
-    const isCallEnded = status === 'completed' || status === 'ended' || status === 'failed' || 
-                        status === 'no-answer' || status === 'busy' || status === 'canceled';
+    // Check if this is an end-of-call event - handle multiple formats
+    const normalizedStatus = String(status || '').toLowerCase().replace(/_/g, '-');
+    const isCallEnded = ['completed', 'ended', 'failed', 'no-answer', 'busy', 'canceled', 'cancelled'].includes(normalizedStatus);
     
     if (!isCallEnded) {
       console.log(`Call status update: ${status} for call ${actualExecutionId}`);
@@ -53,43 +49,85 @@ serve(async (req) => {
       });
     }
 
-    // Extract elder ID
+    // Extract elder ID from multiple possible payload locations
     const elderId = 
       context_details?.recipient_data?.elder_id ||
       context_details?.user_data?.elder_id ||
       user_data?.elder_id ||
+      payload.recipient_data?.elder_id ||
+      payload.metadata?.elder_id ||
       payload.elder_id;
     
-    console.log("Extracted elder_id:", elderId);
+    console.log("Extracted elder_id:", elderId, "execution_id:", actualExecutionId);
 
-    // Find the call attempt by execution_id first
+    // Find call attempt by execution_id first
     let callAttempt = null;
     if (actualExecutionId) {
-      const { data: attempt } = await supabase
+      const { data: attempt, error: attemptError } = await supabase
         .from("call_attempts")
         .select("*")
         .eq("execution_id", actualExecutionId)
         .single();
-      callAttempt = attempt;
+      
+      if (attempt) {
+        callAttempt = attempt;
+        console.log("Found call_attempt by execution_id:", callAttempt.id);
+      } else {
+        console.log("No call_attempt found by execution_id:", attemptError?.message);
+      }
+    }
+
+    // FALLBACK: If no match by execution_id, try matching by elder_id within last 30 minutes
+    if (!callAttempt && elderId) {
+      const thirtyMinsAgo = new Date(Date.now() - 30 * 60 * 1000);
+      const { data: recentAttempt, error: recentError } = await supabase
+        .from("call_attempts")
+        .select("*")
+        .eq("elder_id", elderId)
+        .eq("status", "initiated")
+        .gte("created_at", thirtyMinsAgo.toISOString())
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .single();
+      
+      if (recentAttempt) {
+        callAttempt = recentAttempt;
+        console.log("Found call_attempt by elder_id fallback:", callAttempt.id);
+        
+        // Update execution_id for future webhooks
+        if (actualExecutionId) {
+          await supabase
+            .from("call_attempts")
+            .update({ execution_id: actualExecutionId })
+            .eq("id", recentAttempt.id);
+          console.log("Updated execution_id on call_attempt");
+        }
+      } else {
+        console.log("No recent call_attempt found for elder:", recentError?.message);
+      }
     }
 
     // Determine if call was answered
     const callDuration = conversation_duration || duration || 0;
     const wasAnswered = (
-      status === 'completed' || 
-      status === 'ended' ||
+      normalizedStatus === 'completed' || 
+      normalizedStatus === 'ended' ||
       callDuration > 30 || 
       (transcript && transcript.length > 50)
     );
 
+    // Handle multiple formats for no-answer detection
+    const normalizedHangup = String(hangup_reason || '').toLowerCase().replace(/_/g, '-');
     const wasNoAnswer = (
-      status === 'no-answer' || 
-      status === 'busy' ||
-      status === 'failed' ||
-      status === 'canceled' ||
-      hangup_reason === 'no_answer' ||
-      hangup_reason === 'busy' ||
-      (callDuration < 15 && !transcript)
+      normalizedStatus === 'no-answer' || 
+      normalizedStatus === 'busy' ||
+      normalizedStatus === 'failed' ||
+      normalizedStatus === 'canceled' ||
+      normalizedStatus === 'cancelled' ||
+      normalizedHangup === 'no-answer' ||
+      normalizedHangup === 'busy' ||
+      normalizedHangup === 'timeout' ||
+      (callDuration < 15 && (!transcript || transcript.length < 20))
     );
 
     console.log("Call analysis:", { wasAnswered, wasNoAnswer, status, callDuration, hasAttempt: !!callAttempt });
