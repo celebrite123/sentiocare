@@ -31,6 +31,7 @@ import WhatsAppChat from "@/components/dashboard/WhatsAppChat";
 import AlertsPanel from "@/components/AlertsPanel";
 import { WellbeingTrendChart } from "@/components/dashboard/WellbeingTrendChart";
 import { MedicationAdherenceChart } from "@/components/dashboard/MedicationAdherenceChart";
+import CallStatusCard from "@/components/dashboard/CallStatusCard";
 import { format } from "date-fns";
 
 interface Elder {
@@ -473,7 +474,7 @@ const Dashboard = () => {
           </div>
 
           {/* Stats Cards */}
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 mb-8">
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-5 mb-8">
             <Card className="border-primary/20">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Today's Check-in</CardTitle>
@@ -586,6 +587,9 @@ const Dashboard = () => {
                 </p>
               </CardContent>
             </Card>
+
+            {/* Call Status Card */}
+            <CallStatusCard elderId={elderId} />
           </div>
 
           {/* Metrics and Insights */}
