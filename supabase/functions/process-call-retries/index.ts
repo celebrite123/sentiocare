@@ -21,6 +21,10 @@ serve(async (req) => {
     const now = new Date();
 
     // Find call attempts that need to be retried
+    // CRITICAL: Only get records where:
+    // 1. status is 'no_answer' (not 'initiated', 'retried', or anything else)
+    // 2. next_retry_at is in the past
+    // 3. retry_count < max_retries
     const { data: pendingRetries, error: fetchError } = await supabase
       .from("call_attempts")
       .select(`
@@ -30,6 +34,7 @@ serve(async (req) => {
       .eq("status", "no_answer")
       .not("next_retry_at", "is", null)
       .lte("next_retry_at", now.toISOString())
+      .lt("retry_count", 2) // Only retry if we haven't hit max
       .order("next_retry_at", { ascending: true })
       .limit(10);
 
@@ -50,27 +55,49 @@ serve(async (req) => {
         continue;
       }
 
+      // DEBOUNCE CHECK: Skip if this elder has a recent call in the last 15 minutes
+      const fifteenMinsAgo = new Date(Date.now() - 15 * 60 * 1000);
+      const { data: recentCalls, error: recentError } = await supabase
+        .from("call_attempts")
+        .select("id, status, created_at")
+        .eq("elder_id", elder.id)
+        .in("status", ["initiated", "answered"])
+        .gte("created_at", fifteenMinsAgo.toISOString())
+        .limit(1);
+
+      if (recentCalls && recentCalls.length > 0) {
+        console.log(`Skipping retry for elder ${elder.id} - recent call exists:`, recentCalls[0]);
+        
+        // Clear the retry since there's a recent successful/pending call
+        await supabase
+          .from("call_attempts")
+          .update({ 
+            next_retry_at: null,
+            status: 'superseded' // Mark as superseded by newer call
+          })
+          .eq("id", attempt.id);
+        
+        continue;
+      }
+
       console.log(`Retrying call for elder ${elder.id} (attempt #${attempt.retry_count + 1})`);
 
       try {
-        // Create a new call attempt for the retry
-        const { data: newAttempt, error: insertError } = await supabase
+        // CRITICAL: Mark the old attempt as 'retried' FIRST to prevent duplicates
+        await supabase
           .from("call_attempts")
-          .insert({
-            elder_id: elder.id,
-            schedule_id: attempt.schedule_id,
-            call_type: 'retry',
-            attempt_number: attempt.attempt_number + 1,
-            retry_count: attempt.retry_count,
-            max_retries: attempt.max_retries
+          .update({ 
+            status: 'retried',
+            next_retry_at: null
           })
-          .select()
-          .single();
+          .eq("id", attempt.id);
 
-        if (insertError) {
-          console.error("Error creating retry attempt:", insertError);
-          continue;
-        }
+        // Fetch medicines for the call
+        const { data: medicines } = await supabase
+          .from("medicines")
+          .select("name, dosage, timing")
+          .eq("elder_id", elder.id)
+          .eq("active", true);
 
         // Initiate the retry call via bolna-voice-call
         const callResponse = await fetch(`${supabaseUrl}/functions/v1/bolna-voice-call`, {
@@ -83,7 +110,7 @@ serve(async (req) => {
             elderId: elder.id,
             elderName: elder.full_name,
             elderPhone: elder.phone_number,
-            medicines: [],
+            medicines: medicines || [],
             medicalConditions: elder.medical_conditions || [],
             preferredLanguage: elder.preferred_language || 'english',
             isEmergency: false
@@ -92,46 +119,28 @@ serve(async (req) => {
 
         const callResult = await callResponse.json();
         
-        if (callResult.success && callResult.execution_id) {
-          // Update the new attempt with the execution ID
-          await supabase
-            .from("call_attempts")
-            .update({ 
-              execution_id: callResult.execution_id,
-              status: 'initiated'
-            })
-            .eq("id", newAttempt.id);
-
-          // Mark the old attempt as retried
-          await supabase
-            .from("call_attempts")
-            .update({ 
-              status: 'retried',
-              next_retry_at: null
-            })
-            .eq("id", attempt.id);
+        if (callResult.success || callResult.execution_id) {
+          console.log(`Retry call initiated for elder ${elder.id}, execution_id: ${callResult.execution_id}`);
 
           results.push({
             elderId: elder.id,
             elderName: elder.full_name,
-            attemptNumber: newAttempt.attempt_number,
+            attemptNumber: attempt.retry_count + 1,
             status: 'call_initiated',
             executionId: callResult.execution_id
           });
 
-          console.log(`Retry call initiated for elder ${elder.id}`);
-
         } else {
           console.error("Call initiation failed:", callResult.error);
           
-          // Update the attempt as failed
+          // Revert the status back if the call failed to initiate
           await supabase
             .from("call_attempts")
             .update({ 
               status: 'failed',
               next_retry_at: null
             })
-            .eq("id", newAttempt.id);
+            .eq("id", attempt.id);
 
           results.push({
             elderId: elder.id,
@@ -143,6 +152,16 @@ serve(async (req) => {
 
       } catch (callError) {
         console.error(`Error processing retry for ${elder.full_name}:`, callError);
+        
+        // Mark as failed if there was an exception
+        await supabase
+          .from("call_attempts")
+          .update({ 
+            status: 'failed',
+            next_retry_at: null
+          })
+          .eq("id", attempt.id);
+          
         results.push({
           elderId: elder.id,
           elderName: elder.full_name,
