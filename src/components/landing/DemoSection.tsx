@@ -1,64 +1,50 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { MessageCircle, Phone, Volume2, VolumeX, RotateCcw } from "lucide-react";
+import { MessageCircle, Phone, RotateCcw } from "lucide-react";
 
-const whatsappMessagesEnglish = [
-  { role: "ai", text: "Good morning Lakshmi aunty! 🙏 Did you take your morning medicines?", delay: 0 },
-  { role: "elder", text: "Yes beta, I took my BP medicine", delay: 2000 },
-  { role: "ai", text: "That's wonderful! How are you feeling today?", delay: 3500 },
-  { role: "elder", text: "Feeling good, had idli for breakfast", delay: 5500 },
-  { role: "ai", text: "Sounds healthy! I'll let your family know you're doing well. Take care! 💚", delay: 7000 },
+// Authentic Hindi conversations - natural, warm, family-like
+const whatsappMessagesHindi = [
+  { role: "ai", text: "नमस्ते दादी जी! 🙏 आज सुबह की दवाई ली आपने?", delay: 0 },
+  { role: "elder", text: "हां बेटा, BP की गोली ले ली", delay: 2500 },
+  { role: "ai", text: "बहुत अच्छा! तबीयत कैसी है आज?", delay: 4500 },
+  { role: "elder", text: "ठीक हूं, आज पोहा खाया नाश्ते में", delay: 7000 },
+  { role: "ai", text: "वाह! आप अपना ख्याल रखिए। परिवार को बता देती हूं कि सब ठीक है। 💚", delay: 9000 },
 ];
 
-const whatsappMessagesHindi = [
-  { role: "ai", text: "नमस्ते लक्ष्मी आंटी! 🙏 क्या आपने सुबह की दवाइयां ली हैं?", delay: 0 },
-  { role: "elder", text: "हां बेटा, मैंने BP की दवाई ले ली", delay: 2000 },
-  { role: "ai", text: "बहुत अच्छा! आज आपकी तबीयत कैसी है?", delay: 3500 },
-  { role: "elder", text: "ठीक हूं, नाश्ते में इडली खाई", delay: 5500 },
-  { role: "ai", text: "बहुत बढ़िया! मैं आपके परिवार को बता दूंगी कि आप ठीक हैं। ख्याल रखिए! 💚", delay: 7000 },
+const whatsappMessagesEnglish = [
+  { role: "ai", text: "Good morning! 🙏 Did you take your morning medicines?", delay: 0 },
+  { role: "elder", text: "Yes dear, I took my BP tablet", delay: 2500 },
+  { role: "ai", text: "That's wonderful! How are you feeling today?", delay: 4500 },
+  { role: "elder", text: "Feeling good, had poha for breakfast", delay: 7000 },
+  { role: "ai", text: "Lovely! Take care, I'll let your family know you're doing well. 💚", delay: 9000 },
+];
+
+// Voice call - realistic elder check-in conversation
+const voiceCallScriptHindi = [
+  { role: "ai", text: "नमस्ते दादी जी! कैसी तबीयत है आज?", delay: 0 },
+  { role: "elder", text: "ठीक हूं बेटा, बस थोड़ी कमज़ोरी लग रही है।", delay: 2500 },
+  { role: "ai", text: "अच्छा, 1 से 10 में कितनी कमज़ोरी है?", delay: 5000 },
+  { role: "elder", text: "3-4 होगी, ज़्यादा नहीं।", delay: 7500 },
+  { role: "ai", text: "ठीक है। आराम कीजिए, मैं परिवार को बता देती हूं। दवाई ज़रूर लीजिएगा।", delay: 9500 },
 ];
 
 const voiceCallScriptEnglish = [
-  { role: "ai", text: "Hello! This is Sentio calling for your daily check-in.", delay: 0 },
-  { role: "elder", text: "Hello beta, yes I'm here.", delay: 2500 },
-  { role: "ai", text: "How are you feeling this morning? Any discomfort?", delay: 4000 },
-  { role: "elder", text: "I'm feeling fine, just a little tired.", delay: 6500 },
-  { role: "ai", text: "I understand. Make sure to rest well. I'll inform your family.", delay: 8500 },
-];
-
-const voiceCallScriptHindi = [
-  { role: "ai", text: "नमस्ते! यह Sentio है, आपकी दैनिक स्वास्थ्य जांच के लिए।", delay: 0 },
-  { role: "elder", text: "नमस्ते बेटा, हां मैं यहां हूं।", delay: 2500 },
-  { role: "ai", text: "आज सुबह आप कैसा महसूस कर रहे हैं? कोई तकलीफ तो नहीं?", delay: 4000 },
-  { role: "elder", text: "ठीक हूं, बस थोड़ी थकान है।", delay: 6500 },
-  { role: "ai", text: "समझ गई। आराम जरूर कीजिए। मैं आपके परिवार को बता देती हूं।", delay: 8500 },
+  { role: "ai", text: "Hello! How are you feeling today?", delay: 0 },
+  { role: "elder", text: "I'm okay dear, just feeling a bit weak.", delay: 2500 },
+  { role: "ai", text: "I see. From 1 to 10, how weak do you feel?", delay: 5000 },
+  { role: "elder", text: "Maybe 3 or 4, not too bad.", delay: 7500 },
+  { role: "ai", text: "Alright. Please rest well, I'll let your family know. Don't forget your medicines.", delay: 9500 },
 ];
 
 const DemoSection = () => {
   const [whatsappIndex, setWhatsappIndex] = useState(0);
   const [voiceIndex, setVoiceIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(true);
-  const [audioEnabled, setAudioEnabled] = useState(false);
-  const [isSpeaking, setIsSpeaking] = useState(false);
-  const [voicesAvailable, setVoicesAvailable] = useState(false);
   const [language, setLanguage] = useState<"english" | "hindi">("hindi");
-  const speechRef = useRef<SpeechSynthesisUtterance | null>(null);
 
   const whatsappMessages = language === "hindi" ? whatsappMessagesHindi : whatsappMessagesEnglish;
   const voiceCallScript = language === "hindi" ? voiceCallScriptHindi : voiceCallScriptEnglish;
-
-  // Check if speech synthesis is available
-  useEffect(() => {
-    if ('speechSynthesis' in window) {
-      const loadVoices = () => {
-        const voices = window.speechSynthesis.getVoices();
-        setVoicesAvailable(voices.length > 0);
-      };
-      loadVoices();
-      window.speechSynthesis.onvoiceschanged = loadVoices;
-    }
-  }, []);
 
   useEffect(() => {
     if (!isPlaying) return;
@@ -75,54 +61,24 @@ const DemoSection = () => {
     voiceCallScript.forEach((msg, index) => {
       const timer = setTimeout(() => {
         setVoiceIndex(index + 1);
-        if (audioEnabled && msg.role === "ai" && voicesAvailable) {
-          speakText(msg.text);
-        }
       }, msg.delay);
       timers.push(timer);
     });
 
     return () => {
       timers.forEach(clearTimeout);
-      setIsSpeaking(false);
     };
-  }, [isPlaying, audioEnabled, language, voicesAvailable]);
-
-  const speakText = (text: string) => {
-    if ('speechSynthesis' in window && voicesAvailable) {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = 0.9;
-      utterance.pitch = 1;
-      utterance.lang = language === "hindi" ? 'hi-IN' : 'en-IN';
-      
-      utterance.onstart = () => setIsSpeaking(true);
-      utterance.onend = () => setIsSpeaking(false);
-      utterance.onerror = () => setIsSpeaking(false);
-      
-      speechRef.current = utterance;
-      window.speechSynthesis.speak(utterance);
-    }
-  };
+  }, [isPlaying, language, whatsappMessages, voiceCallScript]);
 
   const resetDemo = () => {
-    window.speechSynthesis?.cancel();
     setWhatsappIndex(0);
     setVoiceIndex(0);
     setIsPlaying(false);
     setTimeout(() => setIsPlaying(true), 100);
   };
 
-  const toggleAudio = () => {
-    if (audioEnabled) {
-      window.speechSynthesis?.cancel();
-    }
-    setAudioEnabled(!audioEnabled);
-  };
-
   const toggleLanguage = (newLang: "english" | "hindi") => {
     if (newLang !== language) {
-      window.speechSynthesis?.cancel();
       setLanguage(newLang);
       setWhatsappIndex(0);
       setVoiceIndex(0);
@@ -136,7 +92,7 @@ const DemoSection = () => {
       <div className="container mx-auto px-4">
         <div className="text-center mb-8">
           <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">
-            Try It Now
+            See Sentio In Action
           </h2>
           <p className="text-muted-foreground text-lg max-w-2xl mx-auto mb-6">
             Watch how Sentio AI conducts caring check-ins with your loved ones
@@ -145,20 +101,20 @@ const DemoSection = () => {
           {/* Language Toggle */}
           <div className="inline-flex items-center gap-1 p-1 bg-muted rounded-full">
             <Button
-              variant={language === "english" ? "default" : "ghost"}
-              size="sm"
-              onClick={() => toggleLanguage("english")}
-              className="rounded-full px-4"
-            >
-              English
-            </Button>
-            <Button
               variant={language === "hindi" ? "default" : "ghost"}
               size="sm"
               onClick={() => toggleLanguage("hindi")}
               className="rounded-full px-4"
             >
               हिन्दी
+            </Button>
+            <Button
+              variant={language === "english" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => toggleLanguage("english")}
+              className="rounded-full px-4"
+            >
+              English
             </Button>
           </div>
         </div>
@@ -180,10 +136,10 @@ const DemoSection = () => {
               {/* Phone header */}
               <div className="bg-accent px-4 py-3 flex items-center gap-3">
                 <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white text-sm font-medium">
-                  SA
+                  S
                 </div>
                 <div className="text-white">
-                  <p className="font-medium text-sm">Sentio AI</p>
+                  <p className="font-medium text-sm">Sentio</p>
                   <p className="text-xs text-white/70">online</p>
                 </div>
               </div>
@@ -241,45 +197,31 @@ const DemoSection = () => {
                     <Phone className="h-4 w-4" />
                   </div>
                   <div className="text-white">
-                    <p className="font-medium text-sm">Sentio AI Call</p>
-                    <p className="text-xs text-white/70">In progress...</p>
+                    <p className="font-medium text-sm">Sentio Call</p>
+                    <p className="text-xs text-white/70">{language === "hindi" ? "कॉल चालू है..." : "In progress..."}</p>
                   </div>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={toggleAudio}
-                  className="text-white hover:bg-white/10"
-                >
-                  {audioEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
-                </Button>
               </div>
               
               {/* Call transcript */}
               <div className="p-4 space-y-4 min-h-[300px]">
-                {/* Audio waveform visualization with speaking indicator */}
+                {/* Audio waveform visualization */}
                 <div className="flex flex-col items-center gap-2 py-4">
                   <div className="flex items-center justify-center gap-1">
                     {[...Array(12)].map((_, i) => (
                       <div
                         key={i}
-                        className={`w-1 rounded-full transition-all ${isSpeaking ? 'bg-secondary animate-wave' : 'bg-secondary/40'}`}
+                        className="w-1 rounded-full bg-secondary/60 animate-pulse"
                         style={{
-                          height: isSpeaking ? `${Math.random() * 24 + 8}px` : '8px',
+                          height: `${12 + Math.sin(i * 0.5) * 8}px`,
                           animationDelay: `${i * 0.1}s`,
                         }}
                       />
                     ))}
                   </div>
-                  {isSpeaking && audioEnabled && (
-                    <div className="flex items-center gap-2 text-xs text-secondary">
-                      <Volume2 className="h-3 w-3 animate-pulse" />
-                      <span>{language === "hindi" ? "बोल रहा है..." : "Speaking..."}</span>
-                    </div>
-                  )}
-                  {audioEnabled && !voicesAvailable && (
-                    <p className="text-xs text-muted-foreground">Audio not available in this browser</p>
-                  )}
+                  <p className="text-xs text-muted-foreground mt-2">
+                    {language === "hindi" ? "📞 वॉइस ट्रांसक्रिप्ट" : "📞 Voice Transcript"}
+                  </p>
                 </div>
                 
                 {/* Transcript */}
@@ -287,7 +229,7 @@ const DemoSection = () => {
                   {voiceCallScript.slice(0, voiceIndex).map((msg, index) => (
                     <div key={index} className="animate-fade-in">
                       <p className="text-xs text-muted-foreground mb-1 font-medium">
-                        {msg.role === "ai" ? "Sentio AI" : (language === "hindi" ? "बुज़ुर्ग" : "Elder")}
+                        {msg.role === "ai" ? "Sentio" : (language === "hindi" ? "दादी जी" : "Elder")}
                       </p>
                       <p className={`text-sm ${msg.role === "ai" ? "text-foreground" : "text-muted-foreground italic"}`}>
                         "{msg.text}"
@@ -308,15 +250,7 @@ const DemoSection = () => {
             className="rounded-full"
           >
             <RotateCcw className="h-4 w-4 mr-2" />
-            Replay Demo
-          </Button>
-          <Button
-            variant={audioEnabled ? "default" : "outline"}
-            onClick={toggleAudio}
-            className="rounded-full"
-          >
-            {audioEnabled ? <Volume2 className="h-4 w-4 mr-2" /> : <VolumeX className="h-4 w-4 mr-2" />}
-            {audioEnabled ? "Audio On" : "Enable Audio"}
+            {language === "hindi" ? "फिर से देखें" : "Replay Demo"}
           </Button>
         </div>
       </div>
