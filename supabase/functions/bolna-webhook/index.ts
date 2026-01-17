@@ -6,6 +6,102 @@ const responseHeaders = {
   "Content-Type": "application/json",
 };
 
+// Improved transcript parsing function
+function parseTranscript(rawTranscript: string): Array<{role: string, message: string}> {
+  if (!rawTranscript || typeof rawTranscript !== 'string') {
+    return [];
+  }
+
+  const parsedLogs: Array<{role: string, message: string}> = [];
+  
+  // Try multiple parsing strategies
+  
+  // Strategy 1: Look for explicit role prefixes (Assistant:, User:, AI:, Agent:, Elder:)
+  const prefixPattern = /^(assistant|ai|agent|user|elder|sentio):\s*/i;
+  const lines = rawTranscript.split(/\n+/).filter(l => l.trim());
+  
+  if (lines.some(line => prefixPattern.test(line.trim()))) {
+    for (const line of lines) {
+      const trimmedLine = line.trim();
+      if (!trimmedLine) continue;
+      
+      const match = trimmedLine.match(prefixPattern);
+      if (match) {
+        const rolePrefix = match[1].toLowerCase();
+        const isAI = ['assistant', 'ai', 'agent', 'sentio'].includes(rolePrefix);
+        const role = isAI ? 'assistant' : 'user';
+        const message = trimmedLine.replace(prefixPattern, '').trim();
+        if (message) {
+          parsedLogs.push({ role, message });
+        }
+      } else if (parsedLogs.length > 0) {
+        // Continuation of previous message
+        parsedLogs[parsedLogs.length - 1].message += ' ' + trimmedLine;
+      }
+    }
+  }
+  
+  // Strategy 2: Look for JSON-like format with speaker roles
+  if (parsedLogs.length === 0 && rawTranscript.includes('"speaker"')) {
+    try {
+      const jsonMatch = rawTranscript.match(/\[[\s\S]*\]/);
+      if (jsonMatch) {
+        const turns = JSON.parse(jsonMatch[0]);
+        for (const turn of turns) {
+          const isAI = ['assistant', 'ai', 'agent', 'sentio', 'bot'].includes(String(turn.speaker || turn.role || '').toLowerCase());
+          const message = String(turn.text || turn.message || turn.content || '').trim();
+          if (message) {
+            parsedLogs.push({ role: isAI ? 'assistant' : 'user', message });
+          }
+        }
+      }
+    } catch (e) {
+      // JSON parsing failed, continue to next strategy
+    }
+  }
+  
+  // Strategy 3: Look for turn markers like [Agent], [User], etc.
+  if (parsedLogs.length === 0) {
+    const bracketPattern = /\[(assistant|ai|agent|user|elder|sentio|caller|callee)\]/i;
+    const parts = rawTranscript.split(bracketPattern).filter(p => p.trim());
+    
+    let currentRole = 'user';
+    for (const part of parts) {
+      const lowerPart = part.toLowerCase().trim();
+      if (['assistant', 'ai', 'agent', 'sentio', 'callee'].includes(lowerPart)) {
+        currentRole = 'assistant';
+      } else if (['user', 'elder', 'caller'].includes(lowerPart)) {
+        currentRole = 'user';
+      } else {
+        const message = part.trim();
+        if (message) {
+          parsedLogs.push({ role: currentRole, message });
+        }
+      }
+    }
+  }
+  
+  // Strategy 4: Alternating turns based on sentence patterns
+  if (parsedLogs.length === 0 && lines.length > 1) {
+    // Assume first line is AI greeting, then alternate
+    let isAI = true;
+    for (const line of lines) {
+      const message = line.trim();
+      if (message) {
+        parsedLogs.push({ role: isAI ? 'assistant' : 'user', message });
+        isAI = !isAI;
+      }
+    }
+  }
+  
+  // Strategy 5: If still nothing, treat entire transcript as a single block
+  if (parsedLogs.length === 0 && rawTranscript.trim()) {
+    parsedLogs.push({ role: 'assistant', message: rawTranscript.trim().substring(0, 5000) });
+  }
+  
+  return parsedLogs;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 200 });
@@ -216,6 +312,9 @@ serve(async (req) => {
     // Extract recording URL
     const recordingUrl = telephony_data?.recording_url || payload.recording_url || null;
 
+    // Store raw transcript for fallback display
+    const rawTranscript = transcript || '';
+
     // Use AI to analyze the conversation
     const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
     let analysis = {
@@ -226,11 +325,37 @@ serve(async (req) => {
       resolvedSymptoms: [] as string[],
       alertTriggered: false,
       alertReason: null as string | null,
+      monitoringResponses: {} as Record<string, any>,
     };
 
     if (lovableApiKey && transcript) {
       try {
         console.log("Analyzing transcript with AI...");
+        
+        // Fetch elder's monitoring config
+        const { data: elderData } = await supabase
+          .from("elders")
+          .select("monitoring_config")
+          .eq("id", elderId)
+          .single();
+        
+        const monitoringConfig = elderData?.monitoring_config || { topics: [], custom_questions: [] };
+        const monitoringTopics = monitoringConfig.topics || [];
+        const customQuestions = monitoringConfig.custom_questions || [];
+        
+        let monitoringInstructions = '';
+        if (monitoringTopics.length > 0 || customQuestions.length > 0) {
+          monitoringInstructions = `
+
+MONITORING TOPICS TO EXTRACT:
+${monitoringTopics.map((t: string) => `- ${t}`).join('\n') || 'None'}
+
+CUSTOM QUESTIONS TO EXTRACT ANSWERS FOR:
+${customQuestions.map((q: any) => `- "${q.question}" (type: ${q.type})`).join('\n') || 'None'}
+
+For each monitoring topic and custom question, extract the elder's response if discussed.
+Return in "monitoringResponses" object with topic/question as key and response as value.`;
+        }
         
         const analysisPrompt = `You are an AI health analyst for Sentio, an elder care check-in system. Analyze this call transcript carefully.
 
@@ -245,6 +370,7 @@ SYMPTOM RESOLUTION DETECTION:
 Look for phrases indicating a symptom has been RESOLVED:
 Hindi: "ठीक हो गया", "अब ठीक है", "बेहतर है"
 English: "better now", "resolved", "gone", "no more", "fine now"
+${monitoringInstructions}
 
 Respond ONLY in valid JSON format:
 {
@@ -256,7 +382,8 @@ Respond ONLY in valid JSON format:
   "alertTriggered": true|false,
   "alertReason": "reason or null",
   "emergencyDetected": true|false,
-  "mentalHealthConcern": true|false
+  "mentalHealthConcern": true|false,
+  "monitoringResponses": {"topic_or_question": "response_value"}
 }`;
 
         const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -324,7 +451,7 @@ Respond ONLY in valid JSON format:
       }
     }
 
-    // Save check-in
+    // Save check-in with raw transcript and monitoring responses
     const { data: checkIn, error: checkInError } = await supabase
       .from("check_ins")
       .insert({
@@ -336,6 +463,8 @@ Respond ONLY in valid JSON format:
         medicines_taken: analysis.medicinesTaken,
         symptoms_reported: analysis.symptomsReported,
         conversation_summary: transcript?.substring(0, 500) || hangup_reason || `Call ${status}`,
+        raw_transcript: rawTranscript, // Store full raw transcript
+        monitoring_responses: analysis.monitoringResponses || {}, // Store monitoring responses
         alert_triggered: analysis.alertTriggered,
         alert_reason: analysis.alertReason,
         recording_url: recordingUrl,
@@ -393,21 +522,17 @@ Respond ONLY in valid JSON format:
       }
     }
 
-    // Save conversation logs
-    if (transcript) {
-      const lines = transcript.split("\n").filter((l: string) => l.trim());
-      for (const line of lines) {
-        const isAI = line.toLowerCase().startsWith("assistant:") || 
-                     line.toLowerCase().startsWith("ai:") || 
-                     line.toLowerCase().startsWith("agent:");
-        const role = isAI ? "assistant" : "user";
-        const message = line.replace(/^(assistant|ai|agent|user|elder):\s*/i, "");
-        
-        if (message.trim()) {
+    // Parse and save conversation logs using improved parser
+    if (rawTranscript) {
+      const parsedLogs = parseTranscript(rawTranscript);
+      console.log(`Parsed ${parsedLogs.length} conversation turns from transcript`);
+      
+      for (const log of parsedLogs) {
+        if (log.message.trim()) {
           await supabase.from("conversation_logs").insert({
             check_in_id: checkIn.id,
-            role,
-            message: message.trim(),
+            role: log.role,
+            message: log.message.trim(),
           });
         }
       }
@@ -493,9 +618,10 @@ async function sendMissedCallNotifications(supabase: any, elderId: string) {
 
   // Send to caregiver
   if (settings?.caregiver_phone) {
+    const caregiverName = settings.caregiver_name?.split(' ')[0] || '';
     const caregiverMessage = isHindi
-      ? `📞 Sentio सूचना: ${elder.full_name} ने कॉल का जवाब नहीं दिया। हम 10 मिनट में दोबारा कोशिश करेंगे।`
-      : `📞 Sentio Notice: ${elder.full_name} didn't answer our check-in call. We'll try again in 10 minutes.`;
+      ? `🔔 ${caregiverName} जी, ${firstName} जी ने कॉल का जवाब नहीं दिया। हम 10 मिनट में दोबारा कोशिश करेंगे।`
+      : `🔔 ${caregiverName}, ${firstName} didn't answer our check-in call. We'll try again in 10 minutes.`;
 
     const formattedCaregiverPhone = settings.caregiver_phone.startsWith("+") 
       ? settings.caregiver_phone 
@@ -517,39 +643,31 @@ async function sendMissedCallNotifications(supabase: any, elderId: string) {
           }),
         }
       );
-      console.log("Missed call WhatsApp sent to caregiver");
+      console.log("Missed call notification sent to caregiver");
     } catch (error) {
       console.error("Error sending WhatsApp to caregiver:", error);
     }
   }
 }
 
-// Send final alert when all retries fail
-async function sendFinalFailureAlert(
-  supabase: any, 
-  elderId: string, 
-  supabaseUrl: string, 
-  supabaseServiceKey: string
-) {
+// Send final failure alert when all retries exhausted
+async function sendFinalFailureAlert(supabase: any, elderId: string, supabaseUrl: string, supabaseKey: string) {
+  // Get elder info
   const { data: elder } = await supabase
     .from("elders")
-    .select("full_name, preferred_language")
+    .select("full_name")
     .eq("id", elderId)
     .single();
 
   const elderName = elder?.full_name || 'Elder';
-  const isHindi = elder?.preferred_language === 'hindi';
 
-  // Create alert
+  // Create high-priority alert
   await supabase.from("alerts").insert({
     elder_id: elderId,
-    alert_type: 'missed_checkin',
-    severity: 'high',
-    title: isHindi ? 'कॉल का कोई जवाब नहीं' : 'No Response to Calls',
-    description: isHindi 
-      ? `${elderName} ने 3 कॉल का जवाब नहीं दिया। कृपया उनसे संपर्क करें।`
-      : `${elderName} didn't answer 3 call attempts. Please check on them.`,
-    resolved: false
+    title: "Missed Check-in - Unable to Reach",
+    description: `We were unable to reach ${elderName} after 3 call attempts. Please check on them.`,
+    severity: "high",
+    alert_type: "missed_checkin",
   });
 
   // Notify caregiver urgently
@@ -557,15 +675,15 @@ async function sendFinalFailureAlert(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "Authorization": `Bearer ${supabaseServiceKey}`,
+      "Authorization": `Bearer ${supabaseKey}`,
     },
     body: JSON.stringify({
       elderId: elderId,
       alertType: "missed_checkin",
       severity: "high",
-      title: "Unable to Reach Elder",
-      description: `We tried calling ${elderName} 3 times but couldn't reach them. Please check on them immediately.`,
-      initiateCall: false
+      title: "Unable to reach for check-in",
+      description: `${elderName} did not answer after 3 call attempts. Please check on them immediately.`,
+      initiateCall: false,
     }),
   });
 }

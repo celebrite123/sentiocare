@@ -25,6 +25,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useSubscription } from "@/hooks/useSubscription";
 import { toast } from "@/hooks/use-toast";
 import Navbar from "@/components/Navbar";
+import HealthMonitoringCard from "@/components/settings/HealthMonitoringCard";
 
 const DAYS = [
   { value: 0, label: "Sun" },
@@ -73,6 +74,12 @@ const ElderSettings = () => {
   const [notifyOnMissedCheckin, setNotifyOnMissedCheckin] = useState(true);
   const [weeklySummaryEnabled, setWeeklySummaryEnabled] = useState(true);
 
+  // Monitoring config state
+  const [monitoringConfig, setMonitoringConfig] = useState<{topics: string[], custom_questions: any[]}>({
+    topics: [],
+    custom_questions: [],
+  });
+
   useEffect(() => {
     if (user && elderId) {
       loadSettings();
@@ -99,6 +106,14 @@ const ElderSettings = () => {
         setEmergencyContact(elder.emergency_contact || "");
         setPreferredLanguage(elder.preferred_language || "english");
         setMedicalConditions(elder.medical_conditions?.join(", ") || "");
+        // Load monitoring config
+        const config = (elder as any).monitoring_config;
+        if (config && typeof config === 'object') {
+          setMonitoringConfig({
+            topics: config.topics || [],
+            custom_questions: config.custom_questions || [],
+          });
+        }
       }
 
       // Load schedule
@@ -164,7 +179,7 @@ const ElderSettings = () => {
         .map(c => c.trim())
         .filter(c => c.length > 0);
       
-      // Update elder profile + preferences
+      // Update elder profile + preferences + monitoring config
       await supabase
         .from("elders")
         .update({ 
@@ -175,7 +190,8 @@ const ElderSettings = () => {
           medical_conditions: conditions.length > 0 ? conditions : null,
           preferred_language: preferredLanguage, 
           check_in_method: autoCheckInMethod,
-          whatsapp_number: whatsappNumber || null
+          whatsapp_number: whatsappNumber || null,
+          monitoring_config: monitoringConfig,
         })
         .eq("id", elderId);
       
@@ -559,6 +575,13 @@ const ElderSettings = () => {
               </div>
             </CardContent>
           </Card>
+
+          {/* Health Monitoring */}
+          <HealthMonitoringCard
+            config={monitoringConfig}
+            onChange={setMonitoringConfig}
+            preferredLanguage={preferredLanguage}
+          />
 
           {/* Schedule Settings */}
           <Card>

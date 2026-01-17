@@ -232,6 +232,8 @@ export type Database = {
           elder_id: string
           id: string
           medicines_taken: boolean | null
+          monitoring_responses: Json | null
+          raw_transcript: string | null
           recording_url: string | null
           sentiment: string | null
           status: string
@@ -247,6 +249,8 @@ export type Database = {
           elder_id: string
           id?: string
           medicines_taken?: boolean | null
+          monitoring_responses?: Json | null
+          raw_transcript?: string | null
           recording_url?: string | null
           sentiment?: string | null
           status: string
@@ -262,6 +266,8 @@ export type Database = {
           elder_id?: string
           id?: string
           medicines_taken?: boolean | null
+          monitoring_responses?: Json | null
+          raw_transcript?: string | null
           recording_url?: string | null
           sentiment?: string | null
           status?: string
@@ -362,6 +368,7 @@ export type Database = {
           id: string
           last_manual_call_at: string | null
           medical_conditions: string[] | null
+          monitoring_config: Json | null
           phone_number: string
           preferred_language: string
           subscription_plan: string
@@ -378,6 +385,7 @@ export type Database = {
           id?: string
           last_manual_call_at?: string | null
           medical_conditions?: string[] | null
+          monitoring_config?: Json | null
           phone_number: string
           preferred_language?: string
           subscription_plan: string
@@ -394,6 +402,7 @@ export type Database = {
           id?: string
           last_manual_call_at?: string | null
           medical_conditions?: string[] | null
+          monitoring_config?: Json | null
           phone_number?: string
           preferred_language?: string
           subscription_plan?: string
