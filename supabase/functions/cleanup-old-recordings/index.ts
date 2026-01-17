@@ -6,8 +6,6 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const RECORDING_RETENTION_DAYS = 7;
-
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -18,48 +16,10 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    console.log("Starting cleanup of old recordings...");
+    console.log("Starting cleanup of old call_attempts records...");
 
-    // Calculate cutoff date (7 days ago)
-    const cutoffDate = new Date();
-    cutoffDate.setDate(cutoffDate.getDate() - RECORDING_RETENTION_DAYS);
-    const cutoffISO = cutoffDate.toISOString();
-
-    console.log(`Cleaning recordings older than: ${cutoffISO}`);
-
-    // Find check-ins with recordings older than 7 days
-    const { data: oldRecordings, error: fetchError } = await supabase
-      .from("check_ins")
-      .select("id, created_at")
-      .not("recording_url", "is", null)
-      .lt("created_at", cutoffISO);
-
-    if (fetchError) {
-      console.error("Error fetching old recordings:", fetchError);
-      throw fetchError;
-    }
-
-    const recordingCount = oldRecordings?.length || 0;
-    console.log(`Found ${recordingCount} recordings to clean up`);
-
-    if (recordingCount > 0) {
-      // Clear recording URLs (the actual recordings are on Bolna's S3, we just remove the reference)
-      // Transcripts in conversation_logs and conversation_summary remain intact
-      const { error: updateError } = await supabase
-        .from("check_ins")
-        .update({ recording_url: null })
-        .lt("created_at", cutoffISO)
-        .not("recording_url", "is", null);
-
-      if (updateError) {
-        console.error("Error clearing recording URLs:", updateError);
-        throw updateError;
-      }
-
-      console.log(`Successfully cleared ${recordingCount} recording URLs`);
-    }
-
-    // Also clean up old call_attempts records (older than 30 days) to prevent table bloat
+    // ONLY clean up old call_attempts records (older than 30 days) to prevent table bloat
+    // RECORDINGS ARE NOW KEPT FOREVER - they are hosted on Bolna's S3, not our storage
     const callAttemptsCutoff = new Date();
     callAttemptsCutoff.setDate(callAttemptsCutoff.getDate() - 30);
     
@@ -71,17 +31,17 @@ serve(async (req) => {
 
     if (deleteError) {
       console.error("Error cleaning call_attempts:", deleteError);
-      // Don't throw - this is optional cleanup
-    } else {
-      console.log(`Cleaned up ${deletedAttempts?.length || 0} old call_attempts records`);
+      throw deleteError;
     }
+
+    const attemptsCleared = deletedAttempts?.length || 0;
+    console.log(`Cleaned up ${attemptsCleared} old call_attempts records`);
 
     return new Response(
       JSON.stringify({
         success: true,
-        recordingsCleared: recordingCount,
-        callAttemptsCleared: deletedAttempts?.length || 0,
-        message: `Cleaned up ${recordingCount} recording references and ${deletedAttempts?.length || 0} old call attempts`,
+        callAttemptsCleared: attemptsCleared,
+        message: `Cleaned up ${attemptsCleared} old call attempts. Recording URLs are now kept permanently.`,
       }),
       {
         status: 200,

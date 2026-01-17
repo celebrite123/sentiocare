@@ -67,10 +67,10 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Check subscription
+    // Check subscription and get monitoring config
     const { data: elder, error: elderError } = await supabase
       .from("elders")
-      .select("family_member_id, last_manual_call_at")
+      .select("family_member_id, last_manual_call_at, monitoring_config")
       .eq("id", elderId)
       .single();
 
@@ -189,6 +189,11 @@ serve(async (req) => {
     const medicineList = medicines.map((m: any) => m.name).join(', ') || (isHindi ? 'कोई नहीं' : 'None');
     const activeSymptomsList = activeSymptoms.length > 0 ? activeSymptoms.slice(0, 2).join(', ') : '';
 
+    // Get monitoring topics and custom questions
+    const monitoringConfig = (elder as any).monitoring_config || { topics: [], custom_questions: [] };
+    const monitoringTopics = (monitoringConfig.topics || []).join(', ');
+    const customQuestions = (monitoringConfig.custom_questions || []).map((q: any) => q.question).join(' | ');
+
     // SIMPLIFIED user_data - The agent prompt in Bolna Dashboard handles the rest
     const userData = {
       elder_id: elderId,
@@ -196,11 +201,13 @@ serve(async (req) => {
       greeting: greeting, // Use {greeting} in Bolna Dashboard Welcome Message
       medicines: medicineList,
       active_symptoms: activeSymptomsList,
+      monitoring_topics: monitoringTopics,
+      custom_questions: customQuestions,
       is_emergency: isEmergency,
       preferred_language: preferredLanguage,
     };
 
-    console.log('Sending SIMPLIFIED user_data to Bolna:', JSON.stringify(userData));
+    console.log('Sending user_data to Bolna:', JSON.stringify(userData));
 
     const bolnaResponse = await fetch('https://api.bolna.ai/call', {
       method: 'POST',
