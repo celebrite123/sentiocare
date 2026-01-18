@@ -88,6 +88,16 @@ serve(async (req) => {
       checkInMethod: elder.check_in_method
     });
 
+    // Get elder's monitoring config
+    const { data: elderFullData } = await supabase
+      .from('elders')
+      .select('monitoring_config')
+      .eq('id', elder.id)
+      .single();
+
+    const monitoringConfig = (elderFullData as any)?.monitoring_config || { topics: [], custom_questions: [] };
+    const monitoringTopics = monitoringConfig.topics || [];
+
     // Get elder's medicines
     const { data: medicines } = await supabase
       .from('medicines')
@@ -171,6 +181,7 @@ serve(async (req) => {
         medicalConditions: elder.medical_conditions || [],
         previousSymptoms,
         recentConcerns,
+        monitoringTopics,
       }),
     });
 
