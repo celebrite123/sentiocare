@@ -1,9 +1,17 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+// Rate limits by tier (messages per day)
+const RATE_LIMITS: Record<string, number> = {
+  basic: 100,
+  premium: 300,
+  trial: 300,
 };
 
 serve(async (req) => {
@@ -21,7 +29,8 @@ serve(async (req) => {
       preferredLanguage = 'english',
       medicalConditions = [],
       previousSymptoms = [],
-      recentConcerns = []
+      recentConcerns = [],
+      monitoringTopics = [],
     } = await req.json();
     
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
@@ -29,12 +38,76 @@ serve(async (req) => {
       throw new Error('LOVABLE_API_KEY not configured');
     }
 
+    // Initialize Supabase for rate limiting
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // Get elder's family member profile for rate limiting
+    const { data: elder, error: elderError } = await supabase
+      .from("elders")
+      .select("family_member_id")
+      .eq("id", elderId)
+      .single();
+
+    if (elderError || !elder) {
+      console.error("Elder not found for rate limiting:", elderError);
+    } else {
+      // Check rate limits
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("subscription_tier, subscription_status, trial_ends_at, monthly_api_calls_used, api_calls_reset_at")
+        .eq("id", elder.family_member_id)
+        .single();
+
+      if (profile) {
+        const tier = profile.subscription_tier || "basic";
+        const status = profile.subscription_status || "trial";
+        const trialEndsAt = profile.trial_ends_at ? new Date(profile.trial_ends_at) : null;
+        const now = new Date();
+        const isTrialActive = status === "trial" && trialEndsAt && trialEndsAt > now;
+        
+        const effectiveTier = isTrialActive ? "trial" : tier;
+        const limit = RATE_LIMITS[effectiveTier] || RATE_LIMITS.basic;
+        
+        let apiCallsUsed = profile.monthly_api_calls_used || 0;
+        const resetAt = profile.api_calls_reset_at ? new Date(profile.api_calls_reset_at) : null;
+        
+        // Reset counter if it's a new day
+        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        if (!resetAt || resetAt < todayStart) {
+          apiCallsUsed = 0;
+          await supabase
+            .from("profiles")
+            .update({ monthly_api_calls_used: 0, api_calls_reset_at: now.toISOString() })
+            .eq("id", elder.family_member_id);
+        }
+
+        if (apiCallsUsed >= limit) {
+          console.log("Rate limit exceeded:", { tier: effectiveTier, used: apiCallsUsed, limit });
+          return new Response(
+            JSON.stringify({ 
+              error: `Daily message limit (${limit}) reached. Try again tomorrow.`,
+              code: "RATE_LIMIT_EXCEEDED"
+            }),
+            { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // Increment usage counter
+        await supabase
+          .from("profiles")
+          .update({ monthly_api_calls_used: apiCallsUsed + 1 })
+          .eq("id", elder.family_member_id);
+      }
+    }
+
     const isHindi = preferredLanguage === 'hindi';
     
     // Get time of day for natural greeting
     const hour = new Date().getHours();
     const timeGreeting = isHindi 
-      ? (hour < 12 ? 'सुप्रभात' : hour < 17 ? 'नमस्ते' : 'शुभ संध्या')
+      ? (hour < 12 ? 'Good morning' : hour < 17 ? 'Hello' : 'Good evening')
       : (hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening');
     
     // Build medicine details string
@@ -55,79 +128,90 @@ serve(async (req) => {
       ? recentConcerns.slice(0, 2).join('; ')
       : 'None';
 
+    // Build monitoring context
+    const monitoringStr = monitoringTopics.length > 0
+      ? monitoringTopics.join(', ')
+      : '';
+
     // Build warm, conversational system prompt
-    const systemPrompt = isHindi
-      ? `आप Sentio हैं - ${elderName} जी के लिए एक दोस्ताना स्वास्थ्य सहायक। WhatsApp पर उनसे बात कर रहे हैं।
+    const hindiPrompt = `You are Sentio - a warm, caring health companion for ${elderName} ji. You're chatting with them on WhatsApp in Hindi.
 
-🎭 आपका व्यक्तित्व:
-- गर्मजोशी से भरे, देखभाल करने वाले परिवार के सदस्य की तरह
-- धीरे-धीरे, आराम से बात करें
-- इमोजी का उपयोग करें 😊🙏💊
-- ${elderName} जी को नाम से बुलाएं
+YOUR PERSONALITY:
+- Warm, caring, patient - like a loving family member
+- Speak naturally in Hindi (use Devanagari script)
+- Use occasional emojis to feel friendly
+- Always address them as "${elderName} ji"
+- Be encouraging
 
-👤 ${elderName} जी के बारे में:
-- स्वास्थ्य स्थिति: ${conditionsStr}
-- दवाइयां: ${medicineDetails}
-- पिछले लक्षण: ${previousSymptomsStr}
+ABOUT ${elderName}:
+- Health conditions: ${conditionsStr}
+- Medicines: ${medicineDetails}
+- Recent symptoms: ${previousSymptomsStr}
+${monitoringStr ? `- Also monitor: ${monitoringStr}` : ''}
 
-💬 बातचीत के नियम:
-1. छोटे संदेश भेजें (2-3 वाक्य)
-2. एक समय पर एक सवाल पूछें
-3. उनकी बात ध्यान से सुनें
-4. सहानुभूति दिखाएं ("अच्छा हुआ!", "चिंता मत करिए")
+CONVERSATION RULES:
+1. Keep messages SHORT - 2-3 sentences max
+2. Ask ONE question at a time
+3. Listen and respond to what they say
+4. Show empathy before asking next question
 
-🔍 आपको पूछना है:
-- क्या दवाइयां ली? (${medicineDetails})
-- तबीयत कैसी है?
-- कोई तकलीफ तो नहीं?
+WHAT TO ASK (naturally):
+- Did they take their medicines? (${medicineDetails})
+- How are they feeling today?
+- Any discomfort or pain?
+${monitoringStr ? `- Ask about: ${monitoringStr}` : ''}
 
-⚠️ आपातकालीन शब्द: सीने में दर्द, सांस की तकलीफ, चक्कर, गिरना, बेहोशी
-यदि ये सुनें → "तुरंत परिवार को बताएं और डॉक्टर को दिखाएं 🏥"
+EMERGENCY KEYWORDS: chest pain, breathing difficulty, dizziness, fell down, unconscious
+If mentioned: "Please contact your family right away and see a doctor! Your health is most important."
 
-याद रखें: आप एक दोस्त हैं, रोबोट नहीं! प्यार और देखभाल से बात करें 🙏`
+Remember: You're a caring friend, not a healthcare bot!`;
 
-      : `You are Sentio - a warm, caring health companion for ${elderName}. You're chatting with them on WhatsApp like a friendly family member checking in.
+    const englishPrompt = `You are Sentio - a warm, caring health companion for ${elderName}. You're chatting with them on WhatsApp like a friendly family member checking in.
 
-🎭 YOUR PERSONALITY:
+YOUR PERSONALITY:
 - Warm, caring, patient - like a loving family member
 - Conversational and natural - NOT robotic or clinical
-- Use occasional emojis to feel friendly 😊💊🙏
+- Use occasional emojis to feel friendly
 - Always address them as "${elderName}"
 - Be encouraging: "That's wonderful!", "I'm glad to hear that!"
 
-👤 ABOUT ${elderName}:
+ABOUT ${elderName}:
 - Health conditions: ${conditionsStr}
 - Medicines: ${medicineDetails}
 - Recent symptoms: ${previousSymptomsStr}
 - Recent concerns: ${recentConcernsStr}
+${monitoringStr ? `- Also monitor: ${monitoringStr}` : ''}
 
-💬 CONVERSATION RULES:
+CONVERSATION RULES:
 1. Keep messages SHORT - 2-3 sentences max
 2. Ask ONE question at a time
 3. Listen and respond to what they say
 4. Show empathy before asking next question
 5. Don't repeat yourself - track conversation flow
 
-🔍 WHAT TO ASK (naturally, not as checklist):
+WHAT TO ASK (naturally, not as checklist):
 - Did they take their medicines? (mention: ${medicineDetails})
 - How are they feeling today?
 - Any discomfort or pain?
 - Did they eat/sleep well?
+${monitoringStr ? `- Ask about: ${monitoringStr}` : ''}
 
-✨ GOOD MESSAGE EXAMPLES:
-"${timeGreeting} ${elderName}! 😊 How are you feeling today?"
-"Glad to hear that! Did you manage to take your ${medicines[0]?.name || 'medicines'} this morning? 💊"
-"That's great! Take care and have a lovely day. I'll check in again soon! 🙏"
+GOOD MESSAGE EXAMPLES:
+"${timeGreeting} ${elderName}! How are you feeling today?"
+"Glad to hear that! Did you manage to take your ${medicines[0]?.name || 'medicines'} this morning?"
+"That's great! Take care and have a lovely day. I'll check in again soon!"
 
-❌ BAD EXAMPLES (too robotic):
+BAD EXAMPLES (too robotic):
 "Please confirm if you have taken your medications."
 "Report any symptoms you are experiencing."
 "This is your daily health check-in."
 
-⚠️ EMERGENCY KEYWORDS: chest pain, can't breathe, severe pain, dizziness, fell down, confusion
-If mentioned → "Please contact your family right away and see a doctor! 🏥 Your health is most important."
+EMERGENCY KEYWORDS: chest pain, can't breathe, severe pain, dizziness, fell down, confusion
+If mentioned: "Please contact your family right away and see a doctor! Your health is most important."
 
 Remember: You're a caring friend, not a healthcare bot! Sound human and warm.`;
+
+    const systemPrompt = isHindi ? hindiPrompt : englishPrompt;
 
     const messages = [
       { role: 'system', content: systemPrompt },
@@ -144,7 +228,7 @@ Remember: You're a caring friend, not a healthcare bot! Sound human and warm.`;
       body: JSON.stringify({
         model: 'google/gemini-2.5-flash',
         messages: messages,
-        temperature: 0.8, // Slightly higher for more natural variation
+        temperature: 0.8,
       }),
     });
 
@@ -157,30 +241,22 @@ Remember: You're a caring friend, not a healthcare bot! Sound human and warm.`;
     const data = await response.json();
     const aiResponse = data.choices[0].message.content;
 
-    // Analyze for emergency keywords (both English and Hindi)
+    // Analyze for emergency keywords
     const emergencyKeywords = [
-      // English
-      'severe', 'chest pain', 'can\'t breathe', 'fell down', 'confused', 'dizzy', 'emergency', 'fainted',
-      // Hindi
-      'तेज दर्द', 'सीने में दर्द', 'सांस नहीं आ रही', 'गिर गया', 'गिर गई', 'चक्कर', 'आपातकाल', 'बहुत दर्द', 'बेहोश'
+      'severe', 'chest pain', "can't breathe", 'fell down', 'confused', 'dizzy', 'emergency', 'fainted',
+      'heart attack', 'stroke', 'unconscious'
     ];
     const isEmergency = emergencyKeywords.some(keyword => 
       userMessage.toLowerCase().includes(keyword.toLowerCase()) || 
-      aiResponse.toLowerCase().includes('emergency') ||
-      aiResponse.includes('आपातकालीन') ||
-      aiResponse.includes('तुरंत')
+      aiResponse.toLowerCase().includes('emergency')
     );
 
-    // Sentiment analysis (both English and Hindi)
+    // Sentiment analysis
     const negativePhrases = [
-      // English
-      'not good', 'bad', 'worse', 'pain', 'sick', 'forgot', 'hurts', 'ache', 'tired', 'weak',
-      // Hindi
-      'अच्छा नहीं', 'बुरा', 'दर्द', 'बीमार', 'भूल गया', 'भूल गई', 'तकलीफ', 'परेशान', 'थकान', 'कमजोर'
+      'not good', 'bad', 'worse', 'pain', 'sick', 'forgot', 'hurts', 'ache', 'tired', 'weak'
     ];
     const positivePhrases = [
-      'good', 'fine', 'great', 'better', 'well', 'okay', 'yes', 'took', 'done',
-      'अच्छा', 'ठीक', 'बेहतर', 'हाँ', 'ले ली', 'खा ली'
+      'good', 'fine', 'great', 'better', 'well', 'okay', 'yes', 'took', 'done'
     ];
     
     const hasNegative = negativePhrases.some(phrase => userMessage.toLowerCase().includes(phrase.toLowerCase()));

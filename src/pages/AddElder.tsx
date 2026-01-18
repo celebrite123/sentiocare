@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Check, User, Phone, Heart, Pill, Globe, MessageCircle, Users, Calendar } from "lucide-react";
+import { ArrowLeft, Check, User, Phone, Heart, Pill, Globe, MessageCircle, Users, Calendar, Activity } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -36,6 +36,26 @@ interface ScheduleData {
   daysOfWeek: number[];
 }
 
+interface CustomQuestion {
+  id: string;
+  question: string;
+  type: "yes_no" | "scale" | "open";
+}
+
+interface MonitoringConfig {
+  topics: string[];
+  custom_questions: CustomQuestion[];
+}
+
+const PREDEFINED_TOPICS = [
+  { id: "blood_pressure", label: "Blood Pressure", labelHi: "ब्लड प्रेशर", category: "health" },
+  { id: "blood_sugar", label: "Blood Sugar", labelHi: "शुगर लेवल", category: "health" },
+  { id: "meals", label: "Meals (3x daily)", labelHi: "खाना", category: "lifestyle" },
+  { id: "sleep_quality", label: "Sleep Quality", labelHi: "नींद", category: "lifestyle" },
+  { id: "water_intake", label: "Water Intake", labelHi: "पानी", category: "lifestyle" },
+  { id: "mood", label: "Mood/Feeling", labelHi: "मूड", category: "mental" },
+];
+
 const DAYS_OF_WEEK = [
   { value: 0, label: "Sun" },
   { value: 1, label: "Mon" },
@@ -52,7 +72,12 @@ const AddElder = () => {
   const { tier, canUseVoice, isTrialActive, canAddElder, elderCount, maxElders, loading: subscriptionLoading } = useSubscription();
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(1);
-  const totalSteps = 6;
+  const totalSteps = 7;
+
+  const [monitoringConfig, setMonitoringConfig] = useState<MonitoringConfig>({
+    topics: ["meals", "sleep_quality"], // Default recommended topics
+    custom_questions: [],
+  });
 
   // Redirect if user already has max elders
   useEffect(() => {
@@ -157,6 +182,8 @@ const AddElder = () => {
         return true; // Medical conditions are optional
       case 6:
         return true; // Medicines are optional
+      case 7:
+        return true; // Monitoring is optional
       default:
         return false;
     }
@@ -195,7 +222,7 @@ const AddElder = () => {
       const subscriptionPlan = profileTier === "premium" ? "premium" : "whatsapp";
       const checkInMethod = canUseVoice ? "both" : "whatsapp";
 
-      // Insert elder
+      // Insert elder with monitoring config
       const { data: elder, error: elderError } = await supabase
         .from("elders")
         .insert({
@@ -209,6 +236,7 @@ const AddElder = () => {
           subscription_plan: subscriptionPlan,
           preferred_language: formData.preferred_language,
           check_in_method: checkInMethod,
+          monitoring_config: monitoringConfig,
         })
         .select()
         .single();
@@ -734,6 +762,69 @@ const AddElder = () => {
                   ))}
                 </div>
               )}
+            </div>
+          </div>
+        );
+
+      case 7:
+        return (
+          <div className="space-y-6 animate-in fade-in-50 duration-300">
+            <div className="text-center mb-8">
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 mb-4">
+                <Activity className="h-8 w-8 text-primary" />
+              </div>
+              <h2 className="text-2xl font-bold">Health Monitoring</h2>
+              <p className="text-muted-foreground mt-2">What should the AI ask about during check-ins?</p>
+            </div>
+
+            <div className="space-y-6">
+              {/* Quick Topics */}
+              <div className="space-y-3">
+                <Label className="text-base font-medium">Topics to Monitor</Label>
+                <p className="text-sm text-muted-foreground">
+                  Select what the AI should ask about (recommended: Meals & Sleep)
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {PREDEFINED_TOPICS.map((topic) => {
+                    const isSelected = monitoringConfig.topics.includes(topic.id);
+                    return (
+                      <button
+                        key={topic.id}
+                        type="button"
+                        onClick={() => {
+                          const newTopics = isSelected
+                            ? monitoringConfig.topics.filter(t => t !== topic.id)
+                            : [...monitoringConfig.topics, topic.id];
+                          setMonitoringConfig({ ...monitoringConfig, topics: newTopics });
+                        }}
+                        className={`px-4 py-2 rounded-lg border transition-all text-sm font-medium ${
+                          isSelected
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "bg-background border-border hover:border-primary/50"
+                        }`}
+                      >
+                        {formData.preferred_language === "hindi" ? topic.labelHi : topic.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Summary */}
+              {monitoringConfig.topics.length > 0 && (
+                <div className="p-4 rounded-lg bg-muted/50 space-y-2">
+                  <p className="text-sm font-medium">During check-ins, the AI will ask about:</p>
+                  <p className="text-sm text-muted-foreground">
+                    Medicines + {monitoringConfig.topics.map(t => 
+                      PREDEFINED_TOPICS.find(pt => pt.id === t)?.label || t
+                    ).join(", ")}
+                  </p>
+                </div>
+              )}
+
+              <p className="text-sm text-muted-foreground">
+                💡 You can add custom questions later from Elder Settings
+              </p>
             </div>
           </div>
         );
