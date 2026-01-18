@@ -237,7 +237,7 @@ const AddElder = () => {
           preferred_language: formData.preferred_language,
           check_in_method: checkInMethod,
           monitoring_config: monitoringConfig,
-        })
+        } as any)
         .select()
         .single();
 
