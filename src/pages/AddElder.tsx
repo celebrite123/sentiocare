@@ -223,21 +223,23 @@ const AddElder = () => {
       const checkInMethod = canUseVoice ? "both" : "whatsapp";
 
       // Insert elder with monitoring config
+      const elderData = {
+        family_member_id: profile.id,
+        full_name: formData.full_name,
+        phone_number: formData.phone_number,
+        whatsapp_number: formData.whatsapp_number || null,
+        age: formData.age ? parseInt(formData.age) : null,
+        emergency_contact: caregiverData.phone || null,
+        medical_conditions: medicalConditions.length > 0 ? medicalConditions : null,
+        subscription_plan: subscriptionPlan,
+        preferred_language: formData.preferred_language,
+        check_in_method: checkInMethod,
+        monitoring_config: monitoringConfig,
+      };
+      
       const { data: elder, error: elderError } = await supabase
         .from("elders")
-        .insert({
-          family_member_id: profile.id,
-          full_name: formData.full_name,
-          phone_number: formData.phone_number,
-          whatsapp_number: formData.whatsapp_number || null,
-          age: formData.age ? parseInt(formData.age) : null,
-          emergency_contact: caregiverData.phone || null,
-          medical_conditions: medicalConditions.length > 0 ? medicalConditions : null,
-          subscription_plan: subscriptionPlan,
-          preferred_language: formData.preferred_language,
-          check_in_method: checkInMethod,
-          monitoring_config: monitoringConfig,
-        } as any)
+        .insert(elderData as any)
         .select()
         .single();
 
