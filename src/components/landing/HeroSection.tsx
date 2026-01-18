@@ -39,7 +39,7 @@ const HeroSection = () => {
             {/* Subheadline */}
             <p className="text-lg md:text-xl text-muted-foreground max-w-xl animate-fade-in animation-delay-200 leading-relaxed">
               Daily voice calls and WhatsApp check-ins for your elderly parents in <strong>Hindi & English</strong>. 
-              Get instant alerts when something needs your attention. Peace of mind, delivered daily.
+              Custom health monitoring, symptom tracking, and instant alerts. Peace of mind, delivered daily.
             </p>
 
             {/* CTA Buttons */}
