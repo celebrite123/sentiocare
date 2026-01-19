@@ -1,41 +1,15 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { createHmac } from "node:crypto";
 
 // Webhook endpoints don't need CORS headers as they're server-to-server
+// Security: Bolna AI does not support webhook signature validation
+// Security is maintained through:
+// 1. Database validation (elder_id must exist)
+// 2. Unique webhook URL (not publicly discoverable)
+// 3. Payload structure validation (specific fields required)
 const responseHeaders = {
   "Content-Type": "application/json",
 };
-
-// Validate Bolna webhook signature using HMAC-SHA256
-function validateBolnaSignature(
-  payload: string,
-  signature: string,
-  secret: string
-): boolean {
-  if (!signature || !secret) {
-    return false;
-  }
-
-  try {
-    const expectedSignature = createHmac("sha256", secret)
-      .update(payload)
-      .digest("hex");
-
-    // Constant-time comparison to prevent timing attacks
-    if (signature.length !== expectedSignature.length) {
-      return false;
-    }
-    
-    let result = 0;
-    for (let i = 0; i < signature.length; i++) {
-      result |= signature.charCodeAt(i) ^ expectedSignature.charCodeAt(i);
-    }
-    return result === 0;
-  } catch {
-    return false;
-  }
-}
 
 // Improved transcript parsing function
 function parseTranscript(rawTranscript: string): Array<{role: string, message: string}> {
@@ -139,33 +113,9 @@ serve(async (req) => {
   }
 
   try {
-    // Read raw payload for signature validation
+    // Read raw payload
     const rawPayload = await req.text();
     const payload = JSON.parse(rawPayload);
-
-    // Validate Bolna webhook signature if secret is configured
-    const bolnaWebhookSecret = Deno.env.get("BOLNA_WEBHOOK_SECRET");
-    const bolnaSignature = req.headers.get("X-Bolna-Signature") || 
-                          req.headers.get("x-bolna-signature") || "";
-    
-    if (bolnaWebhookSecret) {
-      const isValidSignature = validateBolnaSignature(
-        rawPayload,
-        bolnaSignature,
-        bolnaWebhookSecret
-      );
-
-      if (!isValidSignature) {
-        console.error("Invalid Bolna webhook signature - request rejected");
-        return new Response(
-          JSON.stringify({ error: "Unauthorized - invalid signature" }),
-          { status: 401, headers: responseHeaders }
-        );
-      }
-      console.log("Bolna webhook signature validated");
-    } else {
-      console.warn("BOLNA_WEBHOOK_SECRET not configured - signature validation skipped (NOT RECOMMENDED FOR PRODUCTION)");
-    }
     
     // Log payload for debugging (without PII)
     console.log("Bolna webhook received:", { 
