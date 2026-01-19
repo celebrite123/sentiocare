@@ -1,11 +1,47 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createHmac } from "node:crypto";
 
 // Webhook endpoints don't need CORS headers as they're server-to-server
 // Only include minimal headers for response content type
 const responseHeaders = {
   "Content-Type": "text/xml",
 };
+
+// Twilio signature validation
+function validateTwilioSignature(
+  authToken: string,
+  signature: string,
+  url: string,
+  params: Record<string, string>
+): boolean {
+  if (!signature || !authToken) {
+    return false;
+  }
+
+  // Sort parameters alphabetically and concatenate
+  const sortedParams = Object.keys(params)
+    .sort()
+    .reduce((acc, key) => acc + key + params[key], "");
+  
+  const dataToSign = url + sortedParams;
+  
+  // Create HMAC-SHA1 signature
+  const expectedSignature = createHmac("sha1", authToken)
+    .update(dataToSign)
+    .digest("base64");
+
+  // Constant-time comparison to prevent timing attacks
+  if (signature.length !== expectedSignature.length) {
+    return false;
+  }
+  
+  let result = 0;
+  for (let i = 0; i < signature.length; i++) {
+    result |= signature.charCodeAt(i) ^ expectedSignature.charCodeAt(i);
+  }
+  return result === 0;
+}
 
 serve(async (req) => {
   // Webhooks are server-to-server - no CORS preflight needed
@@ -15,10 +51,42 @@ serve(async (req) => {
   }
 
   try {
+    // Parse form data first
     const formData = await req.formData();
-    const from = formData.get('From')?.toString() || '';
-    const body = formData.get('Body')?.toString() || '';
-    const messageSid = formData.get('MessageSid')?.toString() || '';
+    const params: Record<string, string> = {};
+    for (const [key, value] of formData.entries()) {
+      params[key] = value.toString();
+    }
+
+    const from = params['From'] || '';
+    const body = params['Body'] || '';
+    const messageSid = params['MessageSid'] || '';
+
+    // Validate Twilio signature
+    const twilioAuthToken = Deno.env.get('TWILIO_AUTH_TOKEN');
+    const twilioSignature = req.headers.get('X-Twilio-Signature') || '';
+    
+    // Get the full URL for signature validation
+    const url = req.url;
+    
+    if (twilioAuthToken) {
+      const isValidSignature = validateTwilioSignature(
+        twilioAuthToken,
+        twilioSignature,
+        url,
+        params
+      );
+
+      if (!isValidSignature) {
+        console.error('Invalid Twilio signature - request rejected');
+        return new Response(
+          `<?xml version="1.0" encoding="UTF-8"?><Response></Response>`,
+          { status: 403, headers: responseHeaders }
+        );
+      }
+    } else {
+      console.warn('TWILIO_AUTH_TOKEN not configured - signature validation skipped (NOT RECOMMENDED FOR PRODUCTION)');
+    }
 
     console.log('Incoming WhatsApp message:', { messageSid, bodyLength: body.length });
 
@@ -309,7 +377,6 @@ serve(async (req) => {
 
     // Send response via Twilio
     const twilioAccountSid = Deno.env.get('TWILIO_ACCOUNT_SID')!;
-    const twilioAuthToken = Deno.env.get('TWILIO_AUTH_TOKEN')!;
     const twilioWhatsAppNumber = Deno.env.get('TWILIO_WHATSAPP_NUMBER')!;
 
     const twilioResponse = await fetch(
