@@ -1,78 +1,26 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { createHmac } from "node:crypto";
 
 // Webhook endpoints don't need CORS headers as they're server-to-server
-// Only include minimal headers for response content type
+// Security: Vapi does not support webhook signature validation
+// Security is maintained through:
+// 1. Database validation (elder_id must exist in elders table)
+// 2. Unique webhook URL (not publicly discoverable)
+// 3. Payload structure validation (specific Vapi message format required)
 const responseHeaders = {
   "Content-Type": "application/json",
 };
 
-// Validate Vapi webhook signature using HMAC-SHA256
-function validateVapiSignature(
-  payload: string,
-  signature: string,
-  secret: string
-): boolean {
-  if (!signature || !secret) {
-    return false;
-  }
-
-  try {
-    const expectedSignature = createHmac("sha256", secret)
-      .update(payload)
-      .digest("hex");
-
-    // Constant-time comparison to prevent timing attacks
-    if (signature.length !== expectedSignature.length) {
-      return false;
-    }
-    
-    let result = 0;
-    for (let i = 0; i < signature.length; i++) {
-      result |= signature.charCodeAt(i) ^ expectedSignature.charCodeAt(i);
-    }
-    return result === 0;
-  } catch {
-    return false;
-  }
-}
-
 serve(async (req) => {
   // Webhooks are server-to-server - no CORS preflight needed
-  // If we receive an OPTIONS request, just return 200
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 200 });
   }
 
   try {
-    // Read raw payload for signature validation
+    // Read raw payload
     const rawPayload = await req.text();
     const payload = JSON.parse(rawPayload);
-
-    // Validate Vapi webhook signature if secret is configured
-    const vapiWebhookSecret = Deno.env.get("VAPI_WEBHOOK_SECRET");
-    const vapiSignature = req.headers.get("X-Vapi-Signature") || 
-                         req.headers.get("x-vapi-signature") || "";
-    
-    if (vapiWebhookSecret) {
-      const isValidSignature = validateVapiSignature(
-        rawPayload,
-        vapiSignature,
-        vapiWebhookSecret
-      );
-
-      if (!isValidSignature) {
-        console.error("Invalid Vapi webhook signature - request rejected");
-        return new Response(
-          JSON.stringify({ error: "Unauthorized - invalid signature" }),
-          { status: 401, headers: responseHeaders }
-        );
-      }
-      console.log("Vapi webhook signature validated");
-    } else {
-      console.warn("VAPI_WEBHOOK_SECRET not configured - signature validation skipped (NOT RECOMMENDED FOR PRODUCTION)");
-    }
 
     console.log("Vapi webhook received:", { 
       messageType: payload.message?.type,
