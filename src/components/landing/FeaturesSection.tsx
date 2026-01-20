@@ -80,8 +80,12 @@ const FeaturesSection = () => {
   };
 
   return (
-    <section className="py-20 bg-muted/30">
-      <div className="container mx-auto px-4">
+    <section className="py-24 bg-muted/30 relative overflow-hidden">
+      {/* Decorative gradient orbs */}
+      <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-primary/5 rounded-full blur-[100px]" />
+      <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-secondary/5 rounded-full blur-[100px]" />
+      
+      <div className="container mx-auto px-4 relative z-10">
         {/* Section Header with Illustration */}
         <div className="grid lg:grid-cols-2 gap-12 items-center mb-16">
           <div className="order-2 lg:order-1">
@@ -89,54 +93,54 @@ const FeaturesSection = () => {
               <Sparkles className="h-3 w-3 mr-1" />
               Personalized Care
             </Badge>
-            <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">
+            <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold text-foreground mb-4">
               What We Do For You
             </h2>
             <p className="text-muted-foreground text-lg max-w-2xl">
-              Comprehensive care features designed for Indian families. Now with <strong>custom health monitoring</strong>—track exactly what matters for your loved one.
+              Comprehensive care features designed for Indian families. Now with <strong className="text-secondary">custom health monitoring</strong>—track exactly what matters for your loved one.
             </p>
           </div>
           <div className="order-1 lg:order-2 flex justify-center lg:justify-end gap-4">
-            <div className="relative">
-              <div className="absolute inset-0 bg-primary/10 rounded-2xl blur-xl" />
+            <div className="relative group">
+              <div className="absolute inset-0 bg-primary/20 rounded-2xl blur-2xl group-hover:bg-primary/30 transition-all" />
               <img 
                 src={elderPhoneCall} 
                 alt="Elder receiving care call"
-                className="relative w-48 h-48 object-cover rounded-2xl shadow-lg border border-primary/10"
+                className="relative w-48 h-48 object-cover rounded-2xl shadow-xl border border-primary/20 transition-transform group-hover:scale-105"
               />
             </div>
-            <div className="relative mt-8">
-              <div className="absolute inset-0 bg-secondary/10 rounded-2xl blur-xl" />
+            <div className="relative mt-8 group">
+              <div className="absolute inset-0 bg-secondary/20 rounded-2xl blur-2xl group-hover:bg-secondary/30 transition-all" />
               <img 
                 src={caregiverPeaceOfMind} 
                 alt="Caregiver feeling at peace"
-                className="relative w-48 h-48 object-cover rounded-2xl shadow-lg border border-secondary/10"
+                className="relative w-48 h-48 object-cover rounded-2xl shadow-xl border border-secondary/20 transition-transform group-hover:scale-105"
               />
             </div>
           </div>
         </div>
 
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5 max-w-6xl mx-auto">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto">
           {features.map((feature, index) => (
             <Card
               key={index}
-              className={`group p-5 bg-card border transition-all duration-300 hover:shadow-xl relative ${
+              className={`group p-6 bg-card border-2 transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 relative ${
                 feature.isNew 
-                  ? "border-secondary/50 shadow-md shadow-secondary/5" 
+                  ? "border-secondary/50 shadow-lg shadow-secondary/10" 
                   : "border-border hover:border-primary/30"
               }`}
             >
               {feature.isNew && (
                 <div className="absolute -top-2 -right-2">
-                  <Badge className="bg-secondary text-secondary-foreground text-[10px] px-2 py-0.5 shadow-lg">
+                  <Badge className="bg-secondary text-secondary-foreground text-[10px] px-2 py-0.5 shadow-lg animate-pulse-soft">
                     NEW
                   </Badge>
                 </div>
               )}
-              <div className={`w-11 h-11 rounded-xl flex items-center justify-center mb-3 transition-all duration-300 ${getColorClasses(feature.color)}`}>
-                <feature.icon className="h-5 w-5" />
+              <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-4 transition-all duration-300 ${getColorClasses(feature.color)}`}>
+                <feature.icon className="h-6 w-6" />
               </div>
-              <h3 className="text-base font-semibold text-foreground mb-1.5">
+              <h3 className="text-lg font-semibold text-foreground mb-2">
                 {feature.title}
               </h3>
               <p className="text-muted-foreground text-sm leading-relaxed">
