@@ -26,10 +26,11 @@ const getCorsHeaders = (origin: string | null) => {
   // Allow production domain and all Lovable preview domains
   const isAllowed = origin && (
     allowedOrigins.includes(origin) ||
-    origin.endsWith(".lovable.app") // Allow all Lovable preview domains
+    origin.endsWith(".lovable.app")
   );
   return {
     "Access-Control-Allow-Origin": isAllowed ? origin : allowedOrigins[0],
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
     "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
     "Access-Control-Allow-Credentials": "true",
   };
