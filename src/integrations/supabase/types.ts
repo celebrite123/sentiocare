@@ -560,17 +560,95 @@ export type Database = {
           },
         ]
       }
+      payment_history: {
+        Row: {
+          amount: number
+          created_at: string
+          currency: string | null
+          id: string
+          is_auto_renewal: boolean | null
+          plan_id: string
+          razorpay_order_id: string | null
+          razorpay_payment_id: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          currency?: string | null
+          id?: string
+          is_auto_renewal?: boolean | null
+          plan_id: string
+          razorpay_order_id?: string | null
+          razorpay_payment_id: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          currency?: string | null
+          id?: string
+          is_auto_renewal?: boolean | null
+          plan_id?: string
+          razorpay_order_id?: string | null
+          razorpay_payment_id?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      payment_methods: {
+        Row: {
+          card_last4: string | null
+          card_network: string | null
+          card_type: string | null
+          created_at: string
+          id: string
+          is_default: boolean | null
+          razorpay_token_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          card_last4?: string | null
+          card_network?: string | null
+          card_type?: string | null
+          created_at?: string
+          id?: string
+          is_default?: boolean | null
+          razorpay_token_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          card_last4?: string | null
+          card_network?: string | null
+          card_type?: string | null
+          created_at?: string
+          id?: string
+          is_default?: boolean | null
+          razorpay_token_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           api_calls_reset_at: string | null
+          auto_renewal_enabled: boolean | null
           created_at: string | null
           emergency_calls_reset_at: string | null
           full_name: string
           id: string
+          last_payment_at: string | null
           monthly_api_calls_used: number | null
           monthly_emergency_calls_used: number | null
           phone_number: string | null
           privacy_accepted_at: string | null
+          subscription_expires_at: string | null
           subscription_status: string | null
           subscription_tier: string | null
           terms_accepted_at: string | null
@@ -580,14 +658,17 @@ export type Database = {
         }
         Insert: {
           api_calls_reset_at?: string | null
+          auto_renewal_enabled?: boolean | null
           created_at?: string | null
           emergency_calls_reset_at?: string | null
           full_name: string
           id?: string
+          last_payment_at?: string | null
           monthly_api_calls_used?: number | null
           monthly_emergency_calls_used?: number | null
           phone_number?: string | null
           privacy_accepted_at?: string | null
+          subscription_expires_at?: string | null
           subscription_status?: string | null
           subscription_tier?: string | null
           terms_accepted_at?: string | null
@@ -597,19 +678,52 @@ export type Database = {
         }
         Update: {
           api_calls_reset_at?: string | null
+          auto_renewal_enabled?: boolean | null
           created_at?: string | null
           emergency_calls_reset_at?: string | null
           full_name?: string
           id?: string
+          last_payment_at?: string | null
           monthly_api_calls_used?: number | null
           monthly_emergency_calls_used?: number | null
           phone_number?: string | null
           privacy_accepted_at?: string | null
+          subscription_expires_at?: string | null
           subscription_status?: string | null
           subscription_tier?: string | null
           terms_accepted_at?: string | null
           trial_ends_at?: string | null
           updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      renewal_reminders: {
+        Row: {
+          created_at: string
+          email_sent: boolean | null
+          id: string
+          reminder_type: string
+          sent_at: string
+          subscription_expires_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          email_sent?: boolean | null
+          id?: string
+          reminder_type: string
+          sent_at?: string
+          subscription_expires_at: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          email_sent?: boolean | null
+          id?: string
+          reminder_type?: string
+          sent_at?: string
+          subscription_expires_at?: string
           user_id?: string
         }
         Relationships: []

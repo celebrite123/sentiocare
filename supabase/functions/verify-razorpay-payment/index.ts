@@ -81,13 +81,20 @@ serve(async (req) => {
       });
     }
 
-    // Payment verified, update subscription
+    // Payment verified, calculate expiry date (1 month from now)
+    const expiryDate = new Date();
+    expiryDate.setMonth(expiryDate.getMonth() + 1);
+
+    // Update subscription
     const { error: updateError } = await supabase
       .from("profiles")
       .update({
         subscription_tier: plan_id,
         subscription_status: "active",
         trial_ends_at: null, // Clear trial since user paid
+        subscription_expires_at: expiryDate.toISOString(),
+        last_payment_at: new Date().toISOString(),
+        auto_renewal_enabled: true, // Enable auto-renewal by default
         updated_at: new Date().toISOString(),
       })
       .eq("user_id", user.id);
@@ -99,6 +106,17 @@ serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    // Record payment history
+    await supabase.from("payment_history").insert({
+      user_id: user.id,
+      razorpay_payment_id,
+      razorpay_order_id,
+      amount: plan_id === "premium" ? 69900 : 29900,
+      plan_id,
+      status: "success",
+      is_auto_renewal: false,
+    });
 
     // Log the payment (optional - for records)
     console.log(`Payment successful: user=${user.id}, plan=${plan_id}, payment_id=${razorpay_payment_id}`);

@@ -33,6 +33,7 @@ import { WellbeingTrendChart } from "@/components/dashboard/WellbeingTrendChart"
 import { MedicationAdherenceChart } from "@/components/dashboard/MedicationAdherenceChart";
 import CallStatusCard from "@/components/dashboard/CallStatusCard";
 import { TrialExpiredModal } from "@/components/TrialExpiredModal";
+import RenewalReminderBanner from "@/components/RenewalReminderBanner";
 import { format } from "date-fns";
 
 interface Elder {
@@ -371,6 +372,8 @@ const Dashboard = () => {
       />
 
       <main className="container mx-auto px-4 py-6 sm:py-8">
+          <RenewalReminderBanner />
+          
           {/* Trial Banner */}
           {isTrialActive && (
             <div className="mb-6 p-4 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-between">

@@ -1,17 +1,20 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { User, Mail, Phone, Crown, Users, CreditCard, LogOut, ChevronRight, Loader2, ArrowUp } from "lucide-react";
+import { User, Mail, Phone, Crown, Users, CreditCard, LogOut, ChevronRight, Loader2, ArrowUp, RefreshCw } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useRazorpayPayment } from "@/hooks/useRazorpay";
+import { useRenewalReminders } from "@/hooks/useRenewalReminders";
 import { toast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import Navbar from "@/components/Navbar";
+import RenewalReminderBanner from "@/components/RenewalReminderBanner";
 import {
   Dialog,
   DialogContent,
@@ -42,7 +45,7 @@ const Profile = () => {
     refetch 
   } = useSubscription();
   const { initiatePayment, isLoading: paymentLoading } = useRazorpayPayment();
-  
+  const { autoRenewalEnabled, toggleAutoRenewal, daysUntilExpiry, expiryDate } = useRenewalReminders();
   // Dynamic pricing based on subscription tier
   const additionalElderPrice = tier === "premium" || isTrialActive ? 699 : 299;
   const [profile, setProfile] = useState<ProfileData | null>(null);
@@ -155,6 +158,7 @@ const Profile = () => {
       <Navbar />
       <div className="min-h-screen bg-gradient-to-br from-background via-muted/20 to-background">
         <div className="container mx-auto px-4 py-8 max-w-2xl">
+          <RenewalReminderBanner />
           <h1 className="text-3xl font-bold mb-6">Profile</h1>
 
           {/* Account Info */}
@@ -272,6 +276,49 @@ const Profile = () => {
                   </Dialog>
                 )}
               </div>
+
+              {/* Auto-Renewal Section */}
+              {status === "active" && (
+                <>
+                  <Separator />
+                  <div className="flex items-center justify-between p-4 rounded-lg bg-muted/50">
+                    <div className="flex items-center gap-3">
+                      <RefreshCw className="h-5 w-5 text-muted-foreground" />
+                      <div>
+                        <p className="font-medium">Auto-Renewal</p>
+                        <p className="text-sm text-muted-foreground">
+                          {autoRenewalEnabled 
+                            ? "Your subscription will renew automatically" 
+                            : "You'll need to renew manually"
+                          }
+                        </p>
+                        {expiryDate && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {daysUntilExpiry > 0 
+                              ? `Renews in ${daysUntilExpiry} days`
+                              : "Renewal due"
+                            }
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <Switch
+                      checked={autoRenewalEnabled}
+                      onCheckedChange={async (checked) => {
+                        const success = await toggleAutoRenewal(checked);
+                        if (success) {
+                          toast({
+                            title: checked ? "Auto-renewal enabled" : "Auto-renewal disabled",
+                            description: checked 
+                              ? "Your subscription will renew automatically."
+                              : "Remember to renew before your subscription expires.",
+                          });
+                        }
+                      }}
+                    />
+                  </div>
+                </>
+              )}
 
               <Separator />
 

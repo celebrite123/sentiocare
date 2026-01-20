@@ -11,6 +11,7 @@ import { toast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import Navbar from "@/components/Navbar";
 import { TrialExpiredModal } from "@/components/TrialExpiredModal";
+import RenewalReminderBanner from "@/components/RenewalReminderBanner";
 
 interface Elder {
   id: string;
@@ -169,6 +170,8 @@ const Elders = () => {
         </div>
 
         <div className="container mx-auto px-4 py-8">
+          <RenewalReminderBanner />
+          
           {elders.length === 0 ? (
             <Card className="text-center py-16 border-dashed border-2 border-primary/30">
               <CardContent>
