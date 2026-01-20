@@ -183,6 +183,17 @@
   .animate-float {
     animation: float 3s ease-in-out infinite;
   }
+
+  /* Wave animations for HelloPatient-style background */
+  .animate-wave-slow {
+    animation: wave-line 8s ease-in-out infinite;
+  }
+  .animate-wave-medium {
+    animation: wave-line 6s ease-in-out infinite reverse;
+  }
+  .animate-wave-fast {
+    animation: wave-line 4s ease-in-out infinite;
+  }
 }
 
 @keyframes float {
@@ -191,5 +202,24 @@
   }
   50% {
     transform: translateY(-10px);
+  }
+}
+
+@keyframes wave-line {
+  0%, 100% {
+    d: path("M0 200 Q 360 100, 720 200 T 1440 200");
+    opacity: 0.3;
+  }
+  25% {
+    d: path("M0 180 Q 360 280, 720 180 T 1440 180");
+    opacity: 0.5;
+  }
+  50% {
+    d: path("M0 220 Q 360 120, 720 220 T 1440 220");
+    opacity: 0.4;
+  }
+  75% {
+    d: path("M0 190 Q 360 250, 720 190 T 1440 190");
+    opacity: 0.35;
   }
 }

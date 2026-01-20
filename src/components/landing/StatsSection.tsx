@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
+import { Badge } from "@/components/ui/badge";
 
 const stats = [
-  { value: 15, label: "Languages Supported", suffix: "+" },
-  { value: 24, label: "AI Availability", suffix: "/7" },
-  { value: 99.9, label: "Uptime Guarantee", suffix: "%" },
-  { value: 14, label: "Day Free Trial", suffix: "" },
+  { value: 100, label: "answer rate", suffix: "%", description: "Every call answered" },
+  { value: 15, label: "languages", suffix: "+", description: "Hindi, English & more" },
+  { value: 24, label: "availability", suffix: "/7", description: "Around the clock care" },
+  { value: 14, label: "day trial", suffix: "", description: "Risk-free start" },
 ];
 
 const AnimatedCounter = ({ value, suffix }: { value: number; suffix: string }) => {
@@ -44,7 +45,7 @@ const AnimatedCounter = ({ value, suffix }: { value: number; suffix: string }) =
   }, [value]);
 
   return (
-    <div ref={ref} className="text-3xl md:text-4xl font-bold text-foreground">
+    <div ref={ref} className="text-5xl md:text-6xl lg:text-7xl font-bold text-foreground">
       {count.toLocaleString()}{suffix}
     </div>
   );
@@ -52,14 +53,34 @@ const AnimatedCounter = ({ value, suffix }: { value: number; suffix: string }) =
 
 const StatsSection = () => {
   return (
-    <section className="py-16">
-      <div className="container mx-auto px-4">
-        <div className="max-w-4xl mx-auto">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+    <section className="py-20 bg-background relative overflow-hidden">
+      {/* Subtle background pattern */}
+      <div className="absolute inset-0 dot-pattern opacity-30" />
+      
+      <div className="container mx-auto px-4 relative z-10">
+        <div className="text-center mb-12">
+          <Badge variant="secondary" className="mb-4 bg-secondary/10 text-secondary border-0 px-3 py-1">
+            Built for Care
+          </Badge>
+          <h2 className="text-3xl md:text-4xl font-bold text-foreground">
+            Built for high-volume care
+          </h2>
+        </div>
+        
+        <div className="max-w-6xl mx-auto">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-8 lg:gap-12">
             {stats.map((stat, index) => (
-              <div key={index} className="text-center">
+              <div 
+                key={index} 
+                className="text-center group p-6 rounded-2xl transition-all duration-300 hover:bg-muted/50"
+              >
                 <AnimatedCounter value={stat.value} suffix={stat.suffix} />
-                <p className="text-muted-foreground text-sm mt-2">{stat.label}</p>
+                <p className="text-primary font-semibold text-lg mt-2 uppercase tracking-wide">
+                  {stat.label}
+                </p>
+                <p className="text-muted-foreground text-sm mt-1">
+                  {stat.description}
+                </p>
               </div>
             ))}
           </div>
