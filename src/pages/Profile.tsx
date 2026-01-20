@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { User, Mail, Phone, Crown, Users, CreditCard, LogOut, ChevronRight } from "lucide-react";
+import { User, Mail, Phone, Crown, Users, CreditCard, LogOut, ChevronRight, Loader2, ArrowUp } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -8,6 +8,7 @@ import { Separator } from "@/components/ui/separator";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSubscription } from "@/hooks/useSubscription";
+import { useRazorpayPayment } from "@/hooks/useRazorpay";
 import { toast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import Navbar from "@/components/Navbar";
@@ -37,14 +38,17 @@ const Profile = () => {
     elderCount, 
     maxElders, 
     canAddElder,
-    loading: subscriptionLoading 
+    loading: subscriptionLoading,
+    refetch 
   } = useSubscription();
+  const { initiatePayment, isLoading: paymentLoading } = useRazorpayPayment();
   
   // Dynamic pricing based on subscription tier
   const additionalElderPrice = tier === "premium" || isTrialActive ? 699 : 299;
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
   const [upgradeDialogOpen, setUpgradeDialogOpen] = useState(false);
+  const [upgradePlanDialogOpen, setUpgradePlanDialogOpen] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -87,6 +91,18 @@ const Profile = () => {
     }
   };
 
+  const handleUpgradeToPremium = async () => {
+    const result = await initiatePayment("premium");
+    if (result.success) {
+      setUpgradePlanDialogOpen(false);
+      refetch();
+      toast({
+        title: "Upgraded to Premium! 🎉",
+        description: "You now have access to voice calls and all premium features.",
+      });
+    }
+  };
+
   const getPlanDisplayInfo = () => {
     if (isTrialActive) {
       return {
@@ -110,6 +126,7 @@ const Profile = () => {
   };
 
   const planInfo = getPlanDisplayInfo();
+  const canUpgrade = tier === "basic" && !isTrialActive && status === "active";
 
   if (loading || subscriptionLoading) {
     return (
@@ -191,13 +208,68 @@ const Profile = () => {
                   </div>
                   <p className="text-sm text-muted-foreground">{planInfo.description}</p>
                 </div>
-                {tier !== "premium" && !isTrialActive && (
-                  <Button 
-                    onClick={() => navigate("/select-plan")}
-                    className="bg-gradient-to-r from-primary to-accent"
-                  >
-                    Upgrade
-                  </Button>
+                {canUpgrade && (
+                  <Dialog open={upgradePlanDialogOpen} onOpenChange={setUpgradePlanDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button className="bg-gradient-to-r from-primary to-accent gap-2">
+                        <ArrowUp className="h-4 w-4" />
+                        Upgrade
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="sm:max-w-md">
+                      <DialogHeader>
+                        <DialogTitle>Upgrade to Premium</DialogTitle>
+                        <DialogDescription>
+                          Unlock voice calls and all premium features
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4 py-4">
+                        <Card className="border-primary">
+                          <CardContent className="pt-6">
+                            <div className="text-center space-y-2">
+                              <p className="text-3xl font-bold">₹699<span className="text-sm font-normal text-muted-foreground">/month</span></p>
+                              <p className="text-sm text-muted-foreground">Premium Plan</p>
+                            </div>
+                            <Separator className="my-4" />
+                            <ul className="space-y-2 text-sm">
+                              <li className="flex items-center gap-2">
+                                <span className="text-primary">✓</span>
+                                Daily AI voice calls in Hindi/English
+                              </li>
+                              <li className="flex items-center gap-2">
+                                <span className="text-primary">✓</span>
+                                Emergency callback system
+                              </li>
+                              <li className="flex items-center gap-2">
+                                <span className="text-primary">✓</span>
+                                Priority 24/7 support
+                              </li>
+                              <li className="flex items-center gap-2">
+                                <span className="text-primary">✓</span>
+                                All Basic features included
+                              </li>
+                            </ul>
+                          </CardContent>
+                        </Card>
+
+                        <Button 
+                          className="w-full gap-2"
+                          onClick={handleUpgradeToPremium}
+                          disabled={paymentLoading}
+                        >
+                          {paymentLoading ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <CreditCard className="h-4 w-4" />
+                          )}
+                          {paymentLoading ? "Processing..." : "Pay ₹699/month"}
+                        </Button>
+                        <p className="text-xs text-center text-muted-foreground">
+                          Secure payment powered by Razorpay
+                        </p>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
                 )}
               </div>
 
@@ -267,7 +339,7 @@ const Profile = () => {
                           <Button 
                             className="w-full gap-2"
                             onClick={() => {
-                              window.open("mailto:support@sentio.care?subject=Add%20More%20Elder%20Slots&body=Hi%2C%0A%0AI%20would%20like%20to%20add%20more%20elder%20slots%20to%20my%20account.%0A%0AThank%20you!", "_blank");
+                              window.open("mailto:info@sentio.in.net?subject=Add%20More%20Elder%20Slots&body=Hi%2C%0A%0AI%20would%20like%20to%20add%20more%20elder%20slots%20to%20my%20account.%0A%0AThank%20you!", "_blank");
                               setUpgradeDialogOpen(false);
                             }}
                           >
@@ -275,7 +347,7 @@ const Profile = () => {
                             Contact Support to Add
                           </Button>
                           <p className="text-xs text-center text-muted-foreground">
-                            Payment integration coming soon
+                            Multi-elder payment coming soon
                           </p>
                         </div>
                       </div>
