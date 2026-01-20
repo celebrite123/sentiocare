@@ -55,6 +55,51 @@ export type Database = {
           },
         ]
       }
+      b2b_leads: {
+        Row: {
+          contact_email: string
+          contact_name: string
+          contact_phone: string
+          created_at: string
+          expected_residents: number | null
+          id: string
+          message: string | null
+          organization_name: string
+          organization_type: string
+          preferred_call_frequency: number | null
+          status: string | null
+          updated_at: string
+        }
+        Insert: {
+          contact_email: string
+          contact_name: string
+          contact_phone: string
+          created_at?: string
+          expected_residents?: number | null
+          id?: string
+          message?: string | null
+          organization_name: string
+          organization_type: string
+          preferred_call_frequency?: number | null
+          status?: string | null
+          updated_at?: string
+        }
+        Update: {
+          contact_email?: string
+          contact_name?: string
+          contact_phone?: string
+          created_at?: string
+          expected_residents?: number | null
+          id?: string
+          message?: string | null
+          organization_name?: string
+          organization_type?: string
+          preferred_call_frequency?: number | null
+          status?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       blog_posts: {
         Row: {
           author_id: string | null
