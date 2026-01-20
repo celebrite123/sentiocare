@@ -186,7 +186,14 @@ serve(async (req) => {
     // Build SIMPLE, CLEAN user_data - no verbose instructions
     const firstName = getFirstName(elderName);
     const greeting = buildGreeting(firstName, isHindi, daysSinceLastCall);
-    const medicineList = medicines.map((m: any) => m.name).join(', ') || (isHindi ? 'कोई नहीं' : 'None');
+    // Use medicine purpose if available (e.g., "BP medicine"), otherwise just the simple name
+    const medicineList = medicines.map((m: any) => {
+      if (m.purpose && m.purpose.trim()) {
+        return m.purpose;
+      }
+      // Just use the medicine name without complex dosage details
+      return m.name;
+    }).join(', ') || (isHindi ? 'कोई दवाई नहीं' : 'No medicines');
     const activeSymptomsList = activeSymptoms.length > 0 ? activeSymptoms.slice(0, 2).join(', ') : '';
 
     // Get monitoring topics and custom questions

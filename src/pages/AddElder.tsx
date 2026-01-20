@@ -99,6 +99,10 @@ const AddElder = () => {
     preferred_language: "english",
   });
 
+  // Country code state for phone inputs
+  const [phoneCountryCode, setPhoneCountryCode] = useState("+91");
+  const [whatsappCountryCode, setWhatsappCountryCode] = useState("+91");
+
   const [caregiverData, setCaregiverData] = useState<CaregiverData>({
     name: "",
     phone: "",
@@ -173,7 +177,9 @@ const AddElder = () => {
       case 1:
         return formData.full_name.trim() && formData.age;
       case 2:
-        return formData.phone_number.trim() && formData.whatsapp_number.trim();
+        // Validate phone numbers (must be at least 10 digits)
+        return formData.phone_number.replace(/\D/g, '').length >= 10 && 
+               formData.whatsapp_number.replace(/\D/g, '').length >= 10;
       case 3:
         return caregiverData.name.trim() && caregiverData.phone.trim() && caregiverData.relation;
       case 4:
@@ -222,12 +228,16 @@ const AddElder = () => {
       const subscriptionPlan = profileTier === "premium" ? "premium" : "whatsapp";
       const checkInMethod = canUseVoice ? "both" : "whatsapp";
 
+      // Combine country code with phone numbers
+      const fullPhoneNumber = `${phoneCountryCode}${formData.phone_number.replace(/\D/g, '')}`;
+      const fullWhatsappNumber = `${whatsappCountryCode}${formData.whatsapp_number.replace(/\D/g, '')}`;
+
       // Insert elder with monitoring config
       const elderData = {
         family_member_id: profile.id,
         full_name: formData.full_name,
-        phone_number: formData.phone_number,
-        whatsapp_number: formData.whatsapp_number || null,
+        phone_number: fullPhoneNumber,
+        whatsapp_number: fullWhatsappNumber || null,
         age: formData.age ? parseInt(formData.age) : null,
         emergency_contact: caregiverData.phone || null,
         medical_conditions: medicalConditions.length > 0 ? medicalConditions : null,
@@ -385,32 +395,62 @@ const AddElder = () => {
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="phone_number">Phone Number *</Label>
-                <Input
-                  id="phone_number"
-                  type="tel"
-                  value={formData.phone_number}
-                  onChange={(e) => setFormData({ ...formData, phone_number: e.target.value })}
-                  placeholder="+91 98765 43210"
-                  className="text-lg"
-                />
+                <div className="flex gap-2">
+                  <Select value={phoneCountryCode} onValueChange={setPhoneCountryCode}>
+                    <SelectTrigger className="w-28">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="+91">🇮🇳 +91</SelectItem>
+                      <SelectItem value="+1">🇺🇸 +1</SelectItem>
+                      <SelectItem value="+44">🇬🇧 +44</SelectItem>
+                      <SelectItem value="+971">🇦🇪 +971</SelectItem>
+                      <SelectItem value="+65">🇸🇬 +65</SelectItem>
+                      <SelectItem value="+61">🇦🇺 +61</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    id="phone_number"
+                    type="tel"
+                    value={formData.phone_number}
+                    onChange={(e) => setFormData({ ...formData, phone_number: e.target.value.replace(/\D/g, '') })}
+                    placeholder="98765 43210"
+                    className="text-lg flex-1"
+                  />
+                </div>
                 <p className="text-sm text-muted-foreground">
-                  Include country code (e.g., +91 for India)
+                  Enter the number without country code
                 </p>
               </div>
 
-              <div className="space-y-2 p-4 border rounded-lg bg-green-50 dark:bg-green-950/20">
+              <div className="space-y-2 p-4 border rounded-lg bg-accent/5 dark:bg-accent/10">
                 <Label htmlFor="whatsapp_number" className="flex items-center gap-2">
-                  <MessageCircle className="h-4 w-4 text-green-600" />
+                  <MessageCircle className="h-4 w-4 text-accent" />
                   WhatsApp Number *
                 </Label>
-                <Input
-                  id="whatsapp_number"
-                  type="tel"
-                  value={formData.whatsapp_number}
-                  onChange={(e) => setFormData({ ...formData, whatsapp_number: e.target.value })}
-                  placeholder="+91 98765 43210"
-                  className="text-lg"
-                />
+                <div className="flex gap-2">
+                  <Select value={whatsappCountryCode} onValueChange={setWhatsappCountryCode}>
+                    <SelectTrigger className="w-28">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="+91">🇮🇳 +91</SelectItem>
+                      <SelectItem value="+1">🇺🇸 +1</SelectItem>
+                      <SelectItem value="+44">🇬🇧 +44</SelectItem>
+                      <SelectItem value="+971">🇦🇪 +971</SelectItem>
+                      <SelectItem value="+65">🇸🇬 +65</SelectItem>
+                      <SelectItem value="+61">🇦🇺 +61</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    id="whatsapp_number"
+                    type="tel"
+                    value={formData.whatsapp_number}
+                    onChange={(e) => setFormData({ ...formData, whatsapp_number: e.target.value.replace(/\D/g, '') })}
+                    placeholder="98765 43210"
+                    className="text-lg flex-1"
+                  />
+                </div>
                 <p className="text-sm text-muted-foreground">
                   Required for WhatsApp check-ins. Usually same as phone number.
                 </p>
