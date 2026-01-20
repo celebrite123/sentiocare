@@ -92,7 +92,7 @@ const FeaturesSection = () => {
             <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">
               What We Do For You
             </h2>
-            <p className="text-muted-foreground text-lg max-w-2xl">
+            <p className="text-foreground/70 text-lg max-w-2xl">
               Comprehensive care features designed for Indian families. Now with <strong>custom health monitoring</strong>—track exactly what matters for your loved one.
             </p>
           </div>
@@ -134,7 +134,7 @@ const FeaturesSection = () => {
             >
               {feature.isNew && (
                 <div className="absolute -top-2 -right-2">
-                  <Badge className="bg-secondary text-secondary-foreground text-[10px] px-2 py-0.5 shadow-lg">
+                  <Badge className="bg-secondary text-foreground font-semibold text-[10px] px-2 py-0.5 shadow-lg">
                     NEW
                   </Badge>
                 </div>
@@ -145,7 +145,7 @@ const FeaturesSection = () => {
               <h3 className="text-base font-semibold text-foreground mb-1.5">
                 {feature.title}
               </h3>
-              <p className="text-muted-foreground text-sm leading-relaxed">
+              <p className="text-foreground/70 text-sm leading-relaxed">
                 {feature.description}
               </p>
             </Card>

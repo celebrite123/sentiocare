@@ -65,23 +65,23 @@ const HeroSection = () => {
 
             {/* Trust indicators */}
             <div className="flex flex-wrap justify-center lg:justify-start gap-6 pt-6 animate-fade-in animation-delay-400">
-              <div className="flex items-center gap-2 text-muted-foreground">
+              <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
                   <Shield className="h-4 w-4 text-primary" />
                 </div>
-                <span className="text-sm font-medium">HIPAA Compliant</span>
+                <span className="text-sm font-medium text-foreground/80">HIPAA Compliant</span>
               </div>
-              <div className="flex items-center gap-2 text-muted-foreground">
+              <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-full bg-secondary/10 flex items-center justify-center">
                   <Heart className="h-4 w-4 text-secondary" />
                 </div>
-                <span className="text-sm font-medium">5-Day Free Trial</span>
+                <span className="text-sm font-medium text-foreground/80">5-Day Free Trial</span>
               </div>
-              <div className="flex items-center gap-2 text-muted-foreground">
+              <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-full bg-accent/10 flex items-center justify-center">
                   <Phone className="h-4 w-4 text-accent" />
                 </div>
-                <span className="text-sm font-medium">24/7 Support</span>
+                <span className="text-sm font-medium text-foreground/80">24/7 Support</span>
               </div>
             </div>
           </div>
@@ -112,7 +112,7 @@ const HeroSection = () => {
                     <Heart className="h-5 w-5 text-whatsapp" />
                   </div>
                   <div>
-                    <p className="text-xs text-muted-foreground">Today's Status</p>
+                    <p className="text-xs text-foreground/70">Today's Status</p>
                     <p className="text-sm font-semibold text-foreground">All is Well ✓</p>
                   </div>
                 </div>

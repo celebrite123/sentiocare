@@ -12,7 +12,7 @@ const CTASection = () => {
           <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">
             Give Your Parents the Care They Deserve
           </h2>
-          <p className="text-muted-foreground text-lg mb-8 max-w-xl mx-auto">
+          <p className="text-foreground/70 text-lg mb-8 max-w-xl mx-auto">
             Try Sentio AI free for 5 days. Daily voice calls and WhatsApp check-ins 
             for your elderly parents. No credit card required.
           </p>
@@ -36,7 +36,7 @@ const CTASection = () => {
             </Button>
           </div>
 
-          <p className="text-sm text-muted-foreground mt-6">
+          <p className="text-sm text-foreground/60 mt-6">
             No credit card required • Cancel anytime • 24/7 support
           </p>
         </div>

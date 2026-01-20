@@ -35,10 +35,10 @@
     --secondary-foreground: 0 0% 100%;
 
     --muted: 180 10% 96%;
-    --muted-foreground: 200 15% 46%;
+    --muted-foreground: 200 20% 35%;
 
-    /* Accent: Lighter Teal */
-    --accent: 183 40% 55%;
+    /* Accent: Darker Teal for better contrast */
+    --accent: 183 45% 38%;
     --accent-foreground: 0 0% 100%;
 
     --destructive: 0 84% 60%;
@@ -102,7 +102,7 @@
     --secondary-foreground: 0 0% 100%;
 
     --muted: 200 25% 15%;
-    --muted-foreground: 180 10% 60%;
+    --muted-foreground: 180 12% 70%;
 
     --accent: 183 40% 55%;
     --accent-foreground: 0 0% 100%;

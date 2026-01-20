@@ -59,7 +59,7 @@ const StatsSection = () => {
             {stats.map((stat, index) => (
               <div key={index} className="text-center">
                 <AnimatedCounter value={stat.value} suffix={stat.suffix} />
-                <p className="text-muted-foreground text-sm mt-2">{stat.label}</p>
+                <p className="text-foreground/70 text-sm mt-2">{stat.label}</p>
               </div>
             ))}
           </div>
