@@ -20,6 +20,7 @@ async function verifySignature(message: string, secret: string, signature: strin
 
 const allowedOrigins = [
   "https://sentiocare.lovable.app",
+  "https://sentio.in.net",
 ];
 
 const getCorsHeaders = (origin: string | null) => {
