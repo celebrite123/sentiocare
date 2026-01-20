@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { User, Mail, Phone, Crown, Users, CreditCard, LogOut, ChevronRight, Loader2, ArrowUp, RefreshCw, Lock, Edit2, Shield } from "lucide-react";
+import { User, Mail, Phone, Crown, Users, CreditCard, LogOut, ChevronRight, Loader2, ArrowUp, RefreshCw, Lock, Edit2, Shield, XCircle, Headphones } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +18,7 @@ import RenewalReminderBanner from "@/components/RenewalReminderBanner";
 import ChangePasswordDialog from "@/components/profile/ChangePasswordDialog";
 import EditProfileDialog from "@/components/profile/EditProfileDialog";
 import PaymentHistoryCard from "@/components/profile/PaymentHistoryCard";
+import CancelSubscriptionDialog from "@/components/profile/CancelSubscriptionDialog";
 import {
   Dialog,
   DialogContent,
@@ -44,6 +45,8 @@ const Profile = () => {
     elderCount, 
     maxElders, 
     canAddElder,
+    expiresAt,
+    isCancelled,
     loading: subscriptionLoading,
     refetch 
   } = useSubscription();
@@ -57,6 +60,7 @@ const Profile = () => {
   const [upgradePlanDialogOpen, setUpgradePlanDialogOpen] = useState(false);
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
   const [editProfileOpen, setEditProfileOpen] = useState(false);
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -324,38 +328,88 @@ const Profile = () => {
                       <div>
                         <p className="font-medium">Auto-Renewal</p>
                         <p className="text-sm text-muted-foreground">
-                          {autoRenewalEnabled 
-                            ? "Your subscription will renew automatically" 
-                            : "You'll need to renew manually"
+                          {isCancelled 
+                            ? "Subscription cancelled - no renewal scheduled"
+                            : autoRenewalEnabled 
+                              ? "Your subscription will renew automatically" 
+                              : "You'll need to renew manually"
                           }
                         </p>
                         {expiryDate && (
                           <p className="text-xs text-muted-foreground mt-1">
-                            {daysUntilExpiry > 0 
-                              ? `Renews in ${daysUntilExpiry} days`
-                              : "Renewal due"
+                            {isCancelled 
+                              ? `Access until ${expiryDate.toLocaleDateString()}`
+                              : daysUntilExpiry > 0 
+                                ? `Renews in ${daysUntilExpiry} days`
+                                : "Renewal due"
                             }
                           </p>
                         )}
                       </div>
                     </div>
-                    <Switch
-                      checked={autoRenewalEnabled}
-                      onCheckedChange={async (checked) => {
-                        const success = await toggleAutoRenewal(checked);
-                        if (success) {
-                          toast({
-                            title: checked ? "Auto-renewal enabled" : "Auto-renewal disabled",
-                            description: checked 
-                              ? "Your subscription will renew automatically."
-                              : "Remember to renew before your subscription expires.",
-                          });
-                        }
-                      }}
-                    />
+                    {!isCancelled && (
+                      <Switch
+                        checked={autoRenewalEnabled}
+                        onCheckedChange={async (checked) => {
+                          const success = await toggleAutoRenewal(checked);
+                          if (success) {
+                            toast({
+                              title: checked ? "Auto-renewal enabled" : "Auto-renewal disabled",
+                              description: checked 
+                                ? "Your subscription will renew automatically."
+                                : "Remember to renew before your subscription expires.",
+                            });
+                          }
+                        }}
+                      />
+                    )}
+                    {isCancelled && (
+                      <Badge variant="secondary" className="text-muted-foreground">
+                        Cancelled
+                      </Badge>
+                    )}
                   </div>
                 </>
               )}
+
+              {/* Cancel Subscription & Support */}
+              {status === "active" && !isTrialActive && !isCancelled && (
+                <>
+                  <Separator />
+                  <div className="space-y-3">
+                    <Button
+                      variant="ghost"
+                      className="w-full justify-start text-destructive hover:text-destructive hover:bg-destructive/10 gap-2"
+                      onClick={() => setCancelDialogOpen(true)}
+                    >
+                      <XCircle className="h-4 w-4" />
+                      Cancel Subscription
+                    </Button>
+                  </div>
+                </>
+              )}
+
+              {/* Support Link */}
+              <Separator />
+              <div className="flex items-center justify-between p-4 rounded-lg bg-muted/50">
+                <div className="flex items-center gap-3">
+                  <Headphones className="h-5 w-5 text-muted-foreground" />
+                  <div>
+                    <p className="font-medium">Need Help?</p>
+                    <p className="text-sm text-muted-foreground">
+                      Contact our support team
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => window.open("mailto:info@sentio.in.net?subject=Support%20Request", "_blank")}
+                >
+                  <Mail className="h-4 w-4 mr-2" />
+                  Email Support
+                </Button>
+              </div>
 
               <Separator />
 
@@ -485,6 +539,12 @@ const Profile = () => {
         onOpenChange={setEditProfileOpen}
         currentProfile={profile ? { full_name: profile.full_name, phone_number: profile.phone_number } : null}
         onProfileUpdated={loadProfile}
+      />
+      <CancelSubscriptionDialog
+        open={cancelDialogOpen}
+        onOpenChange={setCancelDialogOpen}
+        expiryDate={expiresAt}
+        onCancelled={refetch}
       />
     </>
   );

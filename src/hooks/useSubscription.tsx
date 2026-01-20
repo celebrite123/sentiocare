@@ -9,14 +9,17 @@ interface SubscriptionState {
   tier: SubscriptionTier;
   status: SubscriptionStatus;
   trialEndsAt: Date | null;
+  expiresAt: Date | null;
   loading: boolean;
   canUseVoice: boolean;
   canUseWhatsApp: boolean;
   isTrialActive: boolean;
+  isTrialExpired: boolean;
   trialDaysLeft: number;
   elderCount: number;
   maxElders: number;
   canAddElder: boolean;
+  isCancelled: boolean;
 }
 
 export const useSubscription = () => {
@@ -25,14 +28,17 @@ export const useSubscription = () => {
     tier: "basic",
     status: "trial",
     trialEndsAt: null,
+    expiresAt: null,
     loading: true,
     canUseVoice: false,
     canUseWhatsApp: true,
     isTrialActive: false,
+    isTrialExpired: false,
     trialDaysLeft: 0,
     elderCount: 0,
     maxElders: 1,
     canAddElder: true,
+    isCancelled: false,
   });
 
   useEffect(() => {
@@ -47,7 +53,7 @@ export const useSubscription = () => {
     try {
       const { data: profile, error } = await supabase
         .from("profiles")
-        .select("id, subscription_tier, subscription_status, trial_ends_at")
+        .select("id, subscription_tier, subscription_status, trial_ends_at, subscription_expires_at, cancellation_requested_at")
         .eq("user_id", user!.id)
         .single();
 
@@ -70,6 +76,8 @@ export const useSubscription = () => {
       const tier = (profile?.subscription_tier as SubscriptionTier) || "basic";
       const status = (profile?.subscription_status as SubscriptionStatus) || "trial";
       const trialEndsAt = profile?.trial_ends_at ? new Date(profile.trial_ends_at) : null;
+      const expiresAt = profile?.subscription_expires_at ? new Date(profile.subscription_expires_at) : null;
+      const isCancelled = !!(profile as any)?.cancellation_requested_at;
       
       // Calculate trial days left
       const now = new Date();
@@ -78,6 +86,7 @@ export const useSubscription = () => {
         : 0;
       
       const isTrialActive = status === "trial" && trialDaysLeft > 0;
+      const isTrialExpired = status === "trial" && trialDaysLeft <= 0;
       
       // During trial, all features are available
       // After trial, features depend on tier
@@ -91,14 +100,17 @@ export const useSubscription = () => {
         tier,
         status,
         trialEndsAt,
+        expiresAt,
         loading: false,
         canUseVoice: isPremiumOrTrial,
         canUseWhatsApp: true, // All tiers get WhatsApp
         isTrialActive,
+        isTrialExpired,
         trialDaysLeft,
         elderCount,
         maxElders,
         canAddElder,
+        isCancelled,
       });
     } catch (error) {
       console.error("Error loading subscription:", error);
@@ -128,5 +140,27 @@ export const useSubscription = () => {
     }
   };
 
-  return { ...state, updateTier, refetch: loadSubscription };
+  const cancelSubscription = async () => {
+    if (!user) return false;
+    
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .update({ 
+          auto_renewal_enabled: false,
+          cancellation_requested_at: new Date().toISOString(),
+        })
+        .eq("user_id", user.id);
+
+      if (error) throw error;
+      
+      await loadSubscription();
+      return true;
+    } catch (error) {
+      console.error("Error cancelling subscription:", error);
+      return false;
+    }
+  };
+
+  return { ...state, updateTier, cancelSubscription, refetch: loadSubscription };
 };

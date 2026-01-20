@@ -144,6 +144,7 @@ const ElderSettings = () => {
         setNotifyOnLowWellbeing(notifications.notify_on_low_wellbeing ?? true);
         setWellbeingThreshold(notifications.wellbeing_threshold ?? 5);
         setNotifyOnMissedCheckin(notifications.notify_on_missed_checkin ?? true);
+        setWeeklySummaryEnabled(notifications.weekly_summary_enabled ?? true);
       } else {
         // Pre-fill with user's email
         const { data: { user: currentUser } } = await supabase.auth.getUser();
@@ -253,6 +254,7 @@ const ElderSettings = () => {
           notify_on_low_wellbeing: notifyOnLowWellbeing,
           wellbeing_threshold: wellbeingThreshold,
           notify_on_missed_checkin: notifyOnMissedCheckin,
+          weekly_summary_enabled: weeklySummaryEnabled,
         }, {
           onConflict: "elder_id",
           ignoreDuplicates: false,
@@ -275,6 +277,7 @@ const ElderSettings = () => {
               notify_on_low_wellbeing: notifyOnLowWellbeing,
               wellbeing_threshold: wellbeingThreshold,
               notify_on_missed_checkin: notifyOnMissedCheckin,
+              weekly_summary_enabled: weeklySummaryEnabled,
             })
             .eq("elder_id", elderId);
         } else {
@@ -288,6 +291,7 @@ const ElderSettings = () => {
               notify_on_low_wellbeing: notifyOnLowWellbeing,
               wellbeing_threshold: wellbeingThreshold,
               notify_on_missed_checkin: notifyOnMissedCheckin,
+              weekly_summary_enabled: weeklySummaryEnabled,
             });
         }
       }
@@ -745,6 +749,19 @@ const ElderSettings = () => {
                   <Switch
                     checked={notifyOnMissedCheckin}
                     onCheckedChange={setNotifyOnMissedCheckin}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label>Weekly Health Summary</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Receive a weekly report every Sunday
+                    </p>
+                  </div>
+                  <Switch
+                    checked={weeklySummaryEnabled}
+                    onCheckedChange={setWeeklySummaryEnabled}
                   />
                 </div>
               </div>

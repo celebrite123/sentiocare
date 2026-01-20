@@ -684,6 +684,7 @@ export type Database = {
         Row: {
           api_calls_reset_at: string | null
           auto_renewal_enabled: boolean | null
+          cancellation_requested_at: string | null
           created_at: string | null
           emergency_calls_reset_at: string | null
           full_name: string
@@ -704,6 +705,7 @@ export type Database = {
         Insert: {
           api_calls_reset_at?: string | null
           auto_renewal_enabled?: boolean | null
+          cancellation_requested_at?: string | null
           created_at?: string | null
           emergency_calls_reset_at?: string | null
           full_name: string
@@ -724,6 +726,7 @@ export type Database = {
         Update: {
           api_calls_reset_at?: string | null
           auto_renewal_enabled?: boolean | null
+          cancellation_requested_at?: string | null
           created_at?: string | null
           emergency_calls_reset_at?: string | null
           full_name?: string
