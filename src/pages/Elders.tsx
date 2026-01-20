@@ -29,6 +29,7 @@ const Elders = () => {
   const [elders, setElders] = useState<Elder[]>([]);
   const [loading, setLoading] = useState(true);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentModalDismissed, setPaymentModalDismissed] = useState(false);
   
   // Show payment modal if trial expired (not trial and status is expired or trial)
   const isTrialExpired = !isTrialActive && status === "trial";
@@ -40,12 +41,16 @@ const Elders = () => {
     }
   }, [user]);
 
-  // Show payment modal when trial expires
+  // Show payment modal when trial expires, but not if dismissed or subscription is active
   useEffect(() => {
-    if (isTrialExpired && !loading) {
+    if (isTrialExpired && !loading && !paymentModalDismissed) {
       setShowPaymentModal(true);
     }
-  }, [isTrialExpired, loading]);
+    // Close modal if subscription becomes active
+    if (status === "active") {
+      setShowPaymentModal(false);
+    }
+  }, [isTrialExpired, loading, paymentModalDismissed, status]);
 
   const loadElders = async () => {
     try {
@@ -125,6 +130,7 @@ const Elders = () => {
   }
 
   const handlePaymentSuccess = () => {
+    setPaymentModalDismissed(true); // Prevent modal from re-opening
     setShowPaymentModal(false);
     refetch(); // Refresh subscription state
     toast({

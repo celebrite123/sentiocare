@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { CreditCard, Phone, MessageCircle, Check, Loader2, Crown } from "lucide-react";
+import { Phone, MessageCircle, Loader2, Crown } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -8,7 +8,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useRazorpayPayment } from "@/hooks/useRazorpay";
 
@@ -22,30 +21,16 @@ const plans = [
     id: "basic" as const,
     name: "Basic",
     price: "₹299",
-    period: "/month",
     description: "WhatsApp check-ins",
     icon: MessageCircle,
-    features: [
-      "Daily WhatsApp check-ins",
-      "Health tracking dashboard",
-      "Medicine reminders",
-      "Email alerts & reports",
-    ],
   },
   {
     id: "premium" as const,
     name: "Premium",
     price: "₹699",
-    period: "/month",
     description: "Voice + WhatsApp",
     icon: Phone,
     popular: true,
-    features: [
-      "Daily AI voice calls",
-      "WhatsApp check-ins",
-      "Priority support",
-      "Advanced AI insights",
-    ],
   },
 ];
 
@@ -64,78 +49,60 @@ export const TrialExpiredModal = ({ open, onSuccess }: TrialExpiredModalProps) =
 
   return (
     <Dialog open={open} onOpenChange={() => {}}>
-      <DialogContent className="sm:max-w-2xl" onPointerDownOutside={(e) => e.preventDefault()}>
-        <DialogHeader className="text-center">
-          <div className="mx-auto mb-4 w-16 h-16 rounded-full bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center">
-            <Crown className="h-8 w-8 text-primary" />
+      <DialogContent className="sm:max-w-sm" onPointerDownOutside={(e) => e.preventDefault()}>
+        <DialogHeader className="text-center pb-2">
+          <div className="mx-auto mb-2 w-12 h-12 rounded-full bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center">
+            <Crown className="h-6 w-6 text-primary" />
           </div>
-          <DialogTitle className="text-2xl">Your Trial Has Ended</DialogTitle>
-          <DialogDescription className="text-base">
-            Continue caring for your loved ones by choosing a plan below.
+          <DialogTitle className="text-xl">Trial Ended</DialogTitle>
+          <DialogDescription className="text-sm">
+            Choose a plan to continue
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid md:grid-cols-2 gap-4 py-4">
+        <div className="space-y-3 py-2">
           {plans.map((plan) => (
-            <Card
+            <div
               key={plan.id}
-              className={`relative cursor-pointer transition-all hover:shadow-lg ${
-                plan.popular ? "border-primary border-2" : "border-border"
+              className={`relative p-3 rounded-lg border transition-all ${
+                plan.popular ? "border-primary bg-primary/5" : "border-border"
               }`}
             >
               {plan.popular && (
-                <Badge className="absolute -top-2.5 left-1/2 -translate-x-1/2 bg-primary">
+                <Badge className="absolute -top-2 right-3 bg-primary text-xs px-2 py-0.5">
                   Recommended
                 </Badge>
               )}
-              <CardContent className="pt-6 space-y-4">
-                <div className="text-center">
-                  <div className="mx-auto mb-3 p-3 rounded-full bg-primary/10 w-fit">
-                    <plan.icon className="h-6 w-6 text-primary" />
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-full bg-primary/10">
+                    <plan.icon className="h-4 w-4 text-primary" />
                   </div>
-                  <h3 className="text-lg font-semibold">{plan.name}</h3>
-                  <p className="text-sm text-muted-foreground">{plan.description}</p>
+                  <div>
+                    <p className="font-medium text-sm">{plan.name}</p>
+                    <p className="text-xs text-muted-foreground">{plan.description}</p>
+                  </div>
                 </div>
-
-                <div className="text-center">
-                  <span className="text-3xl font-bold">{plan.price}</span>
-                  <span className="text-muted-foreground">{plan.period}</span>
-                </div>
-
-                <ul className="space-y-2">
-                  {plan.features.map((feature, i) => (
-                    <li key={i} className="flex items-center gap-2 text-sm">
-                      <Check className="h-4 w-4 text-accent shrink-0" />
-                      {feature}
-                    </li>
-                  ))}
-                </ul>
-
                 <Button
+                  size="sm"
                   onClick={() => handlePayment(plan.id)}
                   disabled={isLoading}
-                  className={`w-full ${plan.popular ? "bg-gradient-primary" : ""}`}
                   variant={plan.popular ? "default" : "outline"}
+                  className="min-w-[80px]"
                 >
                   {isLoading && selectedPlan === plan.id ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Processing...
-                    </>
+                    <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
-                    <>
-                      <CreditCard className="h-4 w-4 mr-2" />
-                      Pay {plan.price}
-                    </>
+                    plan.price
                   )}
                 </Button>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           ))}
         </div>
 
-        <p className="text-xs text-center text-muted-foreground">
-          Secure payment powered by Razorpay • Cancel anytime
+        <p className="text-xs text-center text-muted-foreground pt-1">
+          Secure payment • Cancel anytime
         </p>
       </DialogContent>
     </Dialog>
