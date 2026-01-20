@@ -25,7 +25,7 @@ interface Elder {
 const Elders = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { tier, isTrialActive, canAddElder, maxElders, refetch, status } = useSubscription();
+  const { tier, isTrialActive, canAddElder, maxElders, elderCount, refetch, status, loading: subscriptionLoading } = useSubscription();
   const [elders, setElders] = useState<Elder[]>([]);
   const [loading, setLoading] = useState(true);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -42,15 +42,16 @@ const Elders = () => {
   }, [user]);
 
   // Show payment modal when trial expires, but not if dismissed or subscription is active
+  // CRITICAL: Wait for both loading states to complete before showing modal
   useEffect(() => {
-    if (isTrialExpired && !loading && !paymentModalDismissed) {
+    if (isTrialExpired && !loading && !subscriptionLoading && !paymentModalDismissed) {
       setShowPaymentModal(true);
     }
     // Close modal if subscription becomes active
     if (status === "active") {
       setShowPaymentModal(false);
     }
-  }, [isTrialExpired, loading, paymentModalDismissed, status]);
+  }, [isTrialExpired, loading, subscriptionLoading, paymentModalDismissed, status]);
 
   const loadElders = async () => {
     try {
@@ -158,17 +159,25 @@ const Elders = () => {
               </div>
               <div className="flex items-center gap-3">
                 {!canAddElder && (
-                  <p className="text-sm text-muted-foreground hidden sm:block">
-                    Your plan includes {maxElders} elder
-                  </p>
+                  <Badge variant="outline" className="text-xs">
+                    {elderCount}/{maxElders} elder
+                  </Badge>
                 )}
                 <Button 
-                  onClick={() => navigate("/elders/add")} 
-                  disabled={!canAddElder}
-                  className="gap-2 bg-secondary hover:bg-secondary/90 text-secondary-foreground shadow-lg hover:shadow-xl transition-all disabled:opacity-50"
+                  onClick={() => {
+                    if (!canAddElder) {
+                      toast({
+                        title: "Upgrade Required",
+                        description: "Contact support at info@sentio.in.net to add additional elder slots to your plan.",
+                      });
+                      return;
+                    }
+                    navigate("/elders/add");
+                  }} 
+                  className="gap-2 bg-secondary hover:bg-secondary/90 text-secondary-foreground shadow-lg hover:shadow-xl transition-all"
                 >
                   <Plus className="h-4 w-4" />
-                  {canAddElder ? "Add Elder" : "Limit Reached"}
+                  <span className="hidden sm:inline">Add Elder</span>
                 </Button>
               </div>
             </div>

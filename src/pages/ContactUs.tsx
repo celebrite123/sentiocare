@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Mail, Phone, MapPin, Clock } from "lucide-react";
+import { ArrowLeft, Mail, MapPin, Clock } from "lucide-react";
 import sentioLogo from "@/assets/sentio-logo.png";
 
 const ContactUs = () => {
@@ -29,7 +29,7 @@ const ContactUs = () => {
             we'd love to hear from you.
           </p>
 
-          <div className="grid md:grid-cols-2 gap-8 my-12">
+          <div className="grid md:grid-cols-3 gap-8 my-12">
             <div className="bg-card border border-border rounded-xl p-6">
               <div className="flex items-center gap-3 mb-4">
                 <div className="p-3 bg-primary/10 rounded-lg">
@@ -43,22 +43,6 @@ const ContactUs = () => {
                 className="text-primary hover:underline font-medium"
               >
                 info@sentio.in.net
-              </a>
-            </div>
-
-            <div className="bg-card border border-border rounded-xl p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="p-3 bg-primary/10 rounded-lg">
-                  <Phone className="h-6 w-6 text-primary" />
-                </div>
-                <h3 className="text-xl font-semibold text-foreground">Call Us</h3>
-              </div>
-              <p className="text-muted-foreground mb-2">Speak with our team directly:</p>
-              <a 
-                href="tel:+919876543210" 
-                className="text-primary hover:underline font-medium"
-              >
-                +91 98765 43210
               </a>
             </div>
 

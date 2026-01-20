@@ -179,13 +179,13 @@ const SelectPlan = () => {
                 <CardDescription className="text-base">{plan.description}</CardDescription>
               </CardHeader>
 
-              <CardContent className="space-y-6">
+              <CardContent className="space-y-4 md:space-y-6">
                 <div className="text-center">
                   <div className="flex items-baseline justify-center gap-1">
-                    <span className="text-4xl font-bold">{plan.price}</span>
-                    <span className="text-muted-foreground">{plan.period}</span>
+                    <span className="text-3xl md:text-4xl font-bold">{plan.price}</span>
+                    <span className="text-muted-foreground text-sm md:text-base">{plan.period}</span>
                   </div>
-                  <p className="text-sm text-muted-foreground mt-1">per elder</p>
+                  <p className="text-xs md:text-sm text-muted-foreground mt-1">per elder</p>
                   {isTrialActive && (
                     <p className="text-xs text-primary mt-2">Billing starts after trial</p>
                   )}
@@ -209,7 +209,7 @@ const SelectPlan = () => {
                 <Button
                   onClick={() => handleSelectPlan(plan.id)}
                   disabled={loading !== null || paymentLoading}
-                  className={`w-full py-6 text-lg ${
+                  className={`w-full py-4 md:py-6 text-base md:text-lg ${
                     plan.popular 
                       ? "bg-gradient-primary hover:opacity-90" 
                       : ""
@@ -224,7 +224,7 @@ const SelectPlan = () => {
                   {isTrialExpired 
                     ? `Pay ${plan.price}` 
                     : isTrialActive 
-                      ? `Select ${plan.name} for After Trial` 
+                      ? `Select ${plan.name}` 
                       : `Select ${plan.name}`}
                 </Button>
               </CardContent>
@@ -241,11 +241,11 @@ const SelectPlan = () => {
                 Your plan choice will be applied when your trial ends.
               </p>
               <Button 
-                variant="link" 
-                className="mt-2"
+                variant="secondary" 
+                className="mt-4 px-6"
                 onClick={() => navigate("/elders")}
               >
-                Skip for now and continue with trial →
+                Skip for now — Continue with Trial
               </Button>
             </>
           ) : isTrialExpired ? (
