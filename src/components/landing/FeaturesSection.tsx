@@ -103,6 +103,9 @@ const FeaturesSection = () => {
                 src={elderPhoneCall} 
                 alt="Elder receiving care call"
                 className="relative w-48 h-48 object-cover rounded-2xl shadow-lg border border-primary/10"
+                width={192}
+                height={192}
+                loading="lazy"
               />
             </div>
             <div className="relative mt-8">
@@ -111,6 +114,9 @@ const FeaturesSection = () => {
                 src={caregiverPeaceOfMind} 
                 alt="Caregiver feeling at peace"
                 className="relative w-48 h-48 object-cover rounded-2xl shadow-lg border border-secondary/10"
+                width={192}
+                height={192}
+                loading="lazy"
               />
             </div>
           </div>

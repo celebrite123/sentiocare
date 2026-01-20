@@ -99,6 +99,9 @@ const HeroSection = () => {
                   src={heroElderlyCouple} 
                   alt="Happy elderly Indian couple using smartphone for health check-ins"
                   className="w-full h-auto object-cover"
+                  width={600}
+                  height={400}
+                  fetchPriority="high"
                 />
               </div>
               

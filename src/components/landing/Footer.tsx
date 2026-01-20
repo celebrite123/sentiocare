@@ -11,6 +11,9 @@ const Footer = () => {
               src={sentioLogo} 
               alt="Sentio AI" 
               className="h-10 w-auto"
+              width={40}
+              height={40}
+              loading="lazy"
             />
           </div>
 
