@@ -26,13 +26,15 @@ const PrivacyPolicy = () => {
           <section className="mb-8">
             <h2 className="text-xl font-semibold mb-4">1. Introduction</h2>
             <p>
-              Sentio AI ("we," "our," or "us") is committed to protecting your privacy and the privacy of the elderly individuals ("Elders") you care for. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our AI-powered elder care service.
+              Sentio AI ("we," "our," or "us") is committed to protecting your privacy and the privacy of the elderly
+              individuals ("Elders") you care for. This Privacy Policy explains how we collect, use, disclose, and
+              safeguard your information when you use our AI-powered elder care service.
             </p>
           </section>
 
           <section className="mb-8">
             <h2 className="text-xl font-semibold mb-4">2. Information We Collect</h2>
-            
+
             <h3 className="text-lg font-medium mb-2">Personal Information</h3>
             <ul className="list-disc pl-6 space-y-2">
               <li>Name, email address, and phone number of caregivers</li>
@@ -72,9 +74,7 @@ const PrivacyPolicy = () => {
 
           <section className="mb-8">
             <h2 className="text-xl font-semibold mb-4">4. Data Security</h2>
-            <p>
-              We implement industry-standard security measures to protect your data:
-            </p>
+            <p>We implement industry-standard security measures to protect your data:</p>
             <ul className="list-disc pl-6 space-y-2">
               <li>End-to-end encryption for all communications</li>
               <li>Secure data storage with access controls</li>
@@ -92,9 +92,7 @@ const PrivacyPolicy = () => {
               <li>Service providers who assist in operating our platform (under strict confidentiality agreements)</li>
               <li>Legal authorities when required by law</li>
             </ul>
-            <p className="mt-4">
-              We do not sell your personal information to third parties.
-            </p>
+            <p className="mt-4">We do not sell your personal information to third parties.</p>
           </section>
 
           <section className="mb-8">
@@ -113,32 +111,35 @@ const PrivacyPolicy = () => {
           <section className="mb-8">
             <h2 className="text-xl font-semibold mb-4">7. Data Retention</h2>
             <p>
-              We retain your data for as long as your account is active or as needed to provide services. Health records are retained according to applicable healthcare regulations. You may request deletion of your account and associated data at any time.
+              We retain your data for as long as your account is active or as needed to provide services. Health records
+              are retained according to applicable healthcare regulations. You may request deletion of your account and
+              associated data at any time.
             </p>
           </section>
 
           <section className="mb-8">
             <h2 className="text-xl font-semibold mb-4">8. Children's Privacy</h2>
             <p>
-              Our service is designed for adult caregivers and elderly individuals. We do not knowingly collect information from children under 18.
+              Our service is designed for adult caregivers and elderly individuals. We do not knowingly collect
+              information from children under 18.
             </p>
           </section>
 
           <section className="mb-8">
             <h2 className="text-xl font-semibold mb-4">9. Changes to This Policy</h2>
             <p>
-              We may update this Privacy Policy from time to time. We will notify you of any changes by posting the new policy on this page and updating the "Last updated" date.
+              We may update this Privacy Policy from time to time. We will notify you of any changes by posting the new
+              policy on this page and updating the "Last updated" date.
             </p>
           </section>
 
           <section className="mb-8">
             <h2 className="text-xl font-semibold mb-4">10. Contact Us</h2>
-            <p>
-              If you have questions about this Privacy Policy or our data practices, please contact us at:
-            </p>
+            <p>If you have questions about this Privacy Policy or our data practices, please contact us at:</p>
             <ul className="list-none mt-4">
-              <li><strong>Email:</strong> privacy@sentio-ai.com</li>
-              <li><strong>Address:</strong> Sentio AI Healthcare Pvt. Ltd., India</li>
+              <li>
+                <strong>Email:</strong> info@sentio.in.net
+              </li>
             </ul>
           </section>
         </div>
