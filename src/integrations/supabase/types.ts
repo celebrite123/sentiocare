@@ -927,6 +927,19 @@ export type Database = {
         }
         Returns: boolean
       }
+      submit_b2b_lead: {
+        Args: {
+          p_contact_email: string
+          p_contact_name: string
+          p_contact_phone: string
+          p_expected_residents?: number
+          p_message?: string
+          p_organization_name: string
+          p_organization_type: string
+          p_preferred_call_frequency?: number
+        }
+        Returns: Json
+      }
     }
     Enums: {
       app_role: "admin" | "moderator" | "user"

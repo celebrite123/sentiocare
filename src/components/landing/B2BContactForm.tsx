@@ -32,14 +32,14 @@ import {
 } from "@/components/ui/select";
 
 const formSchema = z.object({
-  organization_name: z.string().min(2, "Organization name is required"),
-  organization_type: z.enum(["hospital", "elder_home", "clinic", "other"]),
-  contact_name: z.string().min(2, "Contact name is required"),
-  contact_email: z.string().email("Invalid email address"),
-  contact_phone: z.string().min(10, "Valid phone number required"),
+  organization_name: z.string().min(2, "Organization name is required").max(200, "Organization name too long"),
+  organization_type: z.enum(["hospital", "nursing_home", "assisted_living", "home_care", "other"]),
+  contact_name: z.string().min(2, "Contact name is required").max(100, "Name too long"),
+  contact_email: z.string().email("Invalid email address").max(255, "Email too long"),
+  contact_phone: z.string().min(10, "Valid phone number required").max(15, "Phone number too long"),
   expected_residents: z.string().optional(),
   preferred_call_frequency: z.string().optional(),
-  message: z.string().optional(),
+  message: z.string().max(2000, "Message too long").optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -56,7 +56,7 @@ const B2BContactForm = ({ open, onOpenChange }: B2BContactFormProps) => {
     resolver: zodResolver(formSchema),
     defaultValues: {
       organization_name: "",
-      organization_type: "elder_home",
+      organization_type: "nursing_home",
       contact_name: "",
       contact_email: "",
       contact_phone: "",
@@ -69,18 +69,25 @@ const B2BContactForm = ({ open, onOpenChange }: B2BContactFormProps) => {
   const onSubmit = async (values: FormValues) => {
     setIsSubmitting(true);
     try {
-      const { error } = await supabase.from("b2b_leads").insert({
-        organization_name: values.organization_name,
-        organization_type: values.organization_type,
-        contact_name: values.contact_name,
-        contact_email: values.contact_email,
-        contact_phone: values.contact_phone,
-        expected_residents: values.expected_residents ? parseInt(values.expected_residents) : null,
-        preferred_call_frequency: values.preferred_call_frequency ? parseInt(values.preferred_call_frequency) : null,
-        message: values.message || null,
+      // Use secure RPC function instead of direct table insert
+      const { data, error } = await supabase.rpc('submit_b2b_lead', {
+        p_organization_name: values.organization_name.trim(),
+        p_organization_type: values.organization_type,
+        p_contact_name: values.contact_name.trim(),
+        p_contact_email: values.contact_email.trim().toLowerCase(),
+        p_contact_phone: values.contact_phone.trim(),
+        p_expected_residents: values.expected_residents ? parseInt(values.expected_residents) : null,
+        p_preferred_call_frequency: values.preferred_call_frequency ? parseInt(values.preferred_call_frequency) : null,
+        p_message: values.message?.trim() || null,
       });
 
       if (error) throw error;
+      
+      // Check if the RPC function returned an error
+      const result = data as { success: boolean; error?: string; message?: string } | null;
+      if (result && !result.success) {
+        throw new Error(result.error || 'Submission failed');
+      }
 
       toast({
         title: "Thank you for your interest! 🎉",
@@ -147,9 +154,10 @@ const B2BContactForm = ({ open, onOpenChange }: B2BContactFormProps) => {
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="elder_home">Elder Care Home</SelectItem>
+                      <SelectItem value="nursing_home">Nursing Home</SelectItem>
+                      <SelectItem value="assisted_living">Assisted Living</SelectItem>
                       <SelectItem value="hospital">Hospital</SelectItem>
-                      <SelectItem value="clinic">Clinic</SelectItem>
+                      <SelectItem value="home_care">Home Care Agency</SelectItem>
                       <SelectItem value="other">Other</SelectItem>
                     </SelectContent>
                   </Select>
