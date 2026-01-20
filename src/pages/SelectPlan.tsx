@@ -255,7 +255,7 @@ const SelectPlan = () => {
           ) : (
             <>
               <p className="text-muted-foreground">
-                Start with a 14-day free trial. All premium features included.
+                Start with a 5-day free trial. All premium features included.
               </p>
               <p className="text-sm text-muted-foreground mt-2">
                 No credit card required • Cancel anytime

@@ -199,7 +199,7 @@ const Auth = () => {
 
         toast({
           title: "Welcome to Sentio AI! 🎉",
-          description: "Your 14-day free trial has started.",
+          description: "Your 5-day free trial has started.",
         });
       }
     } catch (error: any) {

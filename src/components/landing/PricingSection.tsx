@@ -92,7 +92,7 @@ const PricingSection = () => {
             Simple, Transparent Pricing
           </h2>
           <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-            Start with a 14-day free trial. No credit card required.
+            Start with a 5-day free trial. No credit card required.
           </p>
         </div>
 
@@ -163,7 +163,7 @@ const PricingSection = () => {
 
         <div className="text-center mt-8">
           <p className="text-sm text-muted-foreground">
-            All plans include a 14-day free trial with full Premium features
+            All plans include a 5-day free trial with full Premium features
           </p>
         </div>
       </div>

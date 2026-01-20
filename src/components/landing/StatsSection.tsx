@@ -4,7 +4,7 @@ const stats = [
   { value: 15, label: "Languages Supported", suffix: "+" },
   { value: 24, label: "AI Availability", suffix: "/7" },
   { value: 99.9, label: "Uptime Guarantee", suffix: "%" },
-  { value: 14, label: "Day Free Trial", suffix: "" },
+  { value: 5, label: "Day Free Trial", suffix: "" },
 ];
 
 const AnimatedCounter = ({ value, suffix }: { value: number; suffix: string }) => {

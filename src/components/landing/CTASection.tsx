@@ -13,7 +13,7 @@ const CTASection = () => {
             Give Your Parents the Care They Deserve
           </h2>
           <p className="text-muted-foreground text-lg mb-8 max-w-xl mx-auto">
-            Try Sentio AI free for 14 days. Daily voice calls and WhatsApp check-ins 
+            Try Sentio AI free for 5 days. Daily voice calls and WhatsApp check-ins 
             for your elderly parents. No credit card required.
           </p>
           
