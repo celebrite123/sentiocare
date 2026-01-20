@@ -32,6 +32,7 @@ import AlertsPanel from "@/components/AlertsPanel";
 import { WellbeingTrendChart } from "@/components/dashboard/WellbeingTrendChart";
 import { MedicationAdherenceChart } from "@/components/dashboard/MedicationAdherenceChart";
 import CallStatusCard from "@/components/dashboard/CallStatusCard";
+import { TrialExpiredModal } from "@/components/TrialExpiredModal";
 import { format } from "date-fns";
 
 interface Elder {
@@ -63,7 +64,7 @@ const MAX_EMERGENCY_CALLS_PER_MONTH = 5;
 const Dashboard = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const { canUseVoice, isTrialActive, trialDaysLeft, tier, loading: subscriptionLoading } = useSubscription();
+  const { canUseVoice, isTrialActive, trialDaysLeft, tier, status, loading: subscriptionLoading, refetch } = useSubscription();
   const [searchParams] = useSearchParams();
   const elderId = searchParams.get("elder") || searchParams.get("elderId");
   const [elder, setElder] = useState<Elder | null>(null);
@@ -81,6 +82,10 @@ const Dashboard = () => {
     resetsIn: 30,
   });
   const [alertsOpen, setAlertsOpen] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+
+  // Check if trial has expired (was on trial but trial is no longer active)
+  const isTrialExpired = !isTrialActive && status === "trial";
 
   useEffect(() => {
     if (elderId) {
@@ -89,6 +94,13 @@ const Dashboard = () => {
       loadEmergencyCallStatus();
     }
   }, [elderId]);
+
+  // Show payment modal when trial expires
+  useEffect(() => {
+    if (isTrialExpired && !loading && !subscriptionLoading) {
+      setShowPaymentModal(true);
+    }
+  }, [isTrialExpired, loading, subscriptionLoading]);
 
   // Load emergency call status from profile
   const loadEmergencyCallStatus = async () => {
@@ -337,8 +349,21 @@ const Dashboard = () => {
 
   const hasEmergencyCallsRemaining = emergencyCallStatus.remaining > 0;
 
+  const handlePaymentSuccess = () => {
+    setShowPaymentModal(false);
+    refetch(); // Refresh subscription state
+    toast({
+      title: "Subscription Activated! 🎉",
+      description: "You now have full access to all features.",
+    });
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-muted/20 to-background">
+      <TrialExpiredModal 
+        open={showPaymentModal} 
+        onSuccess={handlePaymentSuccess} 
+      />
       <DashboardHeader 
         elderName={elder.full_name} 
         alertCount={stats.alertCount}

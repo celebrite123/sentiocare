@@ -10,6 +10,7 @@ import { useSubscription } from "@/hooks/useSubscription";
 import { toast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import Navbar from "@/components/Navbar";
+import { TrialExpiredModal } from "@/components/TrialExpiredModal";
 
 interface Elder {
   id: string;
@@ -23,9 +24,13 @@ interface Elder {
 const Elders = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { tier, isTrialActive, canAddElder, maxElders, refetch } = useSubscription();
+  const { tier, isTrialActive, canAddElder, maxElders, refetch, status } = useSubscription();
   const [elders, setElders] = useState<Elder[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  
+  // Show payment modal if trial expired (not trial and status is expired or trial)
+  const isTrialExpired = !isTrialActive && status === "trial";
 
   useEffect(() => {
     if (user) {
@@ -33,6 +38,13 @@ const Elders = () => {
       refetch(); // Refresh subscription state including elder count
     }
   }, [user]);
+
+  // Show payment modal when trial expires
+  useEffect(() => {
+    if (isTrialExpired && !loading) {
+      setShowPaymentModal(true);
+    }
+  }, [isTrialExpired, loading]);
 
   const loadElders = async () => {
     try {
@@ -111,9 +123,22 @@ const Elders = () => {
     );
   }
 
+  const handlePaymentSuccess = () => {
+    setShowPaymentModal(false);
+    refetch(); // Refresh subscription state
+    toast({
+      title: "Subscription Activated! 🎉",
+      description: "You now have full access to all features.",
+    });
+  };
+
   return (
     <>
       <Navbar />
+      <TrialExpiredModal 
+        open={showPaymentModal} 
+        onSuccess={handlePaymentSuccess} 
+      />
       <div className="min-h-screen bg-gradient-to-br from-background via-muted/20 to-background">
         <div className="border-b bg-background/80 backdrop-blur-sm sticky top-16 z-10">
           <div className="container mx-auto px-4 py-6">
