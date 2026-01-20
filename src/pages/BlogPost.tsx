@@ -308,7 +308,7 @@ const BlogPost = () => {
             <div className="bg-muted/50 rounded-xl p-6 text-center">
               <h3 className="text-lg font-semibold mb-2">Want to keep your loved ones safe?</h3>
               <p className="text-muted-foreground mb-4">
-                Try Sentio AI free for 14 days. Daily check-ins for your elderly parents.
+                Try Sentio AI free for 5 days. Daily check-ins for your elderly parents.
               </p>
               <Button asChild>
                 <Link to="/auth">Start Free Trial</Link>

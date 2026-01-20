@@ -88,7 +88,7 @@ const TermsOfService = () => {
           <section className="mb-8">
             <h2 className="text-xl font-semibold mb-4">6. Subscription and Billing</h2>
             <ul className="list-disc pl-6 space-y-2">
-              <li>Free trial: 14 days with all Premium features</li>
+              <li>Free trial: 5 days with all Premium features</li>
               <li>Basic Plan: ₹299/month per elder (WhatsApp only)</li>
               <li>Premium Plan: ₹699/month per elder (Voice + WhatsApp)</li>
               <li>Billing occurs monthly on the date of subscription</li>
