@@ -28,11 +28,14 @@ export const useRazorpayPayment = () => {
           return { success: false };
         }
 
-        // Create order on server
+        // Create order on server with explicit auth header
         const { data: orderData, error: orderError } = await supabase.functions.invoke(
           "create-razorpay-order",
           {
             body: { plan_id: planId },
+            headers: {
+              Authorization: `Bearer ${session.access_token}`,
+            },
           }
         );
 
@@ -70,6 +73,9 @@ export const useRazorpayPayment = () => {
                       razorpay_payment_id: response.razorpay_payment_id,
                       razorpay_signature: response.razorpay_signature,
                       plan_id: planId,
+                    },
+                    headers: {
+                      Authorization: `Bearer ${session.access_token}`,
                     },
                   }
                 );
