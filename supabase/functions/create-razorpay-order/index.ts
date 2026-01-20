@@ -3,11 +3,14 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const allowedOrigins = [
   "https://sentiocare.lovable.app",
-  "https://id-preview--ff9d9aab-fd86-44fd-b5d6-1ccaf3b7bb17.lovable.app"
 ];
 
 const getCorsHeaders = (origin: string | null) => {
-  const isAllowed = origin && allowedOrigins.some(allowed => origin === allowed || origin.startsWith(allowed));
+  // Allow production domain and all Lovable preview domains
+  const isAllowed = origin && (
+    allowedOrigins.includes(origin) ||
+    origin.endsWith(".lovable.app") // Allow all Lovable preview domains
+  );
   return {
     "Access-Control-Allow-Origin": isAllowed ? origin : allowedOrigins[0],
     "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
