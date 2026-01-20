@@ -8,9 +8,31 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2 } from "lucide-react";
+import { Loader2, Check, Circle } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import sentioLogo from "@/assets/sentio-logo.png";
+
+// Password requirements indicator component
+const PasswordRequirements = ({ password }: { password: string }) => {
+  const hasMinLength = password.length >= 8;
+  const hasNumber = /\d/.test(password);
+  const hasUpperOrSpecial = /[A-Z!@#$%^&*]/.test(password);
+
+  const Requirement = ({ met, text }: { met: boolean; text: string }) => (
+    <div className={`flex items-center gap-2 text-xs ${met ? "text-green-600" : "text-muted-foreground"}`}>
+      {met ? <Check className="h-3 w-3" /> : <Circle className="h-3 w-3" />}
+      {text}
+    </div>
+  );
+
+  return (
+    <div className="space-y-1 mt-2">
+      <Requirement met={hasMinLength} text="At least 8 characters" />
+      <Requirement met={hasNumber} text="Contains a number" />
+      <Requirement met={hasUpperOrSpecial} text="Contains uppercase or special character (!@#$%^&*)" />
+    </div>
+  );
+};
 
 const Auth = () => {
   const navigate = useNavigate();
@@ -18,6 +40,8 @@ const Auth = () => {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [resetMode, setResetMode] = useState(false);
+  const [passwordResetMode, setPasswordResetMode] = useState(false);
+  const [newPasswordForReset, setNewPasswordForReset] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
@@ -25,6 +49,13 @@ const Auth = () => {
   const [agreedToTerms, setAgreedToTerms] = useState(false);
 
   useEffect(() => {
+    // Check URL for password recovery token
+    const hashParams = new URLSearchParams(window.location.hash.substring(1));
+    const urlParams = new URLSearchParams(window.location.search);
+    if (hashParams.get("type") === "recovery" || urlParams.get("type") === "recovery") {
+      setPasswordResetMode(true);
+    }
+
     const checkSession = async () => {
       const { data: { session }, error } = await supabase.auth.getSession();
       
@@ -43,6 +74,9 @@ const Auth = () => {
         return;
       }
       
+      // If in password reset mode, don't redirect
+      if (passwordResetMode) return;
+      
       // Session is valid, redirect
       checkAndRedirect(session.user.id);
     };
@@ -54,13 +88,22 @@ const Auth = () => {
         return;
       }
       
+      // Handle password recovery event - show reset form instead of redirecting
+      if (event === 'PASSWORD_RECOVERY') {
+        setPasswordResetMode(true);
+        return;
+      }
+      
+      // Don't redirect if in password reset mode
+      if (passwordResetMode) return;
+      
       if (session && (event === "SIGNED_IN" || event === "USER_UPDATED" || event === "TOKEN_REFRESHED")) {
         checkAndRedirect(session.user.id);
       }
     });
 
     return () => subscription.unsubscribe();
-  }, [navigate]);
+  }, [navigate, passwordResetMode]);
 
   const checkAndRedirect = async (userId: string) => {
     // Check if user has selected a plan
@@ -127,6 +170,62 @@ const Auth = () => {
     } catch (error: any) {
       toast({
         title: "Reset failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSetNewPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    // Validate password rules
+    if (newPasswordForReset.length < 8) {
+      toast({
+        title: "Password too short",
+        description: "Password must be at least 8 characters",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const hasNumber = /\d/.test(newPasswordForReset);
+    const hasUpperOrSpecial = /[A-Z!@#$%^&*]/.test(newPasswordForReset);
+    if (!hasNumber || !hasUpperOrSpecial) {
+      toast({
+        title: "Password too weak",
+        description: "Include at least one number and one uppercase letter or special character",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.updateUser({
+        password: newPasswordForReset,
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Password Reset Successfully! 🎉",
+        description: "You can now use your new password to sign in.",
+      });
+
+      setPasswordResetMode(false);
+      setNewPasswordForReset("");
+      
+      // Clear URL params
+      window.history.replaceState({}, document.title, window.location.pathname);
+      
+      // Navigate to elders page since user is now logged in
+      navigate("/elders");
+    } catch (error: any) {
+      toast({
+        title: "Password reset failed",
         description: error.message,
         variant: "destructive",
       });
@@ -261,6 +360,62 @@ const Auth = () => {
       setLoading(false);
     }
   };
+
+  // Show new password form after clicking reset link
+  if (passwordResetMode) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-secondary/10 via-primary/5 to-accent/10 flex items-center justify-center p-4">
+        <div className="absolute inset-0 bg-background/95" />
+        
+        <div className="relative w-full max-w-md">
+          <div className="text-center mb-8">
+            <div className="inline-flex items-center gap-3 mb-4">
+              <img 
+                src={sentioLogo} 
+                alt="Sentio AI" 
+                className="h-16 w-auto"
+              />
+            </div>
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Set New Password</CardTitle>
+              <CardDescription>
+                Create a new password for your account
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleSetNewPassword} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="new-password">New Password</Label>
+                  <Input
+                    id="new-password"
+                    type="password"
+                    placeholder="••••••••"
+                    value={newPasswordForReset}
+                    onChange={(e) => setNewPasswordForReset(e.target.value)}
+                    required
+                    minLength={8}
+                  />
+                  <PasswordRequirements password={newPasswordForReset} />
+                </div>
+
+                <Button
+                  type="submit"
+                  className="w-full bg-primary hover:bg-primary/90"
+                  disabled={loading}
+                >
+                  {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Set New Password
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
 
   if (resetMode) {
     return (
@@ -495,9 +650,7 @@ const Auth = () => {
                       required
                       minLength={8}
                     />
-                    <p className="text-xs text-muted-foreground">
-                      At least 8 characters with a number and uppercase/special character
-                    </p>
+                    <PasswordRequirements password={password} />
                   </div>
 
                   {/* Terms & Privacy Consent */}
