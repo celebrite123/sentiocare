@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { User, Mail, Phone, Crown, Users, CreditCard, LogOut, ChevronRight, Loader2, ArrowUp, RefreshCw } from "lucide-react";
+import { User, Mail, Phone, Crown, Users, CreditCard, LogOut, ChevronRight, Loader2, ArrowUp, RefreshCw, Lock, Edit2, Shield } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -15,6 +15,9 @@ import { toast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import Navbar from "@/components/Navbar";
 import RenewalReminderBanner from "@/components/RenewalReminderBanner";
+import ChangePasswordDialog from "@/components/profile/ChangePasswordDialog";
+import EditProfileDialog from "@/components/profile/EditProfileDialog";
+import PaymentHistoryCard from "@/components/profile/PaymentHistoryCard";
 import {
   Dialog,
   DialogContent,
@@ -46,12 +49,14 @@ const Profile = () => {
   } = useSubscription();
   const { initiatePayment, isLoading: paymentLoading } = useRazorpayPayment();
   const { autoRenewalEnabled, toggleAutoRenewal, daysUntilExpiry, expiryDate } = useRenewalReminders();
-  // Dynamic pricing based on subscription tier
+  
   const additionalElderPrice = tier === "premium" || isTrialActive ? 699 : 299;
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
   const [upgradeDialogOpen, setUpgradeDialogOpen] = useState(false);
   const [upgradePlanDialogOpen, setUpgradePlanDialogOpen] = useState(false);
+  const [changePasswordOpen, setChangePasswordOpen] = useState(false);
+  const [editProfileOpen, setEditProfileOpen] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -164,10 +169,21 @@ const Profile = () => {
           {/* Account Info */}
           <Card className="mb-6">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <User className="h-5 w-5" />
-                Account Information
-              </CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2">
+                  <User className="h-5 w-5" />
+                  Account Information
+                </CardTitle>
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  onClick={() => setEditProfileOpen(true)}
+                  className="gap-1"
+                >
+                  <Edit2 className="h-4 w-4" />
+                  Edit
+                </Button>
+              </div>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center gap-4 p-4 rounded-lg bg-muted/50">
@@ -176,7 +192,7 @@ const Profile = () => {
                     {profile?.full_name?.charAt(0).toUpperCase() || "U"}
                   </span>
                 </div>
-                <div>
+                <div className="flex-1">
                   <p className="text-lg font-semibold">{profile?.full_name}</p>
                   {profile?.email && (
                     <p className="text-sm text-muted-foreground flex items-center gap-1">
@@ -192,6 +208,27 @@ const Profile = () => {
                   )}
                 </div>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Account Security */}
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Shield className="h-5 w-5" />
+                Account Security
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Button 
+                variant="outline" 
+                className="w-full gap-2"
+                onClick={() => setChangePasswordOpen(true)}
+              >
+                <Lock className="h-4 w-4" />
+                Change Password
+                <ChevronRight className="h-4 w-4 ml-auto" />
+              </Button>
             </CardContent>
           </Card>
 
@@ -346,15 +383,15 @@ const Profile = () => {
                     <DialogTrigger asChild>
                       <Button variant="outline" className="w-full gap-2">
                         <Users className="h-4 w-4" />
-                        Add More Elders
+                        Request Additional Elder Slot
                         <ChevronRight className="h-4 w-4 ml-auto" />
                       </Button>
                     </DialogTrigger>
                     <DialogContent className="sm:max-w-md">
                       <DialogHeader>
-                        <DialogTitle>Add More Elders</DialogTitle>
+                        <DialogTitle>Need More Elder Slots?</DialogTitle>
                         <DialogDescription>
-                          Your current plan includes {maxElders} elder. To add more elders, please contact our support team.
+                          Your current plan includes {maxElders} elder. Contact our support team to add more.
                         </DialogDescription>
                       </DialogHeader>
                       <div className="space-y-4 py-4">
@@ -386,12 +423,12 @@ const Profile = () => {
                           <Button 
                             className="w-full gap-2"
                             onClick={() => {
-                              window.open("mailto:info@sentio.in.net?subject=Add%20More%20Elder%20Slots&body=Hi%2C%0A%0AI%20would%20like%20to%20add%20more%20elder%20slots%20to%20my%20account.%0A%0AThank%20you!", "_blank");
+                              window.open("mailto:info@sentio.in.net?subject=Request%20Additional%20Elder%20Slot&body=Hi%2C%0A%0AI%20would%20like%20to%20add%20more%20elder%20slots%20to%20my%20account.%0A%0AThank%20you!", "_blank");
                               setUpgradeDialogOpen(false);
                             }}
                           >
-                            <CreditCard className="h-4 w-4" />
-                            Contact Support to Add
+                            <Mail className="h-4 w-4" />
+                            Request Additional Slot
                           </Button>
                           <p className="text-xs text-center text-muted-foreground">
                             Multi-elder payment coming soon
@@ -417,6 +454,11 @@ const Profile = () => {
             </CardContent>
           </Card>
 
+          {/* Payment History */}
+          <div className="mb-6">
+            <PaymentHistoryCard />
+          </div>
+
           {/* Sign Out */}
           <Card>
             <CardContent className="pt-6">
@@ -432,6 +474,18 @@ const Profile = () => {
           </Card>
         </div>
       </div>
+
+      {/* Dialogs */}
+      <ChangePasswordDialog 
+        open={changePasswordOpen} 
+        onOpenChange={setChangePasswordOpen} 
+      />
+      <EditProfileDialog 
+        open={editProfileOpen} 
+        onOpenChange={setEditProfileOpen}
+        currentProfile={profile ? { full_name: profile.full_name, phone_number: profile.phone_number } : null}
+        onProfileUpdated={loadProfile}
+      />
     </>
   );
 };
