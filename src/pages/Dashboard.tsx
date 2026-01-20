@@ -84,6 +84,7 @@ const Dashboard = () => {
   });
   const [alertsOpen, setAlertsOpen] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentModalDismissed, setPaymentModalDismissed] = useState(false);
 
   // Check if trial has expired (was on trial but trial is no longer active)
   const isTrialExpired = !isTrialActive && status === "trial";
@@ -96,12 +97,16 @@ const Dashboard = () => {
     }
   }, [elderId]);
 
-  // Show payment modal when trial expires
+  // Show payment modal when trial expires, but not if dismissed or subscription is active
   useEffect(() => {
-    if (isTrialExpired && !loading && !subscriptionLoading) {
+    if (isTrialExpired && !loading && !subscriptionLoading && !paymentModalDismissed) {
       setShowPaymentModal(true);
     }
-  }, [isTrialExpired, loading, subscriptionLoading]);
+    // Close modal if subscription becomes active
+    if (status === "active") {
+      setShowPaymentModal(false);
+    }
+  }, [isTrialExpired, loading, subscriptionLoading, paymentModalDismissed, status]);
 
   // Load emergency call status from profile
   const loadEmergencyCallStatus = async () => {
@@ -351,6 +356,7 @@ const Dashboard = () => {
   const hasEmergencyCallsRemaining = emergencyCallStatus.remaining > 0;
 
   const handlePaymentSuccess = () => {
+    setPaymentModalDismissed(true); // Prevent modal from re-opening
     setShowPaymentModal(false);
     refetch(); // Refresh subscription state
     toast({
