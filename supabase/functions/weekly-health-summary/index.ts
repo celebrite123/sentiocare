@@ -331,6 +331,9 @@ const handler = async (req: Request): Promise<Response> => {
 
         console.log(`Weekly summary email sent for elder ${settings.elder_id}:`, emailResponse);
         emailsSent.push(settings.email_address!);
+
+        // Add delay between emails to respect Resend's rate limits (2 requests/second)
+        await new Promise(resolve => setTimeout(resolve, 600));
       } catch (elderError) {
         console.error(`Error processing elder ${settings.elder_id}:`, elderError);
       }
