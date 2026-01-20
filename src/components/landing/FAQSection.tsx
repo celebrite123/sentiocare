@@ -40,7 +40,7 @@ const FAQSection = () => {
           <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">
             Frequently Asked Questions
           </h2>
-          <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
+          <p className="text-foreground/70 text-lg max-w-2xl mx-auto">
             Everything you need to know about Sentio AI
           </p>
         </div>
@@ -56,7 +56,7 @@ const FAQSection = () => {
                 <AccordionTrigger className="text-left text-foreground hover:no-underline py-4">
                   {faq.question}
                 </AccordionTrigger>
-                <AccordionContent className="text-muted-foreground pb-4">
+                <AccordionContent className="text-foreground/75 pb-4">
                   {faq.answer}
                 </AccordionContent>
               </AccordionItem>

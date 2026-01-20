@@ -17,7 +17,7 @@ const Footer = () => {
             />
           </div>
 
-          <nav className="flex flex-wrap justify-center gap-6 text-sm text-muted-foreground">
+          <nav className="flex flex-wrap justify-center gap-6 text-sm text-foreground/70">
             <Link to="/blog" className="hover:text-foreground transition-colors">Blog</Link>
             <Link to="/privacy-policy" className="hover:text-foreground transition-colors">Privacy Policy</Link>
             <Link to="/terms-of-service" className="hover:text-foreground transition-colors">Terms of Service</Link>
@@ -25,7 +25,7 @@ const Footer = () => {
             <Link to="/cancellation-refund" className="hover:text-foreground transition-colors">Cancellation & Refund</Link>
           </nav>
 
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-foreground/60">
             © 2026 Sentio AI. Made with ❤️ in India
           </p>
         </div>

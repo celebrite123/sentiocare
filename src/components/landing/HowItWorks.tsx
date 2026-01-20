@@ -29,7 +29,7 @@ const HowItWorks = () => {
           <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">
             3 Simple Steps
           </h2>
-          <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
+          <p className="text-foreground/70 text-lg max-w-2xl mx-auto">
             Get started in minutes and give your family peace of mind
           </p>
         </div>
@@ -55,7 +55,7 @@ const HowItWorks = () => {
                   <h3 className="text-xl font-semibold text-foreground mb-3">
                     {step.title}
                   </h3>
-                  <p className="text-muted-foreground leading-relaxed">
+                  <p className="text-foreground/70 leading-relaxed">
                     {step.description}
                   </p>
                 </div>

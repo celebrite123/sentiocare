@@ -52,7 +52,7 @@ const TestimonialsSection = () => {
           <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">
             What Families Say
           </h2>
-          <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
+          <p className="text-foreground/70 text-lg max-w-2xl mx-auto">
             Hear from families who trust Sentio AI with their loved ones
           </p>
         </div>
@@ -84,7 +84,7 @@ const TestimonialsSection = () => {
               </div>
               <div>
                 <p className="font-semibold text-foreground">{testimonials[current].name}</p>
-                <p className="text-sm text-muted-foreground">{testimonials[current].role}</p>
+                <p className="text-sm text-foreground/70">{testimonials[current].role}</p>
               </div>
             </div>
           </Card>
@@ -100,7 +100,7 @@ const TestimonialsSection = () => {
                   key={index}
                   onClick={() => setCurrent(index)}
                   className={`w-2 h-2 rounded-full transition-all ${
-                    current === index ? "bg-primary w-6" : "bg-muted-foreground/30"
+                    current === index ? "bg-primary w-6" : "bg-foreground/30"
                   }`}
                 />
               ))}
