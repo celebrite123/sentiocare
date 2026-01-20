@@ -156,10 +156,22 @@ const Auth = () => {
       return;
     }
 
-    if (password.length < 6) {
+    if (password.length < 8) {
       toast({
         title: "Password too short",
-        description: "Password must be at least 6 characters",
+        description: "Password must be at least 8 characters",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Password complexity check
+    const hasNumber = /\d/.test(password);
+    const hasSpecialOrUpper = /[!@#$%^&*A-Z]/.test(password);
+    if (!hasNumber || !hasSpecialOrUpper) {
+      toast({
+        title: "Password too weak",
+        description: "Include at least one number and one uppercase letter or special character",
         variant: "destructive",
       });
       return;
@@ -481,10 +493,10 @@ const Auth = () => {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       required
-                      minLength={6}
+                      minLength={8}
                     />
                     <p className="text-xs text-muted-foreground">
-                      At least 6 characters
+                      At least 8 characters with a number and uppercase/special character
                     </p>
                   </div>
 

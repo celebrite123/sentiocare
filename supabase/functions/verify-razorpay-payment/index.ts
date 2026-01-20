@@ -18,12 +18,24 @@ async function verifySignature(message: string, secret: string, signature: strin
   return computedSignature === signature;
 }
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+const allowedOrigins = [
+  "https://sentiocare.lovable.app",
+  "https://id-preview--ff9d9aab-fd86-44fd-b5d6-1ccaf3b7bb17.lovable.app"
+];
+
+const getCorsHeaders = (origin: string | null) => {
+  const isAllowed = origin && allowedOrigins.some(allowed => origin === allowed || origin.startsWith(allowed));
+  return {
+    "Access-Control-Allow-Origin": isAllowed ? origin : allowedOrigins[0],
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Credentials": "true",
+  };
 };
 
 serve(async (req) => {
+  const origin = req.headers.get("Origin");
+  const corsHeaders = getCorsHeaders(origin);
+
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -67,6 +79,27 @@ serve(async (req) => {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    // IDEMPOTENCY CHECK: Prevent duplicate payment processing
+    const { data: existingPayment } = await supabase
+      .from("payment_history")
+      .select("id")
+      .eq("razorpay_payment_id", razorpay_payment_id)
+      .single();
+
+    if (existingPayment) {
+      console.log(`Payment ${razorpay_payment_id} already processed, returning success`);
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: "Payment already processed",
+          plan: plan_id,
+        }),
+        {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
     }
 
     // Verify signature using HMAC SHA256
@@ -118,8 +151,8 @@ serve(async (req) => {
       is_auto_renewal: false,
     });
 
-    // Log the payment (optional - for records)
-    console.log(`Payment successful: user=${user.id}, plan=${plan_id}, payment_id=${razorpay_payment_id}`);
+    // Log the payment (without PII)
+    console.log(`Payment successful: plan=${plan_id}, payment_id=${razorpay_payment_id}`);
 
     return new Response(
       JSON.stringify({
@@ -135,7 +168,7 @@ serve(async (req) => {
     console.error("Error verifying payment:", error);
     return new Response(JSON.stringify({ error: "Internal server error" }), {
       status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { ...getCorsHeaders(req.headers.get("Origin")), "Content-Type": "application/json" },
     });
   }
 });
