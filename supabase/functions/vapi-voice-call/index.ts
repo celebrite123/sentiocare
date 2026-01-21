@@ -216,10 +216,18 @@ serve(async (req) => {
       is_emergency: String(isEmergency),
       check_in_type: isEmergency ? 'emergency_voice' : 'scheduled_voice',
       
-      // Caregiver context
+      // Caregiver context for emergencies
       has_caregiver: String(hasCaregiver),
       caregiver_name: notificationSettings?.caregiver_name || '',
       caregiver_relation: notificationSettings?.caregiver_relation || '',
+      caregiver_phone: notificationSettings?.caregiver_phone || '',
+      
+      // Emergency intro message
+      emergency_intro: isEmergency && hasCaregiver 
+        ? `This is an emergency check-in call. If you need help, you can contact ${notificationSettings?.caregiver_name} (${notificationSettings?.caregiver_relation}).`
+        : isEmergency 
+        ? `This is an emergency check-in call. Please let us know if you need immediate help.`
+        : '',
     };
 
     console.log('Sending variableValues to Vapi:', JSON.stringify(variableValues, null, 2));
