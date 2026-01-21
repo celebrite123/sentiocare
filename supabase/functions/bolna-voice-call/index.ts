@@ -146,21 +146,23 @@ serve(async (req) => {
 
     console.log('Initiating Bolna voice call:', { elderId, isEmergency });
 
-    // Get last check-in for context
+  // Get last check-in for context (including conversation_summary)
     const { data: previousCheckIns } = await supabase
       .from("check_ins")
-      .select("created_at, symptoms_reported")
+      .select("created_at, symptoms_reported, conversation_summary, well_being_score")
       .eq("elder_id", elderId)
       .order("created_at", { ascending: false })
-      .limit(5);
+      .limit(10);
 
     // Calculate days since last call
     let daysSinceLastCall: number | null = null;
+    let lastSummary = '';
     if (previousCheckIns && previousCheckIns.length > 0) {
       const lastCheckInDate = previousCheckIns[0]?.created_at;
       if (lastCheckInDate) {
         daysSinceLastCall = Math.floor((now.getTime() - new Date(lastCheckInDate).getTime()) / (1000 * 60 * 60 * 24));
       }
+      lastSummary = previousCheckIns[0]?.conversation_summary || '';
     }
 
     // Get active symptoms (exclude resolved ones)
@@ -183,6 +185,25 @@ serve(async (req) => {
       s => !resolvedSymptomNames.some(r => s.toLowerCase().includes(r) || r.includes(s.toLowerCase()))
     );
 
+    // NEW: Calculate symptom duration (days since first reported)
+    const symptomDaysMap: Record<string, number> = {};
+    for (const symptom of activeSymptoms.slice(0, 3)) {
+      // Find the earliest check-in where this symptom was reported
+      const earliestWithSymptom = previousCheckIns
+        ?.filter(c => c.symptoms_reported?.some((s: string) => 
+          s.toLowerCase().includes(symptom.toLowerCase()) || 
+          symptom.toLowerCase().includes(s.toLowerCase())
+        ))
+        .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())[0];
+      
+      if (earliestWithSymptom) {
+        const daysSinceFirstReport = Math.floor(
+          (now.getTime() - new Date(earliestWithSymptom.created_at).getTime()) / (1000 * 60 * 60 * 24)
+        );
+        symptomDaysMap[symptom] = daysSinceFirstReport;
+      }
+    }
+
     // Build SIMPLE, CLEAN user_data - no verbose instructions
     const firstName = getFirstName(elderName);
     const greeting = buildGreeting(firstName, isHindi, daysSinceLastCall);
@@ -201,13 +222,20 @@ serve(async (req) => {
     const monitoringTopics = (monitoringConfig.topics || []).join(', ');
     const customQuestions = (monitoringConfig.custom_questions || []).map((q: any) => q.question).join(' | ');
 
-    // SIMPLIFIED user_data - The agent prompt in Bolna Dashboard handles the rest
+    // Format symptom days for agent (e.g., "back pain:3, headache:1")
+    const symptomDaysFormatted = Object.entries(symptomDaysMap)
+      .map(([symptom, days]) => `${symptom}:${days}`)
+      .join(', ');
+
+    // ENHANCED user_data with symptom tracking
     const userData = {
       elder_id: elderId,
       first_name: firstName,
       greeting: greeting, // Use {greeting} in Bolna Dashboard Welcome Message
       medicines: medicineList,
       active_symptoms: activeSymptomsList,
+      symptom_days: symptomDaysFormatted, // NEW: "back pain:3, headache:1"
+      last_summary: lastSummary.substring(0, 150), // NEW: Last call context
       monitoring_topics: monitoringTopics,
       custom_questions: customQuestions,
       is_emergency: isEmergency,

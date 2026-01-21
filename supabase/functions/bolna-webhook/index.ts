@@ -377,10 +377,17 @@ EMERGENCY KEYWORDS TO CHECK (CRITICAL):
 - Severe pain (rating 7+)
 - "I want to die", "don't want to live"
 
-SYMPTOM RESOLUTION DETECTION:
-Look for phrases indicating a symptom has been RESOLVED:
-Hindi: "ठीक हो गया", "अब ठीक है", "बेहतर है"
-English: "better now", "resolved", "gone", "no more", "fine now"
+SYMPTOM TRACKING (IMPORTANT):
+1. NEW symptoms mentioned for the first time → Add to "symptomsReported"
+2. EXISTING symptoms that elder says are BETTER/RESOLVED → Add to "resolvedSymptoms"
+3. EXISTING symptoms with STATUS UPDATE (better/same/worse) → Add to "symptomUpdates"
+
+RESOLUTION DETECTION PHRASES:
+Hindi: "ठीक हो गया", "अब ठीक है", "बेहतर है", "कम हो गया"
+English: "better now", "resolved", "gone", "no more", "fine now", "improved"
+
+PROLONGED SYMPTOM CHECK:
+If a symptom has persisted 5+ days without improvement → Set "prolongedSymptomAlert": true
 ${monitoringInstructions}
 
 Respond ONLY in valid JSON format:
@@ -388,8 +395,10 @@ Respond ONLY in valid JSON format:
   "sentiment": "positive|neutral|negative",
   "wellBeingScore": 1-10,
   "medicinesTaken": true|false,
-  "symptomsReported": ["symptom1", "symptom2"],
-  "resolvedSymptoms": ["symptom that is now better"],
+  "symptomsReported": ["NEW symptoms only"],
+  "resolvedSymptoms": ["symptoms elder confirmed are better"],
+  "symptomUpdates": {"symptom_name": "better|same|worse"},
+  "prolongedSymptomAlert": true|false,
   "alertTriggered": true|false,
   "alertReason": "reason or null",
   "emergencyDetected": true|false,
@@ -437,6 +446,13 @@ Respond ONLY in valid JSON format:
         analysis.alertTriggered = true;
         analysis.alertReason = "Medicines not taken as scheduled";
       }
+    }
+
+    // NEW: Check for prolonged symptom alert
+    const prolongedSymptomAlert = (analysis as any).prolongedSymptomAlert || false;
+    if (prolongedSymptomAlert && !analysis.alertTriggered) {
+      analysis.alertTriggered = true;
+      analysis.alertReason = "Symptom persisting for 5+ days - doctor consultation recommended";
     }
 
     // Save resolved symptoms
@@ -495,22 +511,28 @@ Respond ONLY in valid JSON format:
     if (analysis.alertTriggered) {
       const isEmergency = (analysis as any).emergencyDetected || false;
       const isMentalHealth = (analysis as any).mentalHealthConcern || false;
+      const isProlongedSymptom = (analysis as any).prolongedSymptomAlert || false;
       let severity = "medium";
       
       if (isEmergency || isMentalHealth || analysis.wellBeingScore <= 2) {
         severity = "critical";
       } else if (analysis.wellBeingScore <= 3) {
         severity = "high";
+      } else if (isProlongedSymptom) {
+        severity = "medium";
       }
+
+      const alertTitle = isEmergency ? "Emergency Detected" : 
+               isProlongedSymptom ? "Prolonged Symptom - Needs Attention" :
+               analysis.wellBeingScore <= 3 ? "Low Well-being Detected" : 
+               "Health Concern Detected";
 
       await supabase.from("alerts").insert({
         elder_id: elderId,
-        title: isEmergency ? "Emergency Detected" : 
-               analysis.wellBeingScore <= 3 ? "Low Well-being Detected" : 
-               "Health Concern Detected",
+        title: alertTitle,
         description: analysis.alertReason,
         severity: severity,
-        alert_type: isEmergency ? "emergency" : "health",
+        alert_type: isEmergency ? "emergency" : isProlongedSymptom ? "prolonged_symptom" : "health",
       });
 
       // Notify caregiver for serious alerts
