@@ -55,6 +55,86 @@ export type Database = {
           },
         ]
       }
+      b2b_alerts: {
+        Row: {
+          alert_type: string
+          assigned_at: string | null
+          assigned_to: string | null
+          created_at: string | null
+          description: string | null
+          id: string
+          organization_id: string
+          patient_id: string
+          resolution_notes: string | null
+          resolved: boolean | null
+          resolved_at: string | null
+          resolved_by: string | null
+          severity: string
+          title: string
+        }
+        Insert: {
+          alert_type: string
+          assigned_at?: string | null
+          assigned_to?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          organization_id: string
+          patient_id: string
+          resolution_notes?: string | null
+          resolved?: boolean | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          severity?: string
+          title: string
+        }
+        Update: {
+          alert_type?: string
+          assigned_at?: string | null
+          assigned_to?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          organization_id?: string
+          patient_id?: string
+          resolution_notes?: string | null
+          resolved?: boolean | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          severity?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "b2b_alerts_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "organization_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "b2b_alerts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "b2b_alerts_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "discharged_patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "b2b_alerts_resolved_by_fkey"
+            columns: ["resolved_by"]
+            isOneToOne: false
+            referencedRelation: "organization_members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       b2b_leads: {
         Row: {
           contact_email: string
@@ -361,6 +441,172 @@ export type Database = {
           },
         ]
       }
+      discharged_patients: {
+        Row: {
+          batch_id: string | null
+          check_48hr_attempt_count: number | null
+          check_48hr_completed: boolean | null
+          check_48hr_method: string | null
+          check_48hr_scheduled_at: string | null
+          created_at: string | null
+          diagnosis: string | null
+          discharge_date: string
+          discharge_message_delivered: boolean | null
+          discharge_message_sent: boolean | null
+          discharge_message_sent_at: string | null
+          discharge_message_sid: string | null
+          doctor_name: string | null
+          follow_up_date: string | null
+          followup_confirmed: boolean | null
+          followup_reminder_sent: boolean | null
+          followup_reminder_sent_at: string | null
+          followup_rescheduled_to: string | null
+          help_request_at: string | null
+          help_request_message: string | null
+          help_request_resolved: boolean | null
+          help_requested: boolean | null
+          help_resolved_at: string | null
+          help_resolved_by: string | null
+          id: string
+          language: string | null
+          medicine_adherence: Json | null
+          medicine_day_count: number | null
+          medicine_list: Json | null
+          medicine_reminders_enabled: boolean | null
+          mobile_number: string
+          nurse_assigned_at: string | null
+          nurse_assigned_id: string | null
+          nurse_call_at: string | null
+          nurse_call_notes: string | null
+          nurse_called_back: boolean | null
+          organization_id: string
+          patient_name: string
+          red_flag_symptoms: string[] | null
+          risk_reason: string | null
+          risk_status: string | null
+          risk_updated_at: string | null
+          status: string | null
+          updated_at: string | null
+          ward: string | null
+        }
+        Insert: {
+          batch_id?: string | null
+          check_48hr_attempt_count?: number | null
+          check_48hr_completed?: boolean | null
+          check_48hr_method?: string | null
+          check_48hr_scheduled_at?: string | null
+          created_at?: string | null
+          diagnosis?: string | null
+          discharge_date: string
+          discharge_message_delivered?: boolean | null
+          discharge_message_sent?: boolean | null
+          discharge_message_sent_at?: string | null
+          discharge_message_sid?: string | null
+          doctor_name?: string | null
+          follow_up_date?: string | null
+          followup_confirmed?: boolean | null
+          followup_reminder_sent?: boolean | null
+          followup_reminder_sent_at?: string | null
+          followup_rescheduled_to?: string | null
+          help_request_at?: string | null
+          help_request_message?: string | null
+          help_request_resolved?: boolean | null
+          help_requested?: boolean | null
+          help_resolved_at?: string | null
+          help_resolved_by?: string | null
+          id?: string
+          language?: string | null
+          medicine_adherence?: Json | null
+          medicine_day_count?: number | null
+          medicine_list?: Json | null
+          medicine_reminders_enabled?: boolean | null
+          mobile_number: string
+          nurse_assigned_at?: string | null
+          nurse_assigned_id?: string | null
+          nurse_call_at?: string | null
+          nurse_call_notes?: string | null
+          nurse_called_back?: boolean | null
+          organization_id: string
+          patient_name: string
+          red_flag_symptoms?: string[] | null
+          risk_reason?: string | null
+          risk_status?: string | null
+          risk_updated_at?: string | null
+          status?: string | null
+          updated_at?: string | null
+          ward?: string | null
+        }
+        Update: {
+          batch_id?: string | null
+          check_48hr_attempt_count?: number | null
+          check_48hr_completed?: boolean | null
+          check_48hr_method?: string | null
+          check_48hr_scheduled_at?: string | null
+          created_at?: string | null
+          diagnosis?: string | null
+          discharge_date?: string
+          discharge_message_delivered?: boolean | null
+          discharge_message_sent?: boolean | null
+          discharge_message_sent_at?: string | null
+          discharge_message_sid?: string | null
+          doctor_name?: string | null
+          follow_up_date?: string | null
+          followup_confirmed?: boolean | null
+          followup_reminder_sent?: boolean | null
+          followup_reminder_sent_at?: string | null
+          followup_rescheduled_to?: string | null
+          help_request_at?: string | null
+          help_request_message?: string | null
+          help_request_resolved?: boolean | null
+          help_requested?: boolean | null
+          help_resolved_at?: string | null
+          help_resolved_by?: string | null
+          id?: string
+          language?: string | null
+          medicine_adherence?: Json | null
+          medicine_day_count?: number | null
+          medicine_list?: Json | null
+          medicine_reminders_enabled?: boolean | null
+          mobile_number?: string
+          nurse_assigned_at?: string | null
+          nurse_assigned_id?: string | null
+          nurse_call_at?: string | null
+          nurse_call_notes?: string | null
+          nurse_called_back?: boolean | null
+          organization_id?: string
+          patient_name?: string
+          red_flag_symptoms?: string[] | null
+          risk_reason?: string | null
+          risk_status?: string | null
+          risk_updated_at?: string | null
+          status?: string | null
+          updated_at?: string | null
+          ward?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "discharged_patients_help_resolved_by_fkey"
+            columns: ["help_resolved_by"]
+            isOneToOne: false
+            referencedRelation: "organization_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "discharged_patients_nurse_assigned_id_fkey"
+            columns: ["nurse_assigned_id"]
+            isOneToOne: false
+            referencedRelation: "organization_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "discharged_patients_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       elder_access: {
         Row: {
           created_at: string | null
@@ -601,6 +847,335 @@ export type Database = {
             columns: ["elder_id"]
             isOneToOne: true
             referencedRelation: "elders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      organization_members: {
+        Row: {
+          can_manage_staff: boolean | null
+          can_upload_patients: boolean | null
+          can_view_reports: boolean | null
+          created_at: string | null
+          email: string | null
+          id: string
+          is_on_duty: boolean | null
+          name: string
+          organization_id: string
+          phone: string | null
+          role: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          can_manage_staff?: boolean | null
+          can_upload_patients?: boolean | null
+          can_view_reports?: boolean | null
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          is_on_duty?: boolean | null
+          name: string
+          organization_id: string
+          phone?: string | null
+          role?: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          can_manage_staff?: boolean | null
+          can_upload_patients?: boolean | null
+          can_view_reports?: boolean | null
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          is_on_duty?: boolean | null
+          name?: string
+          organization_id?: string
+          phone?: string | null
+          role?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_members_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      organizations: {
+        Row: {
+          address: string | null
+          auto_48hr_check: boolean | null
+          auto_medicine_reminders: boolean | null
+          calls_used_this_month: number | null
+          contact_email: string | null
+          contact_phone: string | null
+          created_at: string | null
+          default_language: string | null
+          discharge_message_template: string | null
+          hospital_contact_number: string | null
+          id: string
+          logo_url: string | null
+          monthly_call_limit: number | null
+          monthly_patient_limit: number | null
+          monthly_sms_limit: number | null
+          name: string
+          patients_this_month: number | null
+          sms_used_this_month: number | null
+          type: string
+          updated_at: string | null
+          usage_reset_at: string | null
+        }
+        Insert: {
+          address?: string | null
+          auto_48hr_check?: boolean | null
+          auto_medicine_reminders?: boolean | null
+          calls_used_this_month?: number | null
+          contact_email?: string | null
+          contact_phone?: string | null
+          created_at?: string | null
+          default_language?: string | null
+          discharge_message_template?: string | null
+          hospital_contact_number?: string | null
+          id?: string
+          logo_url?: string | null
+          monthly_call_limit?: number | null
+          monthly_patient_limit?: number | null
+          monthly_sms_limit?: number | null
+          name: string
+          patients_this_month?: number | null
+          sms_used_this_month?: number | null
+          type?: string
+          updated_at?: string | null
+          usage_reset_at?: string | null
+        }
+        Update: {
+          address?: string | null
+          auto_48hr_check?: boolean | null
+          auto_medicine_reminders?: boolean | null
+          calls_used_this_month?: number | null
+          contact_email?: string | null
+          contact_phone?: string | null
+          created_at?: string | null
+          default_language?: string | null
+          discharge_message_template?: string | null
+          hospital_contact_number?: string | null
+          id?: string
+          logo_url?: string | null
+          monthly_call_limit?: number | null
+          monthly_patient_limit?: number | null
+          monthly_sms_limit?: number | null
+          name?: string
+          patients_this_month?: number | null
+          sms_used_this_month?: number | null
+          type?: string
+          updated_at?: string | null
+          usage_reset_at?: string | null
+        }
+        Relationships: []
+      }
+      patient_checkins: {
+        Row: {
+          ai_summary: string | null
+          answered: boolean | null
+          call_duration_seconds: number | null
+          call_id: string | null
+          checkin_type: string
+          created_at: string | null
+          danger_symptoms_reported: string[] | null
+          id: string
+          medicines_taken: boolean | null
+          message_sid: string | null
+          method: string
+          needs_hospital_help: boolean | null
+          organization_id: string
+          patient_id: string
+          patient_response: string | null
+          recording_url: string | null
+          risk_level: string | null
+          risk_reason: string | null
+          sentiment: string | null
+        }
+        Insert: {
+          ai_summary?: string | null
+          answered?: boolean | null
+          call_duration_seconds?: number | null
+          call_id?: string | null
+          checkin_type: string
+          created_at?: string | null
+          danger_symptoms_reported?: string[] | null
+          id?: string
+          medicines_taken?: boolean | null
+          message_sid?: string | null
+          method: string
+          needs_hospital_help?: boolean | null
+          organization_id: string
+          patient_id: string
+          patient_response?: string | null
+          recording_url?: string | null
+          risk_level?: string | null
+          risk_reason?: string | null
+          sentiment?: string | null
+        }
+        Update: {
+          ai_summary?: string | null
+          answered?: boolean | null
+          call_duration_seconds?: number | null
+          call_id?: string | null
+          checkin_type?: string
+          created_at?: string | null
+          danger_symptoms_reported?: string[] | null
+          id?: string
+          medicines_taken?: boolean | null
+          message_sid?: string | null
+          method?: string
+          needs_hospital_help?: boolean | null
+          organization_id?: string
+          patient_id?: string
+          patient_response?: string | null
+          recording_url?: string | null
+          risk_level?: string | null
+          risk_reason?: string | null
+          sentiment?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "patient_checkins_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "patient_checkins_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "discharged_patients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      patient_communications: {
+        Row: {
+          call_duration_seconds: number | null
+          channel: string
+          content: string
+          created_at: string | null
+          delivered_at: string | null
+          direction: string
+          id: string
+          message_sid: string | null
+          organization_id: string
+          patient_id: string
+          read_at: string | null
+          status: string | null
+        }
+        Insert: {
+          call_duration_seconds?: number | null
+          channel: string
+          content: string
+          created_at?: string | null
+          delivered_at?: string | null
+          direction: string
+          id?: string
+          message_sid?: string | null
+          organization_id: string
+          patient_id: string
+          read_at?: string | null
+          status?: string | null
+        }
+        Update: {
+          call_duration_seconds?: number | null
+          channel?: string
+          content?: string
+          created_at?: string | null
+          delivered_at?: string | null
+          direction?: string
+          id?: string
+          message_sid?: string | null
+          organization_id?: string
+          patient_id?: string
+          read_at?: string | null
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "patient_communications_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "patient_communications_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "discharged_patients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      patient_upload_batches: {
+        Row: {
+          created_at: string | null
+          errors: Json | null
+          failed_imports: number | null
+          file_name: string | null
+          file_url: string | null
+          id: string
+          organization_id: string
+          processed_at: string | null
+          status: string | null
+          successful_imports: number | null
+          total_patients: number | null
+          uploaded_by: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          errors?: Json | null
+          failed_imports?: number | null
+          file_name?: string | null
+          file_url?: string | null
+          id?: string
+          organization_id: string
+          processed_at?: string | null
+          status?: string | null
+          successful_imports?: number | null
+          total_patients?: number | null
+          uploaded_by?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          errors?: Json | null
+          failed_imports?: number | null
+          file_name?: string | null
+          file_url?: string | null
+          id?: string
+          organization_id?: string
+          processed_at?: string | null
+          status?: string | null
+          successful_imports?: number | null
+          total_patients?: number | null
+          uploaded_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "patient_upload_batches_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "patient_upload_batches_uploaded_by_fkey"
+            columns: ["uploaded_by"]
+            isOneToOne: false
+            referencedRelation: "organization_members"
             referencedColumns: ["id"]
           },
         ]

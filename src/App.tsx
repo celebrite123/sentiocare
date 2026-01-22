@@ -27,6 +27,15 @@ import { AuthProvider } from "./contexts/AuthContext";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import AdminRoute from "./components/AdminRoute";
 
+// B2B Pages
+import B2BLogin from "./pages/b2b/B2BLogin";
+import B2BDashboard from "./pages/b2b/B2BDashboard";
+import PatientUpload from "./pages/b2b/PatientUpload";
+import PatientList from "./pages/b2b/PatientList";
+import AlertsQueue from "./pages/b2b/AlertsQueue";
+import { OrganizationProvider } from "./contexts/OrganizationContext";
+import { B2BRoute } from "./components/B2BRoute";
+
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -132,6 +141,21 @@ const App = () => (
                   <AdminCenter />
                 </AdminRoute>
               } 
+            />
+            {/* B2B Routes */}
+            <Route path="/b2b/login" element={<B2BLogin />} />
+            <Route
+              path="/b2b/*"
+              element={
+                <OrganizationProvider>
+                  <Routes>
+                    <Route path="dashboard" element={<B2BRoute><B2BDashboard /></B2BRoute>} />
+                    <Route path="upload" element={<B2BRoute><PatientUpload /></B2BRoute>} />
+                    <Route path="patients" element={<B2BRoute><PatientList /></B2BRoute>} />
+                    <Route path="alerts" element={<B2BRoute><AlertsQueue /></B2BRoute>} />
+                  </Routes>
+                </OrganizationProvider>
+              }
             />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
