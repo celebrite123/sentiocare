@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./AuthContext";
 
-interface Organization {
+export interface Organization {
   id: string;
   name: string;
   type: string;
@@ -19,6 +19,7 @@ interface Organization {
   auto_48hr_check: boolean;
   auto_medicine_reminders: boolean;
   hospital_contact_number: string | null;
+  discharge_message_template: string | null;
 }
 
 interface OrganizationMember {
@@ -38,6 +39,7 @@ interface OrganizationMember {
 interface OrganizationContextType {
   organization: Organization | null;
   membership: OrganizationMember | null;
+  member: OrganizationMember | null;
   loading: boolean;
   error: string | null;
   refetch: () => Promise<void>;
@@ -46,6 +48,7 @@ interface OrganizationContextType {
 const OrganizationContext = createContext<OrganizationContextType>({
   organization: null,
   membership: null,
+  member: null,
   loading: true,
   error: null,
   refetch: async () => {},
@@ -125,6 +128,7 @@ export const OrganizationProvider = ({ children }: { children: React.ReactNode }
       value={{
         organization,
         membership,
+        member: membership,
         loading,
         error,
         refetch: fetchOrganization,
