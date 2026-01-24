@@ -19,7 +19,7 @@ const Navbar = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, signOut } = useAuth();
-  const { isAdmin } = useAdminRole();
+  const { isAdmin, loading: adminLoading } = useAdminRole();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [alertsOpen, setAlertsOpen] = useState(false);
 
@@ -100,7 +100,7 @@ const Navbar = () => {
                         <User className="h-4 w-4 mr-2" />
                         Profile
                       </DropdownMenuItem>
-                      {isAdmin && (
+                      {!adminLoading && isAdmin && (
                         <DropdownMenuItem onClick={() => navigate("/admin")}>
                           <Shield className="h-4 w-4 mr-2" />
                           Admin Center

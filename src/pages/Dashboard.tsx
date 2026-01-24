@@ -116,7 +116,7 @@ const Dashboard = () => {
       const { data: profile } = await supabase
         .from("profiles")
         .select("monthly_emergency_calls_used, emergency_calls_reset_at")
-        .eq("id", user.id)
+        .eq("user_id", user.id)
         .single();
       
       if (profile) {
