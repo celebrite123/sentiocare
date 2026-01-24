@@ -18,6 +18,7 @@ import RenewalReminderBanner from "@/components/RenewalReminderBanner";
 import ChangePasswordDialog from "@/components/profile/ChangePasswordDialog";
 import EditProfileDialog from "@/components/profile/EditProfileDialog";
 import PaymentHistoryCard from "@/components/profile/PaymentHistoryCard";
+import DataPrivacyCard from "@/components/profile/DataPrivacyCard";
 import CancelSubscriptionDialog from "@/components/profile/CancelSubscriptionDialog";
 import {
   Dialog,
@@ -511,6 +512,11 @@ const Profile = () => {
           {/* Payment History */}
           <div className="mb-6">
             <PaymentHistoryCard />
+          </div>
+
+          {/* Data Privacy - DPDP Compliance */}
+          <div className="mb-6">
+            <DataPrivacyCard />
           </div>
 
           {/* Sign Out */}

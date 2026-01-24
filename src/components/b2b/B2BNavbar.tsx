@@ -44,7 +44,7 @@ export const B2BNavbar = ({ alertCount = 0 }: B2BNavbarProps) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { signOut } = useAuth();
-  const { organization, membership } = useOrganization();
+  const { organization, member } = useOrganization();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const handleSignOut = async () => {
@@ -128,25 +128,25 @@ export const B2BNavbar = ({ alertCount = 0 }: B2BNavbarProps) => {
               <Button variant="ghost" className="gap-2">
                 <Avatar className="h-8 w-8">
                   <AvatarFallback className="bg-primary text-primary-foreground">
-                    {membership?.name ? getInitials(membership.name) : "U"}
+                    {member?.name ? getInitials(member.name) : "U"}
                   </AvatarFallback>
                 </Avatar>
                 <span className="hidden lg:block text-sm">
-                  {membership?.name}
+                  {member?.name}
                 </span>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuLabel>
                 <div className="flex flex-col">
-                  <span>{membership?.name}</span>
+                  <span>{member?.name}</span>
                   <span className="text-xs text-muted-foreground capitalize">
-                    {membership?.role}
+                    {member?.role}
                   </span>
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              {membership?.role === "admin" && (
+              {member?.role === "admin" && (
                 <DropdownMenuItem onClick={() => navigate("/b2b/settings")}>
                   <Settings className="mr-2 h-4 w-4" />
                   Settings
