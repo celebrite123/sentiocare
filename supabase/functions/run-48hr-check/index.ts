@@ -133,7 +133,10 @@ serve(async (req) => {
           hospital_contact_number,
           auto_48hr_check,
           sms_used_this_month,
-          calls_used_this_month
+          calls_used_this_month,
+          voice_enabled,
+          bolna_agent_id,
+          bolna_agent_id_hindi
         )
       `)
       .lte("check_48hr_scheduled_at", now.toISOString())
@@ -170,15 +173,20 @@ serve(async (req) => {
         .update({ check_48hr_attempt_count: attemptCount })
         .eq("id", patient.id);
 
-      // Try voice call first if Bolna is configured and language is supported
+      // Try voice call first if Bolna is configured, voice is enabled, and language is supported
       let voiceSuccess = false;
-      if (bolnaApiKey && (bolnaAgentId || bolnaAgentIdHindi)) {
+      const orgVoiceEnabled = patient.organizations?.voice_enabled !== false;
+      const orgAgentId = patient.organizations?.bolna_agent_id;
+      const orgAgentIdHindi = patient.organizations?.bolna_agent_id_hindi;
+      
+      // Use org-specific agent IDs if available, otherwise fall back to global
+      const effectiveAgentId = language === "hindi" 
+        ? (orgAgentIdHindi || orgAgentId || bolnaAgentIdHindi || bolnaAgentId)
+        : (orgAgentId || bolnaAgentId);
+      
+      if (bolnaApiKey && orgVoiceEnabled && effectiveAgentId) {
         try {
-          const agentId = language === "hindi" && bolnaAgentIdHindi 
-            ? bolnaAgentIdHindi 
-            : bolnaAgentId;
-
-          if (agentId) {
+          if (effectiveAgentId) {
             // Format phone for Bolna
             let phoneNumber = patient.mobile_number.replace(/\D/g, "");
             if (phoneNumber.length === 10) {
@@ -193,6 +201,19 @@ serve(async (req) => {
               .join(", ");
             const symptoms = (patient.red_flag_symptoms || []).join(", ");
 
+            // Calculate days since discharge and call type
+            const daysSinceDischarge = Math.floor(
+              (now.getTime() - new Date(patient.discharge_date).getTime()) / (24 * 60 * 60 * 1000)
+            );
+            let callType = "day_1";
+            if (daysSinceDischarge >= 7) callType = "day_7";
+            else if (daysSinceDischarge >= 3) callType = "day_3";
+            
+            // Build greeting based on language and call type
+            const greeting = language === "hindi"
+              ? `नमस्ते ${patient.patient_name} जी, मैं ${hospitalName} से बोल रहा हूं।`
+              : `Hello ${patient.patient_name}, I'm calling from ${hospitalName}.`;
+
             const bolnaResponse = await fetch("https://api.bolna.dev/call", {
               method: "POST",
               headers: {
@@ -200,16 +221,22 @@ serve(async (req) => {
                 "Content-Type": "application/json",
               },
               body: JSON.stringify({
-                agent_id: agentId,
+                agent_id: effectiveAgentId,
                 recipient_phone_number: phoneNumber,
                 user_data: {
                   patient_name: patient.patient_name,
                   hospital_name: hospitalName,
+                  greeting: greeting,
                   medicines: medicines || "prescribed medicines",
-                  symptoms_to_watch: symptoms || "fever, severe pain, breathing difficulty",
-                  days_since_discharge: Math.floor(
-                    (now.getTime() - new Date(patient.discharge_date).getTime()) / (24 * 60 * 60 * 1000)
-                  ),
+                  red_flag_symptoms: symptoms || "fever, severe pain, breathing difficulty",
+                  days_since_discharge: daysSinceDischarge,
+                  discharge_date: patient.discharge_date,
+                  diagnosis: patient.diagnosis || "recent procedure",
+                  doctor_name: patient.doctor_name || "your doctor",
+                  follow_up_date: patient.follow_up_date || "",
+                  language: language,
+                  call_type: callType,
+                  hospital_contact: hospitalContact,
                 },
               }),
             });

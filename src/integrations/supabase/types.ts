@@ -936,6 +936,8 @@ export type Database = {
           address: string | null
           auto_48hr_check: boolean | null
           auto_medicine_reminders: boolean | null
+          bolna_agent_id: string | null
+          bolna_agent_id_hindi: string | null
           calls_used_this_month: number | null
           contact_email: string | null
           contact_phone: string | null
@@ -958,11 +960,14 @@ export type Database = {
           type: string
           updated_at: string | null
           usage_reset_at: string | null
+          voice_enabled: boolean | null
         }
         Insert: {
           address?: string | null
           auto_48hr_check?: boolean | null
           auto_medicine_reminders?: boolean | null
+          bolna_agent_id?: string | null
+          bolna_agent_id_hindi?: string | null
           calls_used_this_month?: number | null
           contact_email?: string | null
           contact_phone?: string | null
@@ -985,11 +990,14 @@ export type Database = {
           type?: string
           updated_at?: string | null
           usage_reset_at?: string | null
+          voice_enabled?: boolean | null
         }
         Update: {
           address?: string | null
           auto_48hr_check?: boolean | null
           auto_medicine_reminders?: boolean | null
+          bolna_agent_id?: string | null
+          bolna_agent_id_hindi?: string | null
           calls_used_this_month?: number | null
           contact_email?: string | null
           contact_phone?: string | null
@@ -1012,6 +1020,7 @@ export type Database = {
           type?: string
           updated_at?: string | null
           usage_reset_at?: string | null
+          voice_enabled?: boolean | null
         }
         Relationships: []
       }

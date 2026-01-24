@@ -52,6 +52,9 @@ const CreateOrganizationDialog = ({ onSuccess, leadData, trigger }: CreateOrgani
   const [monthlyPatientLimit, setMonthlyPatientLimit] = useState("500");
   const [monthlySmsLimit, setMonthlySmsLimit] = useState("5000");
   const [monthlyCallLimit, setMonthlyCallLimit] = useState("1000");
+  const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const [bolnaAgentId, setBolnaAgentId] = useState("");
+  const [bolnaAgentIdHindi, setBolnaAgentIdHindi] = useState("");
 
   const handleSubmit = async () => {
     if (!name.trim()) {
@@ -76,6 +79,9 @@ const CreateOrganizationDialog = ({ onSuccess, leadData, trigger }: CreateOrgani
           monthly_patient_limit: parseInt(monthlyPatientLimit) || 500,
           monthly_sms_limit: parseInt(monthlySmsLimit) || 5000,
           monthly_call_limit: parseInt(monthlyCallLimit) || 1000,
+          voice_enabled: voiceEnabled,
+          bolna_agent_id: bolnaAgentId || undefined,
+          bolna_agent_id_hindi: bolnaAgentIdHindi || undefined,
           lead_id: leadData?.id,
         },
       });
@@ -112,6 +118,9 @@ const CreateOrganizationDialog = ({ onSuccess, leadData, trigger }: CreateOrgani
     setMonthlyPatientLimit("500");
     setMonthlySmsLimit("5000");
     setMonthlyCallLimit("1000");
+    setVoiceEnabled(true);
+    setBolnaAgentId("");
+    setBolnaAgentIdHindi("");
   };
 
   return (
@@ -256,6 +265,51 @@ const CreateOrganizationDialog = ({ onSuccess, leadData, trigger }: CreateOrgani
                   min="1"
                 />
               </div>
+            </div>
+          </div>
+
+          <div className="border-t pt-4 mt-2">
+            <h4 className="font-medium mb-3 flex items-center gap-2">
+              Voice Agent Configuration
+              <span className="text-xs font-normal text-muted-foreground">(Optional)</span>
+            </h4>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label>Voice Calls Enabled</Label>
+                  <p className="text-xs text-muted-foreground">Enable AI voice calls for this organization</p>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={voiceEnabled}
+                  onChange={(e) => setVoiceEnabled(e.target.checked)}
+                  className="h-4 w-4"
+                />
+              </div>
+              {voiceEnabled && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="bolnaAgentId">Bolna Agent ID (English)</Label>
+                    <Input
+                      id="bolnaAgentId"
+                      value={bolnaAgentId}
+                      onChange={(e) => setBolnaAgentId(e.target.value)}
+                      placeholder="agent_xxxxxx"
+                    />
+                    <p className="text-xs text-muted-foreground">From Bolna Dashboard</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="bolnaAgentIdHindi">Bolna Agent ID (Hindi)</Label>
+                    <Input
+                      id="bolnaAgentIdHindi"
+                      value={bolnaAgentIdHindi}
+                      onChange={(e) => setBolnaAgentIdHindi(e.target.value)}
+                      placeholder="agent_xxxxxx"
+                    />
+                    <p className="text-xs text-muted-foreground">Leave empty to use English agent</p>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
