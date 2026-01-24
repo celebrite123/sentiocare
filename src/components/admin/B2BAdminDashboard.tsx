@@ -42,6 +42,9 @@ interface Organization {
   monthlyPatientLimit?: number;
   monthlySmsLimit?: number;
   monthlyCallLimit?: number;
+  callsUsedThisMonth?: number;
+  smsUsedThisMonth?: number;
+  patientsThisMonth?: number;
 }
 
 interface B2BLead {
@@ -71,103 +74,24 @@ const B2BAdminDashboard = () => {
 
   const fetchB2BData = async () => {
     try {
-      // Fetch organizations with stats
-      const { data: orgsData, error: orgsError } = await supabase
-        .from('organizations')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (orgsError) throw orgsError;
-
-      // Fetch organization member counts
-      const orgStats = await Promise.all(
-        (orgsData || []).map(async (org) => {
-          const [patientsRes, staffRes] = await Promise.all([
-            supabase
-              .from('discharged_patients' as any)
-              .select('id', { count: 'exact', head: true })
-              .eq('organization_id', org.id),
-            supabase
-              .from('organization_members')
-              .select('id', { count: 'exact', head: true })
-              .eq('organization_id', org.id)
-          ]);
-
-          return {
-            id: org.id,
-            name: org.name,
-            type: org.type || 'hospital',
-            status: 'active',
-            patientsCount: patientsRes.count || 0,
-            staffCount: staffRes.count || 0,
-            createdAt: org.created_at,
-            contactEmail: org.contact_email,
-            contactPhone: org.contact_phone,
-            monthlyPatientLimit: org.monthly_patient_limit,
-            monthlySmsLimit: org.monthly_sms_limit,
-            monthlyCallLimit: org.monthly_call_limit,
-          };
-        })
-      );
-
-      setOrganizations(orgStats);
-
-      // Fetch B2B leads
-      const { data: leadsData, error: leadsError } = await supabase
-        .from('b2b_leads')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(10);
-
-      if (!leadsError) {
-        setLeads(leadsData || []);
-      }
-
-      // Calculate aggregate stats
-      const totalPatients = orgStats.reduce((sum, org) => sum + org.patientsCount, 0);
-      const totalStaff = orgStats.reduce((sum, org) => sum + org.staffCount, 0);
-
-      // Get alert counts
-      const { count: alertCount } = await supabase
-        .from('b2b_alerts' as any)
-        .select('id', { count: 'exact', head: true });
-
-      const { count: unresolvedCount } = await supabase
-        .from('b2b_alerts' as any)
-        .select('id', { count: 'exact', head: true })
-        .eq('resolved', false);
-
-      // Get usage stats
-      const usageStats = (orgsData || []).reduce(
-        (acc, org) => ({
-          calls: acc.calls + (org.calls_used_this_month || 0),
-          sms: acc.sms + (org.sms_used_this_month || 0)
-        }),
-        { calls: 0, sms: 0 }
-      );
-
-      // Get lead stats by status
-      const leadStats = {
-        total: leadsData?.length || 0,
-        new: leadsData?.filter(l => l.status === 'new').length || 0,
-        contacted: leadsData?.filter(l => l.status === 'contacted').length || 0,
-        qualified: leadsData?.filter(l => l.status === 'qualified').length || 0,
-        converted: leadsData?.filter(l => l.status === 'converted').length || 0,
-      };
-
-      setStats({
-        totalOrganizations: orgStats.length,
-        activeOrganizations: orgStats.filter(o => o.status === 'active').length,
-        totalPatients,
-        activePatients: totalPatients, // Could be refined with actual active status
-        totalAlerts: alertCount || 0,
-        unresolvedAlerts: unresolvedCount || 0,
-        totalStaff,
-        callsThisMonth: usageStats.calls,
-        smsThisMonth: usageStats.sms,
-        leads: leadStats
+      // Use admin-analytics edge function which has service role access
+      const { data, error } = await supabase.functions.invoke('admin-analytics', {
+        headers: {
+          Authorization: `Bearer ${session?.access_token}`,
+        },
       });
 
+      if (error) {
+        console.error('Error fetching B2B data:', error);
+        toast.error('Failed to load B2B analytics');
+        return;
+      }
+
+      if (data?.b2b) {
+        setOrganizations(data.b2b.organizations || []);
+        setLeads(data.b2b.leads || []);
+        setStats(data.b2b.stats || null);
+      }
     } catch (err) {
       console.error('Error fetching B2B data:', err);
       toast.error('Failed to load B2B analytics');

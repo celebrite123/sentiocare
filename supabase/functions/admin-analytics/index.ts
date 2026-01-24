@@ -66,13 +66,23 @@ serve(async (req) => {
       eldersResult,
       checkInsResult,
       alertsResult,
-      medicinesResult
+      medicinesResult,
+      organizationsResult,
+      orgMembersResult,
+      dischargedPatientsResult,
+      b2bAlertsResult,
+      b2bLeadsResult
     ] = await Promise.all([
       supabaseAdmin.from('profiles').select('*'),
       supabaseAdmin.from('elders').select('*'),
       supabaseAdmin.from('check_ins').select('*'),
       supabaseAdmin.from('alerts').select('*'),
-      supabaseAdmin.from('medicines').select('*')
+      supabaseAdmin.from('medicines').select('*'),
+      supabaseAdmin.from('organizations').select('*'),
+      supabaseAdmin.from('organization_members').select('*'),
+      supabaseAdmin.from('discharged_patients').select('id, organization_id'),
+      supabaseAdmin.from('b2b_alerts').select('id, organization_id, resolved'),
+      supabaseAdmin.from('b2b_leads').select('*').order('created_at', { ascending: false }).limit(20)
     ]);
 
     const profiles = profilesResult.data || [];
@@ -80,6 +90,11 @@ serve(async (req) => {
     const checkIns = checkInsResult.data || [];
     const alerts = alertsResult.data || [];
     const medicines = medicinesResult.data || [];
+    const organizations = organizationsResult.data || [];
+    const orgMembers = orgMembersResult.data || [];
+    const dischargedPatients = dischargedPatientsResult.data || [];
+    const b2bAlerts = b2bAlertsResult.data || [];
+    const b2bLeads = b2bLeadsResult.data || [];
 
     // Calculate overview stats
     const totalUsers = profiles.length;
@@ -229,6 +244,52 @@ serve(async (req) => {
         createdAt: p.created_at,
         elderCount: elders.filter(e => e.family_member_id === p.id).length,
       })),
+      // B2B data for admin dashboard
+      b2b: {
+        organizations: organizations.map(org => ({
+          id: org.id,
+          name: org.name,
+          type: org.type || 'hospital',
+          status: 'active',
+          contactEmail: org.contact_email,
+          contactPhone: org.contact_phone,
+          monthlyPatientLimit: org.monthly_patient_limit,
+          monthlySmsLimit: org.monthly_sms_limit,
+          monthlyCallLimit: org.monthly_call_limit,
+          callsUsedThisMonth: org.calls_used_this_month || 0,
+          smsUsedThisMonth: org.sms_used_this_month || 0,
+          patientsThisMonth: org.patients_this_month || 0,
+          createdAt: org.created_at,
+          patientsCount: dischargedPatients.filter(p => p.organization_id === org.id).length,
+          staffCount: orgMembers.filter(m => m.organization_id === org.id).length,
+        })),
+        leads: b2bLeads.map(lead => ({
+          id: lead.id,
+          organization_name: lead.organization_name,
+          contact_name: lead.contact_name,
+          contact_email: lead.contact_email,
+          contact_phone: lead.contact_phone,
+          status: lead.status,
+          created_at: lead.created_at,
+        })),
+        stats: {
+          totalOrganizations: organizations.length,
+          activeOrganizations: organizations.length,
+          totalPatients: dischargedPatients.length,
+          totalStaff: orgMembers.length,
+          totalAlerts: b2bAlerts.length,
+          unresolvedAlerts: b2bAlerts.filter(a => !a.resolved).length,
+          callsThisMonth: organizations.reduce((sum, org) => sum + (org.calls_used_this_month || 0), 0),
+          smsThisMonth: organizations.reduce((sum, org) => sum + (org.sms_used_this_month || 0), 0),
+          leads: {
+            total: b2bLeads.length,
+            new: b2bLeads.filter(l => l.status === 'new').length,
+            contacted: b2bLeads.filter(l => l.status === 'contacted').length,
+            qualified: b2bLeads.filter(l => l.status === 'qualified').length,
+            converted: b2bLeads.filter(l => l.status === 'converted').length,
+          }
+        }
+      }
     };
 
     console.log('Analytics computed successfully');
