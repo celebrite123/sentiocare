@@ -4,9 +4,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Building2, Users, AlertTriangle, FileText, Phone, MessageSquare, TrendingUp, ExternalLink } from "lucide-react";
+import { Loader2, Building2, Users, AlertTriangle, FileText, Phone, MessageSquare, TrendingUp, ExternalLink, UserPlus, Settings, ChevronDown, ChevronUp } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import CreateOrganizationDialog from "./CreateOrganizationDialog";
+import AddStaffDialog from "./AddStaffDialog";
 
 interface B2BStats {
   totalOrganizations: number;
@@ -35,6 +37,11 @@ interface Organization {
   patientsCount: number;
   staffCount: number;
   createdAt: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  monthlyPatientLimit?: number;
+  monthlySmsLimit?: number;
+  monthlyCallLimit?: number;
 }
 
 interface B2BLead {
@@ -54,6 +61,7 @@ const B2BAdminDashboard = () => {
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [leads, setLeads] = useState<B2BLead[]>([]);
   const [loading, setLoading] = useState(true);
+  const [expandedOrg, setExpandedOrg] = useState<string | null>(null);
 
   useEffect(() => {
     if (session) {
@@ -89,10 +97,15 @@ const B2BAdminDashboard = () => {
             id: org.id,
             name: org.name,
             type: org.type || 'hospital',
-            status: 'active', // Organizations are considered active by default
+            status: 'active',
             patientsCount: patientsRes.count || 0,
             staffCount: staffRes.count || 0,
-            createdAt: org.created_at
+            createdAt: org.created_at,
+            contactEmail: org.contact_email,
+            contactPhone: org.contact_phone,
+            monthlyPatientLimit: org.monthly_patient_limit,
+            monthlySmsLimit: org.monthly_sms_limit,
+            monthlyCallLimit: org.monthly_call_limit,
           };
         })
       );
@@ -197,10 +210,13 @@ const B2BAdminDashboard = () => {
             Monitor hospitals and healthcare organizations
           </p>
         </div>
-        <Button onClick={() => navigate('/b2b/login')} variant="outline" size="sm">
-          <ExternalLink className="h-4 w-4 mr-2" />
-          Open B2B Portal
-        </Button>
+        <div className="flex gap-2">
+          <CreateOrganizationDialog onSuccess={fetchB2BData} />
+          <Button onClick={() => navigate('/b2b/login')} variant="outline" size="sm">
+            <ExternalLink className="h-4 w-4 mr-2" />
+            Open B2B Portal
+          </Button>
+        </div>
       </div>
 
       {/* Stats Cards */}
@@ -343,47 +359,96 @@ const B2BAdminDashboard = () => {
       {/* Organizations List */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Building2 className="h-5 w-5" />
-            Organizations
-          </CardTitle>
-          <CardDescription>Active healthcare organizations using B2B services</CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Building2 className="h-5 w-5" />
+                Organizations
+              </CardTitle>
+              <CardDescription>Active healthcare organizations using B2B services</CardDescription>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           {organizations.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <Building2 className="h-12 w-12 mx-auto mb-3 opacity-50" />
               <p>No organizations registered yet</p>
-              <p className="text-sm">Organizations will appear here once they sign up</p>
+              <p className="text-sm mb-4">Create your first organization to get started</p>
+              <CreateOrganizationDialog onSuccess={fetchB2BData} />
             </div>
           ) : (
-            <div className="border rounded-lg overflow-hidden">
-              <table className="w-full text-sm">
-                <thead className="bg-muted/50">
-                  <tr>
-                    <th className="text-left p-3 font-medium">Organization</th>
-                    <th className="text-left p-3 font-medium">Type</th>
-                    <th className="text-left p-3 font-medium">Patients</th>
-                    <th className="text-left p-3 font-medium">Staff</th>
-                    <th className="text-left p-3 font-medium">Status</th>
-                    <th className="text-left p-3 font-medium">Joined</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {organizations.map((org) => (
-                    <tr key={org.id} className="border-t">
-                      <td className="p-3 font-medium">{org.name}</td>
-                      <td className="p-3 capitalize">{org.type}</td>
-                      <td className="p-3">{org.patientsCount}</td>
-                      <td className="p-3">{org.staffCount}</td>
-                      <td className="p-3">{getStatusBadge(org.status)}</td>
-                      <td className="p-3 text-muted-foreground">
-                        {new Date(org.createdAt).toLocaleDateString()}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="space-y-3">
+              {organizations.map((org) => (
+                <div key={org.id} className="border rounded-lg overflow-hidden">
+                  {/* Organization Row */}
+                  <div 
+                    className="flex items-center justify-between p-4 hover:bg-muted/50 cursor-pointer"
+                    onClick={() => setExpandedOrg(expandedOrg === org.id ? null : org.id)}
+                  >
+                    <div className="flex items-center gap-4">
+                      <Building2 className="h-8 w-8 text-primary/50" />
+                      <div>
+                        <h4 className="font-medium">{org.name}</h4>
+                        <p className="text-sm text-muted-foreground capitalize">{org.type.replace('_', ' ')}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-6">
+                      <div className="text-center">
+                        <p className="text-lg font-semibold">{org.patientsCount}</p>
+                        <p className="text-xs text-muted-foreground">Patients</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-lg font-semibold">{org.staffCount}</p>
+                        <p className="text-xs text-muted-foreground">Staff</p>
+                      </div>
+                      {getStatusBadge(org.status)}
+                      {expandedOrg === org.id ? (
+                        <ChevronUp className="h-5 w-5 text-muted-foreground" />
+                      ) : (
+                        <ChevronDown className="h-5 w-5 text-muted-foreground" />
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Expanded Details */}
+                  {expandedOrg === org.id && (
+                    <div className="border-t bg-muted/30 p-4">
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                        <div>
+                          <p className="text-xs text-muted-foreground">Contact Email</p>
+                          <p className="text-sm">{org.contactEmail || "Not set"}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Contact Phone</p>
+                          <p className="text-sm">{org.contactPhone || "Not set"}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Joined</p>
+                          <p className="text-sm">{new Date(org.createdAt).toLocaleDateString()}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Package Limits</p>
+                          <p className="text-sm">
+                            {org.monthlyPatientLimit} patients, {org.monthlySmsLimit} SMS, {org.monthlyCallLimit} calls
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <AddStaffDialog 
+                          organizationId={org.id} 
+                          organizationName={org.name}
+                          onSuccess={fetchB2BData}
+                        />
+                        <Button size="sm" variant="ghost">
+                          <Settings className="h-4 w-4 mr-2" />
+                          Edit Limits
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
           )}
         </CardContent>
