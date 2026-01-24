@@ -21,6 +21,8 @@ const B2BSettings = () => {
     contact_email: "",
     contact_phone: "",
     hospital_contact_number: "",
+    escalation_phone: "",
+    escalation_email: "",
     default_language: "hindi",
     auto_48hr_check: true,
     auto_medicine_reminders: true,
@@ -42,6 +44,8 @@ const B2BSettings = () => {
         contact_email: organization.contact_email || "",
         contact_phone: organization.contact_phone || "",
         hospital_contact_number: organization.hospital_contact_number || "",
+        escalation_phone: (organization as any).escalation_phone || "",
+        escalation_email: (organization as any).escalation_email || "",
         default_language: organization.default_language || "hindi",
         auto_48hr_check: organization.auto_48hr_check ?? true,
         auto_medicine_reminders: organization.auto_medicine_reminders ?? true,
@@ -70,6 +74,8 @@ const B2BSettings = () => {
           contact_email: settings.contact_email,
           contact_phone: settings.contact_phone,
           hospital_contact_number: settings.hospital_contact_number,
+          escalation_phone: settings.escalation_phone,
+          escalation_email: settings.escalation_email,
           default_language: settings.default_language,
           auto_48hr_check: settings.auto_48hr_check,
           auto_medicine_reminders: settings.auto_medicine_reminders,
@@ -213,6 +219,51 @@ const B2BSettings = () => {
                   onChange={(e) => setSettings({ ...settings, contact_phone: e.target.value })}
                   disabled={!isAdmin}
                 />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Escalation Settings - NEW */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Bell className="h-5 w-5" />
+              Alert Escalation
+            </CardTitle>
+            <CardDescription>
+              Configure where critical alerts should be sent for immediate action
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="escalation_phone">Duty Doctor/Nurse WhatsApp</Label>
+                <Input
+                  id="escalation_phone"
+                  value={settings.escalation_phone}
+                  onChange={(e) => setSettings({ ...settings, escalation_phone: e.target.value })}
+                  placeholder="+91XXXXXXXXXX"
+                  disabled={!isAdmin}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Receives instant WhatsApp alerts for critical cases
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="escalation_email">Escalation Email</Label>
+                <Input
+                  id="escalation_email"
+                  type="email"
+                  value={settings.escalation_email}
+                  onChange={(e) => setSettings({ ...settings, escalation_email: e.target.value })}
+                  placeholder="duty-doctor@hospital.com"
+                  disabled={!isAdmin}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Email notifications for alerts (optional)
+                </p>
               </div>
             </div>
           </CardContent>

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Phone, MessageSquare, Pill, AlertTriangle, CheckCircle, Clock, User, Calendar, Stethoscope } from "lucide-react";
+import { ArrowLeft, Phone, MessageSquare, Pill, AlertTriangle, CheckCircle, Clock, User, Calendar, Stethoscope, PhoneCall } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +12,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { B2BLayout } from "@/components/b2b/B2BLayout";
 import { RiskBadge, type RiskStatus } from "@/components/b2b/RiskBadge";
+import { ScheduleCallbackDialog } from "@/components/b2b/ScheduleCallbackDialog";
+import { PendingCallbacks } from "@/components/b2b/PendingCallbacks";
 
 interface Patient {
   id: string;
@@ -70,6 +72,7 @@ const PatientDetail = () => {
   const [loading, setLoading] = useState(true);
   const [nurseNotes, setNurseNotes] = useState("");
   const [savingNotes, setSavingNotes] = useState(false);
+  const [callbackDialogOpen, setCallbackDialogOpen] = useState(false);
 
   useEffect(() => {
     if (id && organization) {
@@ -313,10 +316,16 @@ const PatientDetail = () => {
                 <CardContent>
                   <p className="text-sm">{patient.risk_reason}</p>
                   {patient.risk_status !== "stable" && (
-                    <Button onClick={handleMarkStable} className="mt-4" variant="outline">
-                      <CheckCircle className="h-4 w-4 mr-2" />
-                      Mark as Stable
-                    </Button>
+                    <div className="flex gap-2 mt-4">
+                      <Button onClick={handleMarkStable} variant="outline">
+                        <CheckCircle className="h-4 w-4 mr-2" />
+                        Mark as Stable
+                      </Button>
+                      <Button onClick={() => setCallbackDialogOpen(true)} variant="outline">
+                        <PhoneCall className="h-4 w-4 mr-2" />
+                        Schedule Callback
+                      </Button>
+                    </div>
                   )}
                 </CardContent>
               </Card>
@@ -342,11 +351,24 @@ const PatientDetail = () => {
                   onChange={(e) => setNurseNotes(e.target.value)}
                   rows={4}
                 />
-                <Button onClick={handleSaveNotes} disabled={savingNotes}>
-                  {savingNotes ? "Saving..." : "Save Notes"}
-                </Button>
+                <div className="flex gap-2">
+                  <Button onClick={handleSaveNotes} disabled={savingNotes}>
+                    {savingNotes ? "Saving..." : "Save Notes"}
+                  </Button>
+                  <Button variant="outline" onClick={() => setCallbackDialogOpen(true)}>
+                    <PhoneCall className="h-4 w-4 mr-2" />
+                    Schedule Callback
+                  </Button>
+                </div>
               </CardContent>
             </Card>
+
+            {/* Pending Callbacks for this patient */}
+            <PendingCallbacks
+              organizationId={organization!.id}
+              patientId={patient.id}
+              onUpdate={loadPatientData}
+            />
           </div>
 
           {/* Timeline Sidebar */}
@@ -479,6 +501,16 @@ const PatientDetail = () => {
           </div>
         </div>
       </div>
+
+      {/* Schedule Callback Dialog */}
+      <ScheduleCallbackDialog
+        open={callbackDialogOpen}
+        onOpenChange={setCallbackDialogOpen}
+        patientId={patient.id}
+        patientName={patient.patient_name}
+        organizationId={organization!.id}
+        onScheduled={loadPatientData}
+      />
     </B2BLayout>
   );
 };

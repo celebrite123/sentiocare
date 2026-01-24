@@ -32,8 +32,11 @@ export interface ParsedPatient {
   medicine_list?: string;
   follow_up_date?: string;
   red_flag_symptoms?: string;
+  consent_given: boolean;
   isValid: boolean;
   errors: string[];
+  skipped?: boolean;
+  skipReason?: string;
 }
 
 export interface UploadResult {
@@ -156,6 +159,7 @@ export const ExcelUploader = ({ onUpload }: ExcelUploaderProps) => {
       medicinelist: ['medicinelist', 'medicines', 'medication', 'medications', 'drugs', 'prescribedmedicines'],
       followupdate: ['followupdate', 'followup', 'nextvisit', 'nextappointment', 'revisitdate'],
       redflagsymptoms: ['redflagsymptoms', 'symptoms', 'warningsymptoms', 'dangersigns', 'redflag'],
+      consent: ['consent', 'patientconsent', 'agreed', 'optin', 'optedIn', 'permission', 'consentgiven'],
     };
 
     const findHeaderIndex = (key: string): number => {
@@ -215,9 +219,30 @@ export const ExcelUploader = ({ onUpload }: ExcelUploaderProps) => {
       const medicineIdx = findHeaderIndex('medicinelist');
       const followupIdx = findHeaderIndex('followupdate');
       const symptomsIdx = findHeaderIndex('redflagsymptoms');
+      const consentIdx = findHeaderIndex('consent');
 
       const followUpDateRaw = followupIdx !== -1 ? values[followupIdx]?.trim() : '';
       const followUpDate = parseDate(followUpDateRaw);
+
+      // Parse consent - default to true if column not present
+      let consentGiven = true;
+      let skipped = false;
+      let skipReason = '';
+      
+      if (consentIdx !== -1) {
+        const consentValue = values[consentIdx]?.trim().toLowerCase();
+        // Check for explicit NO consent
+        if (['no', 'n', '0', 'false', 'refused', 'declined'].includes(consentValue)) {
+          consentGiven = false;
+          skipped = true;
+          skipReason = 'No consent';
+        } else if (!consentValue || consentValue === '') {
+          // Empty consent field - skip with warning
+          consentGiven = false;
+          skipped = true;
+          skipReason = 'Consent not specified';
+        }
+      }
 
       patients.push({
         patient_name: patientName,
@@ -229,8 +254,11 @@ export const ExcelUploader = ({ onUpload }: ExcelUploaderProps) => {
         medicine_list: medicineIdx !== -1 ? values[medicineIdx]?.trim() : '',
         follow_up_date: followUpDate || '',
         red_flag_symptoms: symptomsIdx !== -1 ? values[symptomsIdx]?.trim() : '',
-        isValid: errors.length === 0,
+        consent_given: consentGiven,
+        isValid: errors.length === 0 && !skipped,
         errors,
+        skipped,
+        skipReason,
       });
     }
 
@@ -304,10 +332,11 @@ export const ExcelUploader = ({ onUpload }: ExcelUploaderProps) => {
   };
 
   const downloadTemplate = () => {
-    const headers = 'Patient Name,Mobile Number,Discharge Date,Ward,Doctor Name,Diagnosis,Medicine List,Follow Up Date,Red Flag Symptoms';
-    const example1 = 'Ramesh Kumar,9876543210,15/01/2026,Ward A,Dr. Sharma,Fever,"Paracetamol 500mg twice daily, Azithromycin 500mg once daily",22/01/2026,"High fever above 102F, Breathing difficulty, Severe headache"';
-    const example2 = 'Sunita Devi,8765432109,15/01/2026,ICU,Dr. Patel,Post-surgery,"Cefixime 200mg twice daily, Pantoprazole 40mg morning",29/01/2026,"Wound bleeding, Swelling, Severe pain"';
-    const csv = `${headers}\n${example1}\n${example2}`;
+    const headers = 'Patient Name,Mobile Number,Discharge Date,Ward,Doctor Name,Diagnosis,Medicine List,Follow Up Date,Red Flag Symptoms,Consent';
+    const example1 = 'Ramesh Kumar,9876543210,15/01/2026,Ward A,Dr. Sharma,Fever,"Paracetamol 500mg twice daily, Azithromycin 500mg once daily",22/01/2026,"High fever above 102F, Breathing difficulty, Severe headache",Yes';
+    const example2 = 'Sunita Devi,8765432109,15/01/2026,ICU,Dr. Patel,Post-surgery,"Cefixime 200mg twice daily, Pantoprazole 40mg morning",29/01/2026,"Wound bleeding, Swelling, Severe pain",Yes';
+    const example3 = 'Priya Sharma,7654321098,15/01/2026,General,Dr. Gupta,Delivery,"Iron tablets twice daily",22/01/2026,"Heavy bleeding, High fever",No';
+    const csv = `${headers}\n${example1}\n${example2}\n${example3}`;
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -317,8 +346,9 @@ export const ExcelUploader = ({ onUpload }: ExcelUploaderProps) => {
     URL.revokeObjectURL(url);
   };
 
-  const validCount = parsedData.filter(p => p.isValid).length;
-  const invalidCount = parsedData.filter(p => !p.isValid).length;
+  const validCount = parsedData.filter(p => p.isValid && !p.skipped).length;
+  const invalidCount = parsedData.filter(p => !p.isValid && !p.skipped).length;
+  const skippedCount = parsedData.filter(p => p.skipped).length;
 
   return (
     <Card>
@@ -398,7 +428,7 @@ export const ExcelUploader = ({ onUpload }: ExcelUploaderProps) => {
                   {parsedData.length} patients found
                 </p>
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
                 <span className="text-sm text-green-600 flex items-center gap-1">
                   <CheckCircle2 className="h-4 w-4" />
                   {validCount} valid
@@ -407,6 +437,12 @@ export const ExcelUploader = ({ onUpload }: ExcelUploaderProps) => {
                   <span className="text-sm text-red-600 flex items-center gap-1">
                     <XCircle className="h-4 w-4" />
                     {invalidCount} invalid
+                  </span>
+                )}
+                {skippedCount > 0 && (
+                  <span className="text-sm text-yellow-600 flex items-center gap-1">
+                    <AlertTriangle className="h-4 w-4" />
+                    {skippedCount} skipped (no consent)
                   </span>
                 )}
               </div>
@@ -438,7 +474,12 @@ export const ExcelUploader = ({ onUpload }: ExcelUploaderProps) => {
                         {patient.medicine_list || '-'}
                       </TableCell>
                       <TableCell>
-                        {patient.isValid ? (
+                        {patient.skipped ? (
+                          <span className="text-xs text-yellow-600 flex items-center gap-1">
+                            <AlertTriangle className="h-3 w-3" />
+                            {patient.skipReason}
+                          </span>
+                        ) : patient.isValid ? (
                           <CheckCircle2 className="h-4 w-4 text-green-600" />
                         ) : (
                           <span className="text-xs text-red-600">

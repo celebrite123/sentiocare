@@ -63,6 +63,8 @@ export type Database = {
           created_at: string | null
           description: string | null
           id: string
+          notification_sent: boolean | null
+          notification_sent_at: string | null
           organization_id: string
           patient_id: string
           resolution_notes: string | null
@@ -70,6 +72,8 @@ export type Database = {
           resolved_at: string | null
           resolved_by: string | null
           severity: string
+          sla_breached: boolean | null
+          sla_deadline: string | null
           title: string
         }
         Insert: {
@@ -79,6 +83,8 @@ export type Database = {
           created_at?: string | null
           description?: string | null
           id?: string
+          notification_sent?: boolean | null
+          notification_sent_at?: string | null
           organization_id: string
           patient_id: string
           resolution_notes?: string | null
@@ -86,6 +92,8 @@ export type Database = {
           resolved_at?: string | null
           resolved_by?: string | null
           severity?: string
+          sla_breached?: boolean | null
+          sla_deadline?: string | null
           title: string
         }
         Update: {
@@ -95,6 +103,8 @@ export type Database = {
           created_at?: string | null
           description?: string | null
           id?: string
+          notification_sent?: boolean | null
+          notification_sent_at?: string | null
           organization_id?: string
           patient_id?: string
           resolution_notes?: string | null
@@ -102,6 +112,8 @@ export type Database = {
           resolved_at?: string | null
           resolved_by?: string | null
           severity?: string
+          sla_breached?: boolean | null
+          sla_deadline?: string | null
           title?: string
         }
         Relationships: [
@@ -444,10 +456,12 @@ export type Database = {
       discharged_patients: {
         Row: {
           batch_id: string | null
+          call_schedule: Json | null
           check_48hr_attempt_count: number | null
           check_48hr_completed: boolean | null
           check_48hr_method: string | null
           check_48hr_scheduled_at: string | null
+          consent_given: boolean | null
           created_at: string | null
           diagnosis: string | null
           discharge_date: string
@@ -469,11 +483,13 @@ export type Database = {
           help_resolved_by: string | null
           id: string
           language: string | null
+          last_call_date: string | null
           medicine_adherence: Json | null
           medicine_day_count: number | null
           medicine_list: Json | null
           medicine_reminders_enabled: boolean | null
           mobile_number: string
+          next_call_due: string | null
           nurse_assigned_at: string | null
           nurse_assigned_id: string | null
           nurse_call_at: string | null
@@ -491,10 +507,12 @@ export type Database = {
         }
         Insert: {
           batch_id?: string | null
+          call_schedule?: Json | null
           check_48hr_attempt_count?: number | null
           check_48hr_completed?: boolean | null
           check_48hr_method?: string | null
           check_48hr_scheduled_at?: string | null
+          consent_given?: boolean | null
           created_at?: string | null
           diagnosis?: string | null
           discharge_date: string
@@ -516,11 +534,13 @@ export type Database = {
           help_resolved_by?: string | null
           id?: string
           language?: string | null
+          last_call_date?: string | null
           medicine_adherence?: Json | null
           medicine_day_count?: number | null
           medicine_list?: Json | null
           medicine_reminders_enabled?: boolean | null
           mobile_number: string
+          next_call_due?: string | null
           nurse_assigned_at?: string | null
           nurse_assigned_id?: string | null
           nurse_call_at?: string | null
@@ -538,10 +558,12 @@ export type Database = {
         }
         Update: {
           batch_id?: string | null
+          call_schedule?: Json | null
           check_48hr_attempt_count?: number | null
           check_48hr_completed?: boolean | null
           check_48hr_method?: string | null
           check_48hr_scheduled_at?: string | null
+          consent_given?: boolean | null
           created_at?: string | null
           diagnosis?: string | null
           discharge_date?: string
@@ -563,11 +585,13 @@ export type Database = {
           help_resolved_by?: string | null
           id?: string
           language?: string | null
+          last_call_date?: string | null
           medicine_adherence?: Json | null
           medicine_day_count?: number | null
           medicine_list?: Json | null
           medicine_reminders_enabled?: boolean | null
           mobile_number?: string
+          next_call_due?: string | null
           nurse_assigned_at?: string | null
           nurse_assigned_id?: string | null
           nurse_call_at?: string | null
@@ -916,8 +940,12 @@ export type Database = {
           contact_email: string | null
           contact_phone: string | null
           created_at: string | null
+          data_retention_days: number | null
+          default_call_schedule: Json | null
           default_language: string | null
           discharge_message_template: string | null
+          escalation_email: string | null
+          escalation_phone: string | null
           hospital_contact_number: string | null
           id: string
           logo_url: string | null
@@ -939,8 +967,12 @@ export type Database = {
           contact_email?: string | null
           contact_phone?: string | null
           created_at?: string | null
+          data_retention_days?: number | null
+          default_call_schedule?: Json | null
           default_language?: string | null
           discharge_message_template?: string | null
+          escalation_email?: string | null
+          escalation_phone?: string | null
           hospital_contact_number?: string | null
           id?: string
           logo_url?: string | null
@@ -962,8 +994,12 @@ export type Database = {
           contact_email?: string | null
           contact_phone?: string | null
           created_at?: string | null
+          data_retention_days?: number | null
+          default_call_schedule?: Json | null
           default_language?: string | null
           discharge_message_template?: string | null
+          escalation_email?: string | null
+          escalation_phone?: string | null
           hospital_contact_number?: string | null
           id?: string
           logo_url?: string | null
@@ -1385,6 +1421,66 @@ export type Database = {
             columns: ["elder_id"]
             isOneToOne: false
             referencedRelation: "elders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      scheduled_callbacks: {
+        Row: {
+          assigned_to: string | null
+          completed_at: string | null
+          completed_by: string | null
+          created_at: string | null
+          id: string
+          notes: string | null
+          organization_id: string
+          patient_id: string
+          reason: string | null
+          scheduled_for: string
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          assigned_to?: string | null
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string | null
+          id?: string
+          notes?: string | null
+          organization_id: string
+          patient_id: string
+          reason?: string | null
+          scheduled_for: string
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          assigned_to?: string | null
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string | null
+          id?: string
+          notes?: string | null
+          organization_id?: string
+          patient_id?: string
+          reason?: string | null
+          scheduled_for?: string
+          status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scheduled_callbacks_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scheduled_callbacks_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "discharged_patients"
             referencedColumns: ["id"]
           },
         ]

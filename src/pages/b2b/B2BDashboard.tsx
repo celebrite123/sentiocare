@@ -6,8 +6,10 @@ import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { supabase } from "@/integrations/supabase/client";
-import { Upload, AlertTriangle, Users } from "lucide-react";
+import { Upload, AlertTriangle, Users, Download, PhoneCall, BarChart3 } from "lucide-react";
 import { RiskBadge } from "@/components/b2b/RiskBadge";
+import { PendingCallbacks } from "@/components/b2b/PendingCallbacks";
+import { Progress } from "@/components/ui/progress";
 
 export default function B2BDashboard() {
   const navigate = useNavigate();
@@ -15,6 +17,12 @@ export default function B2BDashboard() {
   const [stats, setStats] = useState({
     totalPatients: 0, urgentCases: 0, nurseFollowups: 0, stableCases: 0,
     pendingChecks: 0, medicineAdherence: 85, callsToday: 0, messagessSent: 0,
+  });
+  const [contactStats, setContactStats] = useState({
+    totalDischarged: 0,
+    contacted: 0,
+    answered: 0,
+    escalated: 0,
   });
   const [recentAlerts, setRecentAlerts] = useState<any[]>([]);
 
@@ -25,11 +33,14 @@ export default function B2BDashboard() {
       // Fetch patient stats
       const { data: patients } = await (supabase
         .from('discharged_patients' as any)
-        .select('risk_status, check_48hr_completed')
+        .select('risk_status, check_48hr_completed, discharge_message_sent')
         .eq('organization_id', organization.id)
         .eq('status', 'active') as any);
 
       if (patients) {
+        const contacted = patients.filter((p: any) => p.discharge_message_sent || p.check_48hr_completed).length;
+        const answered = patients.filter((p: any) => p.check_48hr_completed).length;
+        
         setStats(prev => ({
           ...prev,
           totalPatients: patients.length,
@@ -38,6 +49,13 @@ export default function B2BDashboard() {
           stableCases: patients.filter((p: any) => p.risk_status === 'stable').length,
           pendingChecks: patients.filter((p: any) => !p.check_48hr_completed).length,
         }));
+
+        setContactStats({
+          totalDischarged: patients.length,
+          contacted,
+          answered,
+          escalated: patients.filter((p: any) => p.risk_status === 'urgent' || p.risk_status === 'nurse_followup').length,
+        });
       }
 
       // Fetch recent alerts
@@ -55,17 +73,93 @@ export default function B2BDashboard() {
     fetchData();
   }, [organization]);
 
+  const handleDownloadReport = async () => {
+    if (!organization) return;
+
+    const { data: patients } = await (supabase
+      .from('discharged_patients' as any)
+      .select('*')
+      .eq('organization_id', organization.id)
+      .eq('status', 'active')
+      .order('discharge_date', { ascending: false }) as any);
+
+    if (!patients || patients.length === 0) return;
+
+    const headers = ['Patient Name', 'Phone', 'Discharge Date', 'Ward', 'Risk Status', '48hr Check', 'Medicine Day', 'Notes'];
+    const rows = patients.map((p: any) => [
+      p.patient_name,
+      p.mobile_number,
+      p.discharge_date,
+      p.ward || '',
+      p.risk_status || 'pending',
+      p.check_48hr_completed ? 'Done' : 'Pending',
+      p.medicine_day_count || 0,
+      p.nurse_call_notes || '',
+    ]);
+
+    const csv = [headers.join(','), ...rows.map((r: any[]) => r.map(c => `"${c}"`).join(','))].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `patient-report-${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const contactRate = contactStats.totalDischarged > 0 
+    ? Math.round((contactStats.contacted / contactStats.totalDischarged) * 100) 
+    : 0;
+
   return (
     <B2BLayout>
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-3xl font-bold">Dashboard</h1>
-          <Button onClick={() => navigate('/b2b/upload')}>
-            <Upload className="h-4 w-4 mr-2" /> Upload Patients
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={handleDownloadReport}>
+              <Download className="h-4 w-4 mr-2" /> Export Report
+            </Button>
+            <Button onClick={() => navigate('/b2b/upload')}>
+              <Upload className="h-4 w-4 mr-2" /> Upload Patients
+            </Button>
+          </div>
         </div>
 
         <StatsCards stats={stats} />
+
+        {/* Contact Rate Card */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <BarChart3 className="h-5 w-5" />
+              Contact Performance
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              <div>
+                <p className="text-sm text-muted-foreground mb-1">Contact Rate</p>
+                <div className="flex items-end gap-2">
+                  <span className="text-3xl font-bold">{contactRate}%</span>
+                </div>
+                <Progress value={contactRate} className="mt-2" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground mb-1">Total Discharged</p>
+                <p className="text-2xl font-bold">{contactStats.totalDischarged}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground mb-1">Successfully Contacted</p>
+                <p className="text-2xl font-bold text-green-600">{contactStats.contacted}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground mb-1">Escalated Cases</p>
+                <p className="text-2xl font-bold text-destructive">{contactStats.escalated}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         <div className="grid md:grid-cols-2 gap-6">
           <Card>
@@ -99,26 +193,34 @@ export default function B2BDashboard() {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Users className="h-5 w-5" />
-                Quick Actions
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-3">
-              <Button variant="outline" className="justify-start" onClick={() => navigate('/b2b/upload')}>
-                <Upload className="h-4 w-4 mr-2" /> Upload New Patients
-              </Button>
-              <Button variant="outline" className="justify-start" onClick={() => navigate('/b2b/patients')}>
-                <Users className="h-4 w-4 mr-2" /> View All Patients
-              </Button>
-              <Button variant="outline" className="justify-start" onClick={() => navigate('/b2b/alerts')}>
-                <AlertTriangle className="h-4 w-4 mr-2" /> Manage Alerts
-              </Button>
-            </CardContent>
-          </Card>
+          {/* Pending Callbacks */}
+          {organization && (
+            <PendingCallbacks 
+              organizationId={organization.id} 
+              compact 
+            />
+          )}
         </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              Quick Actions
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-3">
+            <Button variant="outline" className="justify-start" onClick={() => navigate('/b2b/upload')}>
+              <Upload className="h-4 w-4 mr-2" /> Upload New Patients
+            </Button>
+            <Button variant="outline" className="justify-start" onClick={() => navigate('/b2b/patients')}>
+              <Users className="h-4 w-4 mr-2" /> View All Patients
+            </Button>
+            <Button variant="outline" className="justify-start" onClick={() => navigate('/b2b/alerts')}>
+              <AlertTriangle className="h-4 w-4 mr-2" /> Manage Alerts
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     </B2BLayout>
   );
