@@ -147,12 +147,13 @@ serve(async (req) => {
           method,
           success,
         });
-      } catch (patientError) {
+      } catch (patientError: unknown) {
+        const errorMessage = patientError instanceof Error ? patientError.message : "Unknown error";
         console.error(`Error processing patient ${patient.id}:`, patientError);
         results.push({
           patientId: patient.id,
           patientName: patient.patient_name,
-          error: patientError.message,
+          error: errorMessage,
         });
       }
     }
@@ -164,10 +165,11 @@ serve(async (req) => {
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
-  } catch (error) {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
     console.error("Error running 48-hour checks:", error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: errorMessage }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

@@ -1,19 +1,26 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
-import { Download, TrendingUp, Users, Phone, MessageSquare, AlertTriangle, Pill, Calendar } from "lucide-react";
+import { Download, TrendingUp, Users, Phone, MessageSquare, AlertTriangle, Pill, FileText, Mail, Loader2 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { B2BLayout } from "@/components/b2b/B2BLayout";
-
-const COLORS = ["hsl(var(--primary))", "hsl(var(--accent))", "hsl(var(--secondary))", "hsl(var(--muted))"];
+import { toast } from "@/hooks/use-toast";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const B2BReports = () => {
-  const { organization } = useOrganization();
+  const { organization, member } = useOrganization();
   const [dateRange, setDateRange] = useState("7days");
+  const [exporting, setExporting] = useState(false);
+  const [sendingEmail, setSendingEmail] = useState(false);
+  const reportRef = useRef<HTMLDivElement>(null);
   const [stats, setStats] = useState({
     totalPatients: 0,
     contacted48hr: 0,
@@ -120,8 +127,7 @@ const B2BReports = () => {
     setAdherenceTrend(adherenceData);
   };
 
-  const handleExportReport = () => {
-    // Create CSV data
+  const handleExportCSV = () => {
     const csvData = [
       ["Metric", "Value"],
       ["Total Patients", stats.totalPatients],
@@ -139,6 +145,136 @@ const B2BReports = () => {
     a.href = url;
     a.download = `sentio-report-${new Date().toISOString().split("T")[0]}.csv`;
     a.click();
+    toast({ title: "CSV exported successfully" });
+  };
+
+  const handleExportPDF = async () => {
+    setExporting(true);
+    try {
+      // Build HTML for PDF
+      const contactRate = stats.totalPatients > 0 
+        ? Math.round((stats.contacted48hr / stats.totalPatients) * 100) 
+        : 0;
+      
+      const htmlContent = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Sentio B2B Report - ${organization?.name}</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 40px; color: #333; }
+    .header { border-bottom: 2px solid #1e3a5f; padding-bottom: 20px; margin-bottom: 30px; }
+    .header h1 { color: #1e3a5f; margin: 0; }
+    .header p { color: #666; margin: 5px 0 0 0; }
+    .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 30px; }
+    .stat-box { background: #f8f9fa; border-radius: 8px; padding: 20px; text-align: center; }
+    .stat-value { font-size: 32px; font-weight: bold; color: #1e3a5f; }
+    .stat-label { font-size: 14px; color: #666; margin-top: 5px; }
+    .section { margin-bottom: 30px; }
+    .section h2 { color: #1e3a5f; border-bottom: 1px solid #ddd; padding-bottom: 10px; }
+    .highlight { background: #e8f4f8; padding: 15px; border-radius: 8px; }
+    .footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid #ddd; text-align: center; font-size: 12px; color: #666; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>📊 Post-Discharge Care Report</h1>
+    <p>${organization?.name} | ${new Date().toLocaleDateString("en-IN", { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+    <p>Period: Last ${dateRange === "7days" ? "7" : dateRange === "30days" ? "30" : "90"} days</p>
+  </div>
+
+  <div class="highlight">
+    <strong>48-Hour Contact Rate: ${contactRate}%</strong>
+    <span style="margin-left: 10px;">${contactRate >= 80 ? '✅ Excellent' : contactRate >= 60 ? '⚠️ Good' : '❌ Needs improvement'}</span>
+  </div>
+
+  <div class="stats-grid">
+    <div class="stat-box">
+      <div class="stat-value">${stats.totalPatients}</div>
+      <div class="stat-label">Total Patients</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-value">${stats.contacted48hr}</div>
+      <div class="stat-label">Contacted (48hr)</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-value">${stats.medicineAdherence}%</div>
+      <div class="stat-label">Medicine Adherence</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-value">${stats.nurseInterventions}</div>
+      <div class="stat-label">Nurse Interventions</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-value" style="color: #dc3545;">${stats.urgentCases}</div>
+      <div class="stat-label">Urgent Cases</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-value" style="color: #28a745;">${stats.stableCases}</div>
+      <div class="stat-label">Stable Cases</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Risk Distribution</h2>
+    <ul>
+      ${riskDistribution.map(r => `<li><strong>${r.name}:</strong> ${r.value} patients</li>`).join('')}
+    </ul>
+  </div>
+
+  <div class="footer">
+    <p>Generated by Sentio AI Post-Discharge Care System</p>
+    <p>For detailed analytics, log in to your dashboard at sentiocare.lovable.app</p>
+  </div>
+</body>
+</html>`;
+
+      // Create PDF using browser print
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        printWindow.document.write(htmlContent);
+        printWindow.document.close();
+        printWindow.focus();
+        setTimeout(() => {
+          printWindow.print();
+          printWindow.close();
+        }, 250);
+      }
+      
+      toast({ title: "PDF export ready", description: "Use your browser's print dialog to save as PDF" });
+    } catch (error) {
+      console.error("PDF export error:", error);
+      toast({ title: "Export failed", variant: "destructive" });
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleSendEmailReport = async () => {
+    if (member?.role !== "admin") {
+      toast({ title: "Admin access required", variant: "destructive" });
+      return;
+    }
+
+    setSendingEmail(true);
+    try {
+      const response = await supabase.functions.invoke("b2b-weekly-report", {
+        body: { organizationId: organization?.id },
+      });
+
+      if (response.error) throw response.error;
+
+      toast({ 
+        title: "Email report sent", 
+        description: "Weekly report has been sent to all admins" 
+      });
+    } catch (error) {
+      console.error("Email report error:", error);
+      toast({ title: "Failed to send email report", variant: "destructive" });
+    } finally {
+      setSendingEmail(false);
+    }
   };
 
   return (
@@ -161,10 +297,30 @@ const B2BReports = () => {
                 <SelectItem value="90days">Last 90 days</SelectItem>
               </SelectContent>
             </Select>
-            <Button onClick={handleExportReport} variant="outline">
-              <Download className="h-4 w-4 mr-2" />
-              Export CSV
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" disabled={exporting}>
+                  {exporting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
+                  Export
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={handleExportCSV}>
+                  <FileText className="h-4 w-4 mr-2" />
+                  Export CSV
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleExportPDF}>
+                  <FileText className="h-4 w-4 mr-2" />
+                  Export PDF
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            {member?.role === "admin" && (
+              <Button onClick={handleSendEmailReport} disabled={sendingEmail} variant="outline">
+                {sendingEmail ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Mail className="h-4 w-4 mr-2" />}
+                Email Report
+              </Button>
+            )}
           </div>
         </div>
 
