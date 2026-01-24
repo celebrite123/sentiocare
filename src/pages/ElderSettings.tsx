@@ -50,9 +50,11 @@ const ElderSettings = () => {
   // Elder profile state
   const [fullName, setFullName] = useState("");
   const [age, setAge] = useState("");
+  const [originalAge, setOriginalAge] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [emergencyContact, setEmergencyContact] = useState("");
   const [medicalConditions, setMedicalConditions] = useState("");
+  const [showAgeConfirm, setShowAgeConfirm] = useState(false);
 
   // Communication state
   const [preferredLanguage, setPreferredLanguage] = useState("english");
@@ -100,7 +102,9 @@ const ElderSettings = () => {
       if (elder) {
         setElderName(elder.full_name);
         setFullName(elder.full_name);
-        setAge(elder.age?.toString() || "");
+        const ageStr = elder.age?.toString() || "";
+        setAge(ageStr);
+        setOriginalAge(ageStr);
         setPhoneNumber(elder.phone_number);
         setWhatsappNumber(elder.whatsapp_number || "");
         setEmergencyContact(elder.emergency_contact || "");
@@ -159,7 +163,7 @@ const ElderSettings = () => {
     }
   };
 
-  const saveSettings = async () => {
+  const saveSettings = async (skipAgeConfirm = false) => {
     if (!fullName || !phoneNumber) {
       toast({
         title: "Missing Information",
@@ -167,6 +171,26 @@ const ElderSettings = () => {
         variant: "destructive",
       });
       return;
+    }
+
+    // Validate age range
+    const parsedAge = age ? parseInt(age) : null;
+    if (parsedAge !== null && (parsedAge < 18 || parsedAge > 120)) {
+      toast({
+        title: "Invalid Age",
+        description: "Age must be between 18 and 120 years",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Check for significant age change
+    if (!skipAgeConfirm && originalAge && age) {
+      const ageDiff = Math.abs(parseInt(age) - parseInt(originalAge));
+      if (ageDiff > 5) {
+        setShowAgeConfirm(true);
+        return;
+      }
     }
 
     setSaving(true);
@@ -414,11 +438,21 @@ const ElderSettings = () => {
                     id="age"
                     type="number"
                     value={age}
-                    onChange={(e) => setAge(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === "" || (parseInt(val) >= 1 && parseInt(val) <= 120)) {
+                        setAge(val);
+                      }
+                    }}
                     placeholder="Enter age"
-                    min="1"
+                    min="18"
                     max="120"
                   />
+                  {originalAge && age && Math.abs(parseInt(age) - parseInt(originalAge)) > 5 && (
+                    <p className="text-xs text-destructive">
+                      ⚠️ Age changed from {originalAge} to {age}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -768,10 +802,34 @@ const ElderSettings = () => {
             </CardContent>
           </Card>
 
+          {/* Age Change Confirmation Dialog */}
+          <AlertDialog open={showAgeConfirm} onOpenChange={setShowAgeConfirm}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Confirm Age Change</AlertDialogTitle>
+                <AlertDialogDescription>
+                  You are changing the age from <strong>{originalAge}</strong> to <strong>{age}</strong>. 
+                  This is a significant change. Are you sure this is correct?
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel onClick={() => setAge(originalAge)}>
+                  Revert Change
+                </AlertDialogCancel>
+                <AlertDialogAction onClick={() => {
+                  setShowAgeConfirm(false);
+                  saveSettings(true);
+                }}>
+                  Confirm & Save
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+
           {/* Save Button */}
           <div className="flex justify-end">
             <Button
-              onClick={saveSettings}
+              onClick={() => saveSettings()}
               disabled={saving}
               size="lg"
               className="gap-2"
