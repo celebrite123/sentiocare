@@ -1498,6 +1498,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_user_org_id: { Args: { uid: string }; Returns: string }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -1505,6 +1506,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_org_admin: { Args: { uid: string }; Returns: boolean }
       submit_b2b_lead: {
         Args: {
           p_contact_email: string

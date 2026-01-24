@@ -81,35 +81,40 @@ export const OrganizationProvider = ({ children }: { children: React.ReactNode }
       setLoading(true);
       setError(null);
 
-      // Get member's organization using any type to bypass type checking for new tables
-      const { data: memberData, error: memberError } = await (supabase
-        .from('organization_members' as any)
+      // Get member's own record first (uses "Users can view their own membership" policy)
+      const { data: memberData, error: memberError } = await supabase
+        .from('organization_members')
         .select('*')
         .eq('user_id', user.id)
-        .single() as any);
+        .maybeSingle();
 
       if (memberError) {
-        if (memberError.code === 'PGRST116') {
-          // No membership found
-          setOrganization(null);
-          setMembership(null);
-        } else {
-          throw memberError;
-        }
+        console.error('Member fetch error:', memberError);
+        throw new Error('Failed to fetch membership data');
+      }
+
+      if (!memberData) {
+        // No membership found - user is not a B2B staff member
+        setOrganization(null);
+        setMembership(null);
         setLoading(false);
         return;
       }
 
       setMembership(memberData as OrganizationMember);
 
-      // Get organization details
-      const { data: orgData, error: orgError } = await (supabase
-        .from('organizations' as any)
+      // Get organization details (uses "Members can view their organization" policy)
+      const { data: orgData, error: orgError } = await supabase
+        .from('organizations')
         .select('*')
         .eq('id', memberData.organization_id)
-        .single() as any);
+        .maybeSingle();
 
-      if (orgError) throw orgError;
+      if (orgError) {
+        console.error('Organization fetch error:', orgError);
+        throw new Error('Failed to fetch organization data');
+      }
+
       setOrganization(orgData as Organization);
     } catch (err: any) {
       console.error('Error fetching organization:', err);
