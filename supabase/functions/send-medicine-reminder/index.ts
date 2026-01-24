@@ -137,11 +137,12 @@ Reply: *YES* ✅ or *NO* ❌`;
             error: twilioResult.message || "Send failed",
           });
         }
-      } catch (patientError) {
+      } catch (patientError: unknown) {
+        const errorMessage = patientError instanceof Error ? patientError.message : "Unknown error";
         console.error(`Error sending reminder to ${patient.id}:`, patientError);
         results.push({
           patientId: patient.id,
-          error: patientError.message,
+          error: errorMessage,
         });
       }
     }
@@ -154,10 +155,11 @@ Reply: *YES* ✅ or *NO* ❌`;
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
-  } catch (error) {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
     console.error("Error sending medicine reminders:", error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: errorMessage }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
