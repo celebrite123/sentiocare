@@ -116,7 +116,9 @@ export default function PatientUpload() {
           follow_up_date: followUpDate,
           language: organization.default_language || "hindi",
           status: "active",
+          consent_given: patient.consent_given,
           check_48hr_scheduled_at: new Date(new Date(dischargeDate).getTime() + 48 * 60 * 60 * 1000).toISOString(),
+          call_schedule: (organization as any).default_call_schedule || [1, 3, 7],
         }).select("id").single() as any);
 
         if (error) throw error;
