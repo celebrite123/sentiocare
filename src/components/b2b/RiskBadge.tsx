@@ -2,7 +2,7 @@ import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, CheckCircle2, Clock, Phone } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type RiskStatus = 'pending' | 'stable' | 'nurse_followup' | 'urgent';
+export type RiskStatus = 'pending' | 'stable' | 'nurse_followup' | 'urgent';
 
 interface RiskBadgeProps {
   status: RiskStatus;

@@ -11,7 +11,7 @@ import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { B2BLayout } from "@/components/b2b/B2BLayout";
-import { RiskBadge } from "@/components/b2b/RiskBadge";
+import { RiskBadge, type RiskStatus } from "@/components/b2b/RiskBadge";
 
 interface Patient {
   id: string;
@@ -24,7 +24,7 @@ interface Patient {
   medicine_list: any[] | null;
   red_flag_symptoms: string[] | null;
   follow_up_date: string | null;
-  risk_status: string;
+  risk_status: RiskStatus;
   risk_reason: string | null;
   discharge_message_sent: boolean;
   check_48hr_completed: boolean;
