@@ -10,7 +10,8 @@ import RecentActivity from "@/components/admin/RecentActivity";
 import UsersList from "@/components/admin/UsersList";
 import LanguageDistribution from "@/components/admin/LanguageDistribution";
 import BlogManager from "@/components/admin/BlogManager";
-import { Loader2, RefreshCw, Shield, BarChart3, FileText } from "lucide-react";
+import B2BAdminDashboard from "@/components/admin/B2BAdminDashboard";
+import { Loader2, RefreshCw, Shield, BarChart3, FileText, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
@@ -183,6 +184,10 @@ const AdminCenter = () => {
               <BarChart3 className="h-4 w-4" />
               Analytics
             </TabsTrigger>
+            <TabsTrigger value="b2b" className="gap-2">
+              <Building2 className="h-4 w-4" />
+              B2B Healthcare
+            </TabsTrigger>
             <TabsTrigger value="blog" className="gap-2">
               <FileText className="h-4 w-4" />
               Blog
@@ -233,6 +238,10 @@ const AdminCenter = () => {
                 </div>
               </div>
             )}
+          </TabsContent>
+
+          <TabsContent value="b2b">
+            <B2BAdminDashboard />
           </TabsContent>
 
           <TabsContent value="blog">
