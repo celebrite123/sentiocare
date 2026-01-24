@@ -34,6 +34,7 @@ const navItems = [
   { href: "/b2b/patients", label: "Patients", icon: Users },
   { href: "/b2b/alerts", label: "Alerts", icon: AlertTriangle },
   { href: "/b2b/reports", label: "Reports", icon: BarChart3 },
+  { href: "/b2b/staff", label: "Staff", icon: Users, adminOnly: true },
 ];
 
 interface B2BNavbarProps {

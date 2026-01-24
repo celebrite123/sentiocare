@@ -38,6 +38,7 @@ import { B2BRoute } from "./components/B2BRoute";
 import PatientDetail from "./pages/b2b/PatientDetail";
 import B2BReports from "./pages/b2b/B2BReports";
 import B2BSettings from "./pages/b2b/B2BSettings";
+import StaffManagement from "./pages/b2b/StaffManagement";
 
 const queryClient = new QueryClient();
 
@@ -159,6 +160,7 @@ const App = () => (
                     <Route path="alerts" element={<B2BRoute><AlertsQueue /></B2BRoute>} />
                     <Route path="reports" element={<B2BRoute><B2BReports /></B2BRoute>} />
                     <Route path="settings" element={<B2BRoute><B2BSettings /></B2BRoute>} />
+                    <Route path="staff" element={<B2BRoute><StaffManagement /></B2BRoute>} />
                   </Routes>
                 </OrganizationProvider>
               }
