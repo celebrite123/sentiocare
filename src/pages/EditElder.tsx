@@ -47,10 +47,12 @@ const EditElder = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [showAgeConfirm, setShowAgeConfirm] = useState(false);
   
   const [elder, setElder] = useState<Elder | null>(null);
   const [fullName, setFullName] = useState("");
   const [age, setAge] = useState("");
+  const [originalAge, setOriginalAge] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [whatsappNumber, setWhatsappNumber] = useState("");
   const [emergencyContact, setEmergencyContact] = useState("");
@@ -75,7 +77,9 @@ const EditElder = () => {
       
       setElder(data);
       setFullName(data.full_name);
-      setAge(data.age?.toString() || "");
+      const ageStr = data.age?.toString() || "";
+      setAge(ageStr);
+      setOriginalAge(ageStr);
       setPhoneNumber(data.phone_number);
       setWhatsappNumber(data.whatsapp_number || "");
       setEmergencyContact(data.emergency_contact || "");
@@ -93,7 +97,7 @@ const EditElder = () => {
     }
   };
 
-  const handleSave = async () => {
+  const handleSave = async (skipAgeConfirm = false) => {
     if (!fullName || !phoneNumber) {
       toast({
         title: "Missing Information",
@@ -101,6 +105,26 @@ const EditElder = () => {
         variant: "destructive",
       });
       return;
+    }
+
+    // Validate age range
+    const parsedAge = age ? parseInt(age) : null;
+    if (parsedAge !== null && (parsedAge < 18 || parsedAge > 120)) {
+      toast({
+        title: "Invalid Age",
+        description: "Age must be between 18 and 120 years",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Check for significant age change
+    if (!skipAgeConfirm && originalAge && age) {
+      const ageDiff = Math.abs(parseInt(age) - parseInt(originalAge));
+      if (ageDiff > 5) {
+        setShowAgeConfirm(true);
+        return;
+      }
     }
 
     setSaving(true);
@@ -240,11 +264,21 @@ const EditElder = () => {
                     id="age"
                     type="number"
                     value={age}
-                    onChange={(e) => setAge(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === "" || (parseInt(val) >= 1 && parseInt(val) <= 120)) {
+                        setAge(val);
+                      }
+                    }}
                     placeholder="Enter age"
-                    min="1"
+                    min="18"
                     max="120"
                   />
+                  {originalAge && age && Math.abs(parseInt(age) - parseInt(originalAge)) > 5 && (
+                    <p className="text-xs text-destructive">
+                      ⚠️ Age changed from {originalAge} to {age}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -311,7 +345,7 @@ const EditElder = () => {
 
               {/* Actions */}
               <div className="flex gap-4 pt-4">
-                <Button onClick={handleSave} disabled={saving} className="flex-1">
+                <Button onClick={() => handleSave()} disabled={saving} className="flex-1">
                   {saving ? (
                     <Loader2 className="h-4 w-4 animate-spin mr-2" />
                   ) : (
@@ -319,6 +353,30 @@ const EditElder = () => {
                   )}
                   Save Changes
                 </Button>
+
+                {/* Age Change Confirmation Dialog */}
+                <AlertDialog open={showAgeConfirm} onOpenChange={setShowAgeConfirm}>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Confirm Age Change</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        You are changing the age from <strong>{originalAge}</strong> to <strong>{age}</strong>. 
+                        This is a significant change. Are you sure this is correct?
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel onClick={() => setAge(originalAge)}>
+                        Revert Change
+                      </AlertDialogCancel>
+                      <AlertDialogAction onClick={() => {
+                        setShowAgeConfirm(false);
+                        handleSave(true);
+                      }}>
+                        Confirm & Save
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
 
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
