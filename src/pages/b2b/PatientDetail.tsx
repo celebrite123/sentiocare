@@ -360,7 +360,7 @@ const PatientDetail = () => {
                 <div className="flex items-center justify-between">
                   <span className="text-sm">Discharge Message</span>
                   {patient.discharge_message_sent ? (
-                    <Badge variant="default" className="bg-green-500">Sent</Badge>
+                    <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-200">Sent</Badge>
                   ) : (
                     <Badge variant="secondary">Pending</Badge>
                   )}
@@ -368,7 +368,7 @@ const PatientDetail = () => {
                 <div className="flex items-center justify-between">
                   <span className="text-sm">48hr Check</span>
                   {patient.check_48hr_completed ? (
-                    <Badge variant="default" className="bg-green-500">
+                    <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-200">
                       {patient.check_48hr_method === "voice" ? "Called" : "Messaged"}
                     </Badge>
                   ) : (
@@ -378,7 +378,7 @@ const PatientDetail = () => {
                 <div className="flex items-center justify-between">
                   <span className="text-sm">Nurse Callback</span>
                   {patient.nurse_called_back ? (
-                    <Badge variant="default" className="bg-green-500">Done</Badge>
+                    <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-200">Done</Badge>
                   ) : (
                     <Badge variant="secondary">Pending</Badge>
                   )}

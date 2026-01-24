@@ -35,6 +35,9 @@ import PatientList from "./pages/b2b/PatientList";
 import AlertsQueue from "./pages/b2b/AlertsQueue";
 import { OrganizationProvider } from "./contexts/OrganizationContext";
 import { B2BRoute } from "./components/B2BRoute";
+import PatientDetail from "./pages/b2b/PatientDetail";
+import B2BReports from "./pages/b2b/B2BReports";
+import B2BSettings from "./pages/b2b/B2BSettings";
 
 const queryClient = new QueryClient();
 
@@ -152,7 +155,10 @@ const App = () => (
                     <Route path="dashboard" element={<B2BRoute><B2BDashboard /></B2BRoute>} />
                     <Route path="upload" element={<B2BRoute><PatientUpload /></B2BRoute>} />
                     <Route path="patients" element={<B2BRoute><PatientList /></B2BRoute>} />
+                    <Route path="patients/:id" element={<B2BRoute><PatientDetail /></B2BRoute>} />
                     <Route path="alerts" element={<B2BRoute><AlertsQueue /></B2BRoute>} />
+                    <Route path="reports" element={<B2BRoute><B2BReports /></B2BRoute>} />
+                    <Route path="settings" element={<B2BRoute><B2BSettings /></B2BRoute>} />
                   </Routes>
                 </OrganizationProvider>
               }
