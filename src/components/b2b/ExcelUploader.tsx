@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-interface ParsedPatient {
+export interface ParsedPatient {
   patient_name: string;
   mobile_number: string;
   discharge_date: string;
@@ -36,7 +36,7 @@ interface ParsedPatient {
   errors: string[];
 }
 
-interface UploadResult {
+export interface UploadResult {
   success: boolean;
   total: number;
   successful: number;
@@ -67,53 +67,168 @@ export const ExcelUploader = ({ onUpload }: ExcelUploaderProps) => {
     setIsDragging(false);
   }, []);
 
+  const normalizeHeader = (header: string): string => {
+    return header.toLowerCase().replace(/[\s_-]+/g, "");
+  };
+
+  const parseDate = (dateStr: string): string | null => {
+    if (!dateStr) return null;
+    
+    // Try different date formats
+    const trimmed = dateStr.trim();
+    
+    // DD/MM/YYYY or DD-MM-YYYY
+    const dmyMatch = trimmed.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+    if (dmyMatch) {
+      return `${dmyMatch[3]}-${dmyMatch[2].padStart(2, '0')}-${dmyMatch[1].padStart(2, '0')}`;
+    }
+    
+    // YYYY-MM-DD (already ISO format)
+    const isoMatch = trimmed.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+    if (isoMatch) {
+      return `${isoMatch[1]}-${isoMatch[2].padStart(2, '0')}-${isoMatch[3].padStart(2, '0')}`;
+    }
+    
+    // Try native Date parsing as fallback
+    const date = new Date(trimmed);
+    if (!isNaN(date.getTime())) {
+      return date.toISOString().split('T')[0];
+    }
+    
+    return null;
+  };
+
+  const validateMobileNumber = (phone: string): { valid: boolean; normalized: string } => {
+    if (!phone) return { valid: false, normalized: "" };
+    
+    // Remove all non-digit characters
+    const digits = phone.replace(/\D/g, "");
+    
+    // Extract last 10 digits (Indian mobile number)
+    if (digits.length >= 10) {
+      const last10 = digits.slice(-10);
+      // Indian mobile numbers start with 6-9
+      if (/^[6-9]/.test(last10)) {
+        return { valid: true, normalized: last10 };
+      }
+    }
+    
+    return { valid: false, normalized: digits.slice(-10) };
+  };
+
   const parseCSV = (text: string): ParsedPatient[] => {
     const lines = text.split('\n').filter(line => line.trim());
     if (lines.length < 2) {
       throw new Error('File must have at least a header row and one data row');
     }
 
-    const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
-    const requiredHeaders = ['patient name', 'mobile number', 'discharge date'];
-    const missingHeaders = requiredHeaders.filter(
-      h => !headers.some(header => header.includes(h.replace(' ', '')))
-    );
+    // Parse headers with proper CSV handling (handle quoted fields)
+    const parseCSVLine = (line: string): string[] => {
+      const result: string[] = [];
+      let current = '';
+      let inQuotes = false;
+      
+      for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+        if (char === '"') {
+          inQuotes = !inQuotes;
+        } else if (char === ',' && !inQuotes) {
+          result.push(current.trim());
+          current = '';
+        } else {
+          current += char;
+        }
+      }
+      result.push(current.trim());
+      return result;
+    };
 
-    if (missingHeaders.length > 0) {
-      throw new Error(`Missing required columns: ${missingHeaders.join(', ')}`);
+    const headers = parseCSVLine(lines[0]).map(normalizeHeader);
+    
+    // Map common header variations
+    const headerMap: Record<string, string[]> = {
+      patientname: ['patientname', 'name', 'fullname', 'patient'],
+      mobilenumber: ['mobilenumber', 'mobile', 'phone', 'phonenumber', 'contact', 'cell'],
+      dischargedate: ['dischargedate', 'date', 'dateofdicharge', 'dod'],
+      ward: ['ward', 'wardname', 'department', 'dept'],
+      doctorname: ['doctorname', 'doctor', 'physician', 'treatingdoctor', 'consultantname'],
+      diagnosis: ['diagnosis', 'condition', 'disease', 'primarydiagnosis'],
+      medicinelist: ['medicinelist', 'medicines', 'medication', 'medications', 'drugs', 'prescribedmedicines'],
+      followupdate: ['followupdate', 'followup', 'nextvisit', 'nextappointment', 'revisitdate'],
+      redflagsymptoms: ['redflagsymptoms', 'symptoms', 'warningsymptoms', 'dangersigns', 'redflag'],
+    };
+
+    const findHeaderIndex = (key: string): number => {
+      const variations = headerMap[key] || [key];
+      for (const variation of variations) {
+        const idx = headers.findIndex(h => h.includes(variation) || variation.includes(h));
+        if (idx !== -1) return idx;
+      }
+      return -1;
+    };
+
+    const patientNameIdx = findHeaderIndex('patientname');
+    const mobileIdx = findHeaderIndex('mobilenumber');
+    const dischargeDateIdx = findHeaderIndex('dischargedate');
+
+    if (patientNameIdx === -1 || mobileIdx === -1 || dischargeDateIdx === -1) {
+      const missing = [];
+      if (patientNameIdx === -1) missing.push('Patient Name');
+      if (mobileIdx === -1) missing.push('Mobile Number');
+      if (dischargeDateIdx === -1) missing.push('Discharge Date');
+      throw new Error(`Missing required columns: ${missing.join(', ')}`);
     }
 
     const patients: ParsedPatient[] = [];
 
     for (let i = 1; i < lines.length; i++) {
-      const values = lines[i].split(',').map(v => v.trim());
-      const rowData: Record<string, string> = {};
-      
-      headers.forEach((header, idx) => {
-        rowData[header] = values[idx] || '';
-      });
+      const values = parseCSVLine(lines[i]);
+      if (values.every(v => !v.trim())) continue; // Skip empty rows
 
       const errors: string[] = [];
-      const patientName = rowData['patientname'] || rowData['patient name'] || rowData['name'] || '';
-      const mobileNumber = rowData['mobilenumber'] || rowData['mobile number'] || rowData['phone'] || rowData['mobile'] || '';
-      const dischargeDate = rowData['dischargedate'] || rowData['discharge date'] || rowData['date'] || '';
+      
+      const patientName = values[patientNameIdx]?.trim() || '';
+      const rawMobile = values[mobileIdx]?.trim() || '';
+      const rawDischargeDate = values[dischargeDateIdx]?.trim() || '';
 
-      if (!patientName) errors.push('Missing patient name');
-      if (!mobileNumber || !/^\d{10}$/.test(mobileNumber.replace(/[^0-9]/g, '').slice(-10))) {
-        errors.push('Invalid mobile number');
+      // Validate patient name
+      if (!patientName || patientName.length < 2) {
+        errors.push('Invalid patient name');
       }
-      if (!dischargeDate) errors.push('Missing discharge date');
+
+      // Validate and normalize mobile number
+      const { valid: mobileValid, normalized: mobileNumber } = validateMobileNumber(rawMobile);
+      if (!mobileValid) {
+        errors.push('Invalid mobile number (must be 10 digits starting with 6-9)');
+      }
+
+      // Validate and parse discharge date
+      const dischargeDate = parseDate(rawDischargeDate);
+      if (!dischargeDate) {
+        errors.push('Invalid discharge date (use DD/MM/YYYY or YYYY-MM-DD)');
+      }
+
+      // Parse optional fields
+      const wardIdx = findHeaderIndex('ward');
+      const doctorIdx = findHeaderIndex('doctorname');
+      const diagnosisIdx = findHeaderIndex('diagnosis');
+      const medicineIdx = findHeaderIndex('medicinelist');
+      const followupIdx = findHeaderIndex('followupdate');
+      const symptomsIdx = findHeaderIndex('redflagsymptoms');
+
+      const followUpDateRaw = followupIdx !== -1 ? values[followupIdx]?.trim() : '';
+      const followUpDate = parseDate(followUpDateRaw);
 
       patients.push({
         patient_name: patientName,
-        mobile_number: mobileNumber.replace(/[^0-9]/g, '').slice(-10),
-        discharge_date: dischargeDate,
-        ward: rowData['ward'] || '',
-        doctor_name: rowData['doctorname'] || rowData['doctor name'] || rowData['doctor'] || '',
-        diagnosis: rowData['diagnosis'] || '',
-        medicine_list: rowData['medicinelist'] || rowData['medicine list'] || rowData['medicines'] || '',
-        follow_up_date: rowData['followupdate'] || rowData['follow up date'] || rowData['followup'] || '',
-        red_flag_symptoms: rowData['redflagsymptoms'] || rowData['red flag symptoms'] || rowData['symptoms'] || '',
+        mobile_number: mobileNumber,
+        discharge_date: dischargeDate || rawDischargeDate,
+        ward: wardIdx !== -1 ? values[wardIdx]?.trim() : '',
+        doctor_name: doctorIdx !== -1 ? values[doctorIdx]?.trim() : '',
+        diagnosis: diagnosisIdx !== -1 ? values[diagnosisIdx]?.trim() : '',
+        medicine_list: medicineIdx !== -1 ? values[medicineIdx]?.trim() : '',
+        follow_up_date: followUpDate || '',
+        red_flag_symptoms: symptomsIdx !== -1 ? values[symptomsIdx]?.trim() : '',
         isValid: errors.length === 0,
         errors,
       });
@@ -130,6 +245,11 @@ export const ExcelUploader = ({ onUpload }: ExcelUploaderProps) => {
     try {
       const text = await file.text();
       const patients = parseCSV(text);
+      
+      if (patients.length === 0) {
+        throw new Error('No valid patient data found in file');
+      }
+      
       setParsedData(patients);
       setStep('preview');
     } catch (error: any) {
@@ -185,8 +305,9 @@ export const ExcelUploader = ({ onUpload }: ExcelUploaderProps) => {
 
   const downloadTemplate = () => {
     const headers = 'Patient Name,Mobile Number,Discharge Date,Ward,Doctor Name,Diagnosis,Medicine List,Follow Up Date,Red Flag Symptoms';
-    const example = 'John Doe,9876543210,2024-01-15,Ward A,Dr. Smith,Fever,"Paracetamol 500mg twice daily",2024-01-22,"High fever, breathing difficulty"';
-    const csv = `${headers}\n${example}`;
+    const example1 = 'Ramesh Kumar,9876543210,15/01/2026,Ward A,Dr. Sharma,Fever,"Paracetamol 500mg twice daily, Azithromycin 500mg once daily",22/01/2026,"High fever above 102F, Breathing difficulty, Severe headache"';
+    const example2 = 'Sunita Devi,8765432109,15/01/2026,ICU,Dr. Patel,Post-surgery,"Cefixime 200mg twice daily, Pantoprazole 40mg morning",29/01/2026,"Wound bleeding, Swelling, Severe pain"';
+    const csv = `${headers}\n${example1}\n${example2}`;
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -299,6 +420,7 @@ export const ExcelUploader = ({ onUpload }: ExcelUploaderProps) => {
                     <TableHead>Name</TableHead>
                     <TableHead>Mobile</TableHead>
                     <TableHead>Discharge Date</TableHead>
+                    <TableHead>Medicines</TableHead>
                     <TableHead>Status</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -312,6 +434,9 @@ export const ExcelUploader = ({ onUpload }: ExcelUploaderProps) => {
                       <TableCell>{patient.patient_name || '-'}</TableCell>
                       <TableCell>{patient.mobile_number || '-'}</TableCell>
                       <TableCell>{patient.discharge_date || '-'}</TableCell>
+                      <TableCell className="max-w-[150px] truncate" title={patient.medicine_list}>
+                        {patient.medicine_list || '-'}
+                      </TableCell>
                       <TableCell>
                         {patient.isValid ? (
                           <CheckCircle2 className="h-4 w-4 text-green-600" />

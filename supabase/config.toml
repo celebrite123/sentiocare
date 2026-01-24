@@ -47,3 +47,28 @@ verify_jwt = false
 
 [functions.verify-razorpay-payment]
 verify_jwt = false
+
+# B2B Edge Functions
+[functions.b2b-whatsapp-webhook]
+verify_jwt = false
+
+[functions.run-48hr-check]
+verify_jwt = false
+
+[functions.send-medicine-reminder]
+verify_jwt = false
+
+[functions.send-discharge-message]
+verify_jwt = false
+
+[functions.b2b-weekly-report]
+verify_jwt = false
+
+[functions.weekly-health-summary]
+verify_jwt = false
+
+[functions.send-renewal-reminders]
+verify_jwt = false
+
+[functions.process-subscription-renewals]
+verify_jwt = false
