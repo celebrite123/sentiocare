@@ -296,7 +296,7 @@ const AddElder = () => {
         .from("check_in_schedules")
         .insert({
           elder_id: elder.id,
-          schedule_type: checkInMethod,
+          schedule_type: "daily",
           time_of_day: scheduleData.timeOfDay,
           days_of_week: scheduleData.daysOfWeek,
           active: true,
