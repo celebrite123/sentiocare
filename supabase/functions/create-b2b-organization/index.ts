@@ -16,6 +16,9 @@ interface CreateOrganizationRequest {
   monthly_patient_limit?: number;
   monthly_sms_limit?: number;
   monthly_call_limit?: number;
+  voice_enabled?: boolean;
+  bolna_agent_id?: string;
+  bolna_agent_id_hindi?: string;
   lead_id?: string; // Optional: link to existing B2B lead
 }
 
@@ -104,6 +107,9 @@ Deno.serve(async (req) => {
         monthly_patient_limit: body.monthly_patient_limit || 500,
         monthly_sms_limit: body.monthly_sms_limit || 5000,
         monthly_call_limit: body.monthly_call_limit || 1000,
+        voice_enabled: body.voice_enabled !== false,
+        bolna_agent_id: body.bolna_agent_id || null,
+        bolna_agent_id_hindi: body.bolna_agent_id_hindi || null,
       })
       .select()
       .single();
