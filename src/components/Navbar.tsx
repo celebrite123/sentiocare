@@ -13,7 +13,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAdminRole } from "@/hooks/useAdminRole";
 import AlertsPanel from "./AlertsPanel";
-import sentioLogo from "@/assets/sentio-logo.png";
+import sentioLogo from "@/assets/sentio-logo-optimized.png";
 
 const Navbar = () => {
   const navigate = useNavigate();

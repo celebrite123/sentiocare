@@ -21,9 +21,12 @@
     <link rel="icon" type="image/png" href="/favicon.png" />
     <link rel="apple-touch-icon" href="/favicon.png" />
     
-    <!-- Preconnect to external origins -->
-    <link rel="preconnect" href="https://checkout.razorpay.com" crossorigin />
-    <link rel="dns-prefetch" href="https://checkout.razorpay.com" />
+    <!-- Preconnect to critical origins -->
+    <link rel="preconnect" href="https://hcdwbpbvuvbrozttahfz.supabase.co" crossorigin />
+    <link rel="dns-prefetch" href="https://hcdwbpbvuvbrozttahfz.supabase.co" />
+    
+    <!-- Preload critical fonts if any are used -->
+    <link rel="preload" as="image" href="/assets/sentio-logo-optimized.png" type="image/png" />
 
     <meta property="og:title" content="Sentio AI - Elder Healthcare Management" />
     <meta property="og:description" content="AI-powered health monitoring for elders through voice calls and WhatsApp, keeping families informed and loved ones safe." />
@@ -36,7 +39,18 @@
   </head>
 
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- Critical inline CSS for faster first paint -->
+      <style>
+        #root{min-height:100vh}
+        .initial-loader{display:flex;align-items:center;justify-content:center;min-height:100vh;background:#0a0a0a}
+        .initial-loader-spinner{width:40px;height:40px;border:3px solid #1a1a1a;border-top-color:#3B9C9C;border-radius:50%;animation:spin 1s linear infinite}
+        @keyframes spin{to{transform:rotate(360deg)}}
+      </style>
+      <div class="initial-loader" aria-label="Loading...">
+        <div class="initial-loader-spinner"></div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
