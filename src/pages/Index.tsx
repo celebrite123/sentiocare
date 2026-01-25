@@ -1,4 +1,4 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, memo } from "react";
 import Navbar from "@/components/Navbar";
 import HeroSection from "@/components/landing/HeroSection";
 
@@ -15,7 +15,7 @@ const CTASection = lazy(() => import("@/components/landing/CTASection"));
 const Footer = lazy(() => import("@/components/landing/Footer"));
 
 // Minimal loading placeholder - prevents layout shift
-const SectionLoader = () => <div className="min-h-[200px]" aria-hidden="true" />;
+const SectionLoader = memo(() => <div className="min-h-[200px]" aria-hidden="true" />);
 
 const Index = () => {
   return (

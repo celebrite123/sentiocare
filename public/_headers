@@ -1,0 +1,37 @@
+# Cache static assets for 1 year (immutable with hash in filename)
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# Cache images for 1 week
+/*.png
+  Cache-Control: public, max-age=604800
+
+/*.jpg
+  Cache-Control: public, max-age=604800
+
+/*.svg
+  Cache-Control: public, max-age=604800
+
+/*.ico
+  Cache-Control: public, max-age=604800
+
+# Cache fonts for 1 year
+/*.woff2
+  Cache-Control: public, max-age=31536000, immutable
+
+/*.woff
+  Cache-Control: public, max-age=31536000, immutable
+
+# HTML files - no cache to ensure fresh content
+/*.html
+  Cache-Control: no-cache
+
+/
+  Cache-Control: no-cache
+
+# Service worker and manifest
+/manifest.json
+  Cache-Control: public, max-age=86400
+
+/sw.js
+  Cache-Control: no-cache
