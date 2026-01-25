@@ -12,26 +12,91 @@ serve(async (req) => {
   }
 
   try {
+    // ============ AUTHENTICATION CHECK ============
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized - Authentication required' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    
+    // Create client with user's auth token to verify identity
+    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } }
+    });
+    
+    const { data: { user }, error: userError } = await supabaseAuth.auth.getUser();
+    if (userError || !user) {
+      console.error('Auth error:', userError);
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized - Invalid token' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    // ============ END AUTHENTICATION CHECK ============
+
     const { elderId } = await req.json();
 
     if (!elderId) {
       throw new Error('elderId is required');
     }
 
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    // Use service role for database operations
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    // ============ AUTHORIZATION CHECK ============
     // Get elder details
     const { data: elder, error: elderError } = await supabase
       .from('elders')
-      .select('id, full_name, preferred_language, whatsapp_number, phone_number, medical_conditions')
+      .select('id, full_name, preferred_language, whatsapp_number, phone_number, medical_conditions, family_member_id')
       .eq('id', elderId)
       .single();
 
     if (elderError || !elder) {
-      throw new Error('Elder not found');
+      return new Response(
+        JSON.stringify({ error: 'Elder not found' }),
+        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
+
+    // Check if user is the family member owner
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("user_id", user.id)
+      .single();
+
+    if (!profile) {
+      return new Response(
+        JSON.stringify({ error: 'Profile not found' }),
+        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Check ownership OR access via elder_access table
+    const isOwner = profile.id === elder.family_member_id;
+    
+    if (!isOwner) {
+      const { data: accessRecord } = await supabase
+        .from("elder_access")
+        .select("id")
+        .eq("elder_id", elderId)
+        .eq("user_id", user.id)
+        .single();
+      
+      if (!accessRecord) {
+        return new Response(
+          JSON.stringify({ error: 'Forbidden - Not authorized for this elder' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+    // ============ END AUTHORIZATION CHECK ============
 
     const whatsappNumber = elder.whatsapp_number || elder.phone_number;
     if (!whatsappNumber) {
@@ -91,6 +156,7 @@ serve(async (req) => {
       from: twilioWhatsAppNumber,
       to: whatsappNumber,
       elderName: elder.full_name,
+      userId: user.id
     });
 
     const twilioResponse = await fetch(
