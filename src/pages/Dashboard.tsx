@@ -365,11 +365,17 @@ const Dashboard = () => {
     });
   };
 
+  const handleModalDismiss = () => {
+    setPaymentModalDismissed(true);
+    setShowPaymentModal(false);
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-muted/20 to-background">
       <TrialExpiredModal 
         open={showPaymentModal} 
-        onSuccess={handlePaymentSuccess} 
+        onSuccess={handlePaymentSuccess}
+        onDismiss={handleModalDismiss}
       />
       <DashboardHeader 
         elderName={elder.full_name} 

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Phone, MessageCircle, Loader2, Crown } from "lucide-react";
+import { Phone, MessageCircle, Loader2, Crown, X } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -14,6 +14,7 @@ import { useRazorpayPayment } from "@/hooks/useRazorpay";
 interface TrialExpiredModalProps {
   open: boolean;
   onSuccess: () => void;
+  onDismiss?: () => void;
 }
 
 const plans = [
@@ -34,7 +35,7 @@ const plans = [
   },
 ];
 
-export const TrialExpiredModal = ({ open, onSuccess }: TrialExpiredModalProps) => {
+export const TrialExpiredModal = ({ open, onSuccess, onDismiss }: TrialExpiredModalProps) => {
   const { initiatePayment, isLoading } = useRazorpayPayment();
   const [selectedPlan, setSelectedPlan] = useState<"basic" | "premium" | null>(null);
 
@@ -47,16 +48,31 @@ export const TrialExpiredModal = ({ open, onSuccess }: TrialExpiredModalProps) =
     setSelectedPlan(null);
   };
 
+  const handleDismiss = () => {
+    if (onDismiss) {
+      onDismiss();
+    }
+  };
+
   return (
-    <Dialog open={open} onOpenChange={() => {}}>
-      <DialogContent className="sm:max-w-sm" onPointerDownOutside={(e) => e.preventDefault()}>
+    <Dialog open={open} onOpenChange={(isOpen) => !isOpen && handleDismiss()}>
+      <DialogContent className="sm:max-w-sm">
+        {/* Close button */}
+        <button
+          onClick={handleDismiss}
+          className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none"
+          aria-label="Close"
+        >
+          <X className="h-4 w-4" />
+        </button>
+
         <DialogHeader className="text-center pb-2">
           <div className="mx-auto mb-2 w-12 h-12 rounded-full bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center">
             <Crown className="h-6 w-6 text-primary" />
           </div>
           <DialogTitle className="text-xl">Trial Ended</DialogTitle>
           <DialogDescription className="text-sm">
-            Choose a plan to continue
+            Choose a plan to unlock all features
           </DialogDescription>
         </DialogHeader>
 
@@ -101,9 +117,18 @@ export const TrialExpiredModal = ({ open, onSuccess }: TrialExpiredModalProps) =
           ))}
         </div>
 
-        <p className="text-xs text-center text-muted-foreground pt-1">
-          Secure payment • Cancel anytime
-        </p>
+        <div className="pt-2 space-y-2">
+          <Button
+            variant="ghost"
+            className="w-full text-muted-foreground text-sm"
+            onClick={handleDismiss}
+          >
+            Continue with limited access
+          </Button>
+          <p className="text-xs text-center text-muted-foreground">
+            Secure payment • Cancel anytime
+          </p>
+        </div>
       </DialogContent>
     </Dialog>
   );
