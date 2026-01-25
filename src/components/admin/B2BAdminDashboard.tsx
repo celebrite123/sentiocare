@@ -9,6 +9,7 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import CreateOrganizationDialog from "./CreateOrganizationDialog";
 import AddStaffDialog from "./AddStaffDialog";
+import { EditOrganizationDialog } from "./EditOrganizationDialog";
 
 interface B2BStats {
   totalOrganizations: number;
@@ -37,14 +38,23 @@ interface Organization {
   patientsCount: number;
   staffCount: number;
   createdAt: string;
-  contactEmail?: string;
-  contactPhone?: string;
-  monthlyPatientLimit?: number;
-  monthlySmsLimit?: number;
-  monthlyCallLimit?: number;
-  callsUsedThisMonth?: number;
-  smsUsedThisMonth?: number;
-  patientsThisMonth?: number;
+  contact_email?: string | null;
+  contact_phone?: string | null;
+  monthly_patient_limit?: number;
+  monthly_sms_limit?: number;
+  monthly_call_limit?: number;
+  calls_used_this_month?: number;
+  sms_used_this_month?: number;
+  patients_this_month?: number;
+  auto_48hr_check?: boolean;
+  auto_medicine_reminders?: boolean;
+  hospital_contact_number?: string | null;
+  escalation_phone?: string | null;
+  escalation_email?: string | null;
+  bolna_agent_id?: string | null;
+  bolna_agent_id_hindi?: string | null;
+  voice_enabled?: boolean;
+  default_language?: string;
 }
 
 interface B2BLead {
@@ -341,11 +351,11 @@ const B2BAdminDashboard = () => {
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                         <div>
                           <p className="text-xs text-muted-foreground">Contact Email</p>
-                          <p className="text-sm">{org.contactEmail || "Not set"}</p>
+                          <p className="text-sm">{org.contact_email || "Not set"}</p>
                         </div>
                         <div>
                           <p className="text-xs text-muted-foreground">Contact Phone</p>
-                          <p className="text-sm">{org.contactPhone || "Not set"}</p>
+                          <p className="text-sm">{org.contact_phone || "Not set"}</p>
                         </div>
                         <div>
                           <p className="text-xs text-muted-foreground">Joined</p>
@@ -354,7 +364,7 @@ const B2BAdminDashboard = () => {
                         <div>
                           <p className="text-xs text-muted-foreground">Package Limits</p>
                           <p className="text-sm">
-                            {org.monthlyPatientLimit} patients, {org.monthlySmsLimit} SMS, {org.monthlyCallLimit} calls
+                            {org.monthly_patient_limit || 500} patients, {org.monthly_sms_limit || 5000} SMS, {org.monthly_call_limit || 1000} calls
                           </p>
                         </div>
                       </div>
@@ -364,10 +374,31 @@ const B2BAdminDashboard = () => {
                           organizationName={org.name}
                           onSuccess={fetchB2BData}
                         />
-                        <Button size="sm" variant="ghost">
-                          <Settings className="h-4 w-4 mr-2" />
-                          Edit Limits
-                        </Button>
+                        <EditOrganizationDialog 
+                          organization={{
+                            id: org.id,
+                            name: org.name,
+                            type: org.type,
+                            contact_email: org.contact_email || null,
+                            contact_phone: org.contact_phone || null,
+                            monthly_patient_limit: org.monthly_patient_limit || 500,
+                            monthly_sms_limit: org.monthly_sms_limit || 5000,
+                            monthly_call_limit: org.monthly_call_limit || 1000,
+                            patients_this_month: org.patients_this_month || 0,
+                            sms_used_this_month: org.sms_used_this_month || 0,
+                            calls_used_this_month: org.calls_used_this_month || 0,
+                            auto_48hr_check: org.auto_48hr_check ?? true,
+                            auto_medicine_reminders: org.auto_medicine_reminders ?? true,
+                            hospital_contact_number: org.hospital_contact_number || null,
+                            escalation_phone: org.escalation_phone || null,
+                            escalation_email: org.escalation_email || null,
+                            bolna_agent_id: org.bolna_agent_id || null,
+                            bolna_agent_id_hindi: org.bolna_agent_id_hindi || null,
+                            voice_enabled: org.voice_enabled ?? true,
+                            default_language: org.default_language || "hindi",
+                          }}
+                          onSuccess={fetchB2BData}
+                        />
                       </div>
                     </div>
                   )}
