@@ -81,3 +81,6 @@ verify_jwt = false
 
 [functions.process-subscription-renewals]
 verify_jwt = false
+
+[functions.elevenlabs-demo-tts]
+verify_jwt = false
