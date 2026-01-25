@@ -1,20 +1,22 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 
 interface DemoMessage {
   role: 'ai' | 'elder';
   text: string;
-  delay: number;
 }
 
 interface UseDemoAudioOptions {
   language: 'hindi' | 'english';
   messages: DemoMessage[];
-  demoType: 'whatsapp' | 'voice';
+  demoType: 'voice';
   onMessageComplete: (index: number) => void;
   onComplete: () => void;
 }
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+
+// Global audio cache - persists across component remounts
+const audioCache = new Map<string, string>();
 
 export function useDemoAudio({ language, messages, demoType, onMessageComplete, onComplete }: UseDemoAudioOptions) {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -23,8 +25,11 @@ export function useDemoAudio({ language, messages, demoType, onMessageComplete, 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
+  const getCacheKey = useCallback((index: number, role: string) => {
+    return `${demoType}-${language}-${role}-${index}`;
+  }, [language, demoType]);
+
   const getStorageUrl = useCallback((index: number, role: string) => {
-    // Pre-recorded audio file naming convention
     return `${SUPABASE_URL}/storage/v1/object/public/demo-audio/${demoType}-${language}-${role}-${index + 1}.mp3`;
   }, [language, demoType]);
 
@@ -58,6 +63,46 @@ export function useDemoAudio({ language, messages, demoType, onMessageComplete, 
     }
   }, []);
 
+  const getOrCreateAudio = useCallback(async (index: number, message: DemoMessage): Promise<string> => {
+    const cacheKey = getCacheKey(index, message.role);
+    
+    // Return cached audio if available
+    if (audioCache.has(cacheKey)) {
+      return audioCache.get(cacheKey)!;
+    }
+
+    // Try pre-recorded audio first
+    const storageUrl = getStorageUrl(index, message.role);
+    const exists = await checkAudioExists(storageUrl);
+    
+    if (exists) {
+      audioCache.set(cacheKey, storageUrl);
+      return storageUrl;
+    }
+
+    // Generate with ElevenLabs TTS and cache
+    const ttsUrl = await generateTTSAudio(message.text, message.role);
+    audioCache.set(cacheKey, ttsUrl);
+    return ttsUrl;
+  }, [getCacheKey, getStorageUrl, checkAudioExists, generateTTSAudio]);
+
+  // Preload all audio on mount
+  const preloadAudio = useCallback(async () => {
+    setIsLoading(true);
+    abortControllerRef.current = new AbortController();
+
+    try {
+      // Preload all audio files in parallel
+      await Promise.all(
+        messages.map((message, index) => getOrCreateAudio(index, message))
+      );
+    } catch (error) {
+      console.warn('Preload failed, will load on demand:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [messages, getOrCreateAudio]);
+
   const playAudio = useCallback((url: string): Promise<void> => {
     return new Promise((resolve, reject) => {
       if (audioRef.current) {
@@ -68,21 +113,14 @@ export function useDemoAudio({ language, messages, demoType, onMessageComplete, 
       const audio = new Audio(url);
       audioRef.current = audio;
 
-      audio.onended = () => {
-        resolve();
-      };
-
-      audio.onerror = () => {
-        reject(new Error('Audio playback failed'));
-      };
-
+      audio.onended = () => resolve();
+      audio.onerror = () => reject(new Error('Audio playback failed'));
       audio.play().catch(reject);
     });
   }, []);
 
   const playSequence = useCallback(async () => {
     setIsPlaying(true);
-    setIsLoading(true);
     abortControllerRef.current = new AbortController();
 
     try {
@@ -92,43 +130,18 @@ export function useDemoAudio({ language, messages, demoType, onMessageComplete, 
         const message = messages[i];
         setCurrentIndex(i);
 
-        // Try pre-recorded audio first, fall back to TTS
-        const storageUrl = getStorageUrl(i, message.role);
-        let audioUrl: string;
-
-        try {
-          const exists = await checkAudioExists(storageUrl);
-          if (exists) {
-            audioUrl = storageUrl;
-          } else {
-            // Generate with ElevenLabs TTS
-            setIsLoading(true);
-            audioUrl = await generateTTSAudio(message.text, message.role);
-          }
-        } catch (error) {
-          console.warn('Audio generation failed, using TTS fallback:', error);
-          audioUrl = await generateTTSAudio(message.text, message.role);
-        }
-
-        setIsLoading(false);
+        // Get cached audio (or generate if not cached)
+        const audioUrl = await getOrCreateAudio(i, message);
 
         if (abortControllerRef.current?.signal.aborted) break;
 
         try {
           await playAudio(audioUrl);
           onMessageComplete(i + 1);
-          
-          // Small pause between messages for natural flow
-          await new Promise(resolve => setTimeout(resolve, 400));
+          await new Promise(resolve => setTimeout(resolve, 300));
         } catch (error) {
           console.error('Audio playback error:', error);
-          // Continue to next message even if playback fails
           onMessageComplete(i + 1);
-        }
-
-        // Clean up blob URLs
-        if (audioUrl.startsWith('blob:')) {
-          URL.revokeObjectURL(audioUrl);
         }
       }
 
@@ -137,10 +150,9 @@ export function useDemoAudio({ language, messages, demoType, onMessageComplete, 
       console.error('Sequence playback error:', error);
     } finally {
       setIsPlaying(false);
-      setIsLoading(false);
       setCurrentIndex(-1);
     }
-  }, [messages, getStorageUrl, checkAudioExists, generateTTSAudio, playAudio, onMessageComplete, onComplete]);
+  }, [messages, getOrCreateAudio, playAudio, onMessageComplete, onComplete]);
 
   const stop = useCallback(() => {
     abortControllerRef.current?.abort();
@@ -149,13 +161,8 @@ export function useDemoAudio({ language, messages, demoType, onMessageComplete, 
       audioRef.current = null;
     }
     setIsPlaying(false);
-    setIsLoading(false);
     setCurrentIndex(-1);
   }, []);
-
-  const reset = useCallback(() => {
-    stop();
-  }, [stop]);
 
   return {
     isPlaying,
@@ -163,6 +170,6 @@ export function useDemoAudio({ language, messages, demoType, onMessageComplete, 
     currentIndex,
     play: playSequence,
     stop,
-    reset,
+    preload: preloadAudio,
   };
 }
