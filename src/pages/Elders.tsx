@@ -37,7 +37,7 @@ const Elders = () => {
   useEffect(() => {
     if (user) {
       loadElders();
-      refetch(); // Refresh subscription state including elder count
+      // Note: refetch() removed - useSubscription already loads on mount, avoid duplicate calls
     }
   }, [user]);
 

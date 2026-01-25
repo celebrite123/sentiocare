@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, memo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Pill, CheckCircle2, XCircle } from "lucide-react";
@@ -10,7 +10,7 @@ interface MedicationAdherenceChartProps {
   elderId: string;
 }
 
-export const MedicationAdherenceChart = ({ elderId }: MedicationAdherenceChartProps) => {
+const MedicationAdherenceChartComponent = ({ elderId }: MedicationAdherenceChartProps) => {
   const [loading, setLoading] = useState(true);
   const [weeklyAdherence, setWeeklyAdherence] = useState(0);
   const [monthlyAdherence, setMonthlyAdherence] = useState(0);
@@ -157,3 +157,6 @@ export const MedicationAdherenceChart = ({ elderId }: MedicationAdherenceChartPr
     </Card>
   );
 };
+
+// Memoize to prevent unnecessary re-renders when parent updates
+export const MedicationAdherenceChart = memo(MedicationAdherenceChartComponent);
