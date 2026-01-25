@@ -44,6 +44,34 @@ serve(async (req) => {
   }
 
   try {
+    // ============ AUTHENTICATION CHECK ============
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized - Authentication required' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    
+    // Create client with user's auth token to verify identity
+    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } }
+    });
+    
+    const { data: { user }, error: userError } = await supabaseAuth.auth.getUser();
+    if (userError || !user) {
+      console.error('Auth error:', userError);
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized - Invalid token' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    // ============ END AUTHENTICATION CHECK ============
+
     const { elderId, elderName, elderPhone, medicines, medicalConditions, preferredLanguage = 'english', isEmergency = false } = await req.json();
     
     const BOLNA_API_KEY = Deno.env.get('BOLNA_API_KEY');
@@ -63,11 +91,11 @@ serve(async (req) => {
     
     console.log('Selected Bolna agent:', { language: preferredLanguage, isHindi });
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    // Use service role for database operations
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Check subscription and get monitoring config
+    // ============ AUTHORIZATION CHECK ============
+    // Verify user has access to this elder
     const { data: elder, error: elderError } = await supabase
       .from("elders")
       .select("family_member_id, last_manual_call_at, monitoring_config")
@@ -75,18 +103,45 @@ serve(async (req) => {
       .single();
 
     if (elderError || !elder) {
-      throw new Error("Elder not found");
+      return new Response(
+        JSON.stringify({ error: 'Elder not found' }),
+        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
+    // Check if user is the family member owner
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
-      .select("subscription_tier, subscription_status, trial_ends_at, monthly_emergency_calls_used, emergency_calls_reset_at")
-      .eq("id", elder.family_member_id)
+      .select("id, subscription_tier, subscription_status, trial_ends_at, monthly_emergency_calls_used, emergency_calls_reset_at")
+      .eq("user_id", user.id)
       .single();
 
-    if (profileError) {
-      console.error("Error fetching profile:", profileError);
+    if (profileError || !profile) {
+      return new Response(
+        JSON.stringify({ error: 'Profile not found' }),
+        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
+
+    // Check ownership OR access via elder_access table
+    const isOwner = profile.id === elder.family_member_id;
+    
+    if (!isOwner) {
+      const { data: accessRecord } = await supabase
+        .from("elder_access")
+        .select("id")
+        .eq("elder_id", elderId)
+        .eq("user_id", user.id)
+        .single();
+      
+      if (!accessRecord) {
+        return new Response(
+          JSON.stringify({ error: 'Forbidden - Not authorized for this elder' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+    // ============ END AUTHORIZATION CHECK ============
 
     const tier = profile?.subscription_tier || "basic";
     const status = profile?.subscription_status || "trial";
@@ -144,7 +199,7 @@ serve(async (req) => {
         .eq("id", elder.family_member_id);
     }
 
-    console.log('Initiating Bolna voice call:', { elderId, isEmergency });
+    console.log('Initiating Bolna voice call:', { elderId, isEmergency, userId: user.id });
 
   // Get last check-in for context (including conversation_summary)
     const { data: previousCheckIns } = await supabase

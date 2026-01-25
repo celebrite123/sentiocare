@@ -20,6 +20,34 @@ serve(async (req) => {
   }
 
   try {
+    // ============ AUTHENTICATION CHECK ============
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized - Authentication required' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    
+    // Create client with user's auth token to verify identity
+    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } }
+    });
+    
+    const { data: { user }, error: userError } = await supabaseAuth.auth.getUser();
+    if (userError || !user) {
+      console.error('Auth error:', userError);
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized - Invalid token' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    // ============ END AUTHENTICATION CHECK ============
+
     const { 
       elderId, 
       elderName, 
@@ -38,12 +66,11 @@ serve(async (req) => {
       throw new Error('LOVABLE_API_KEY not configured');
     }
 
-    // Initialize Supabase for rate limiting
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    // Use service role for database operations
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Get elder's family member profile for rate limiting
+    // ============ AUTHORIZATION CHECK ============
+    // Get elder's family member profile for rate limiting and authorization
     const { data: elder, error: elderError } = await supabase
       .from("elders")
       .select("family_member_id")
@@ -51,56 +78,85 @@ serve(async (req) => {
       .single();
 
     if (elderError || !elder) {
-      console.error("Elder not found for rate limiting:", elderError);
-    } else {
-      // Check rate limits
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("subscription_tier, subscription_status, trial_ends_at, monthly_api_calls_used, api_calls_reset_at")
-        .eq("id", elder.family_member_id)
+      return new Response(
+        JSON.stringify({ error: 'Elder not found' }),
+        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Check if user is the family member owner
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("id, subscription_tier, subscription_status, trial_ends_at, monthly_api_calls_used, api_calls_reset_at")
+      .eq("user_id", user.id)
+      .single();
+
+    if (!profile) {
+      return new Response(
+        JSON.stringify({ error: 'Profile not found' }),
+        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Check ownership OR access via elder_access table
+    const isOwner = profile.id === elder.family_member_id;
+    
+    if (!isOwner) {
+      const { data: accessRecord } = await supabase
+        .from("elder_access")
+        .select("id")
+        .eq("elder_id", elderId)
+        .eq("user_id", user.id)
         .single();
-
-      if (profile) {
-        const tier = profile.subscription_tier || "basic";
-        const status = profile.subscription_status || "trial";
-        const trialEndsAt = profile.trial_ends_at ? new Date(profile.trial_ends_at) : null;
-        const now = new Date();
-        const isTrialActive = status === "trial" && trialEndsAt && trialEndsAt > now;
-        
-        const effectiveTier = isTrialActive ? "trial" : tier;
-        const limit = RATE_LIMITS[effectiveTier] || RATE_LIMITS.basic;
-        
-        let apiCallsUsed = profile.monthly_api_calls_used || 0;
-        const resetAt = profile.api_calls_reset_at ? new Date(profile.api_calls_reset_at) : null;
-        
-        // Reset counter if it's a new day
-        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        if (!resetAt || resetAt < todayStart) {
-          apiCallsUsed = 0;
-          await supabase
-            .from("profiles")
-            .update({ monthly_api_calls_used: 0, api_calls_reset_at: now.toISOString() })
-            .eq("id", elder.family_member_id);
-        }
-
-        if (apiCallsUsed >= limit) {
-          console.log("Rate limit exceeded:", { tier: effectiveTier, used: apiCallsUsed, limit });
-          return new Response(
-            JSON.stringify({ 
-              error: `Daily message limit (${limit}) reached. Try again tomorrow.`,
-              code: "RATE_LIMIT_EXCEEDED"
-            }),
-            { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-
-        // Increment usage counter
-        await supabase
-          .from("profiles")
-          .update({ monthly_api_calls_used: apiCallsUsed + 1 })
-          .eq("id", elder.family_member_id);
+      
+      if (!accessRecord) {
+        return new Response(
+          JSON.stringify({ error: 'Forbidden - Not authorized for this elder' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
       }
     }
+    // ============ END AUTHORIZATION CHECK ============
+
+    // Check rate limits
+    const tier = profile.subscription_tier || "basic";
+    const status = profile.subscription_status || "trial";
+    const trialEndsAt = profile.trial_ends_at ? new Date(profile.trial_ends_at) : null;
+    const now = new Date();
+    const isTrialActive = status === "trial" && trialEndsAt && trialEndsAt > now;
+    
+    const effectiveTier = isTrialActive ? "trial" : tier;
+    const limit = RATE_LIMITS[effectiveTier] || RATE_LIMITS.basic;
+    
+    let apiCallsUsed = profile.monthly_api_calls_used || 0;
+    const resetAt = profile.api_calls_reset_at ? new Date(profile.api_calls_reset_at) : null;
+    
+    // Reset counter if it's a new day
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    if (!resetAt || resetAt < todayStart) {
+      apiCallsUsed = 0;
+      await supabase
+        .from("profiles")
+        .update({ monthly_api_calls_used: 0, api_calls_reset_at: now.toISOString() })
+        .eq("id", elder.family_member_id);
+    }
+
+    if (apiCallsUsed >= limit) {
+      console.log("Rate limit exceeded:", { tier: effectiveTier, used: apiCallsUsed, limit });
+      return new Response(
+        JSON.stringify({ 
+          error: `Daily message limit (${limit}) reached. Try again tomorrow.`,
+          code: "RATE_LIMIT_EXCEEDED"
+        }),
+        { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Increment usage counter
+    await supabase
+      .from("profiles")
+      .update({ monthly_api_calls_used: apiCallsUsed + 1 })
+      .eq("id", elder.family_member_id);
 
     const isHindi = preferredLanguage === 'hindi';
     
@@ -269,7 +325,8 @@ Remember: You're a caring friend, not a healthcare bot! Sound human and warm.`;
       isEmergency,
       sentiment,
       language: preferredLanguage,
-      responseLength: aiResponse.length
+      responseLength: aiResponse.length,
+      userId: user.id
     });
 
     return new Response(
