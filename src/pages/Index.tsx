@@ -1,15 +1,21 @@
+import { lazy, Suspense } from "react";
 import Navbar from "@/components/Navbar";
 import HeroSection from "@/components/landing/HeroSection";
-import DemoSection from "@/components/landing/DemoSection";
-import HowItWorks from "@/components/landing/HowItWorks";
-import FeaturesSection from "@/components/landing/FeaturesSection";
-import StatsSection from "@/components/landing/StatsSection";
-import TestimonialsSection from "@/components/landing/TestimonialsSection";
-import PricingSection from "@/components/landing/PricingSection";
-import B2BSection from "@/components/landing/B2BSection";
-import FAQSection from "@/components/landing/FAQSection";
-import CTASection from "@/components/landing/CTASection";
-import Footer from "@/components/landing/Footer";
+
+// Lazy load below-the-fold components for faster initial render
+const StatsSection = lazy(() => import("@/components/landing/StatsSection"));
+const DemoSection = lazy(() => import("@/components/landing/DemoSection"));
+const HowItWorks = lazy(() => import("@/components/landing/HowItWorks"));
+const FeaturesSection = lazy(() => import("@/components/landing/FeaturesSection"));
+const TestimonialsSection = lazy(() => import("@/components/landing/TestimonialsSection"));
+const PricingSection = lazy(() => import("@/components/landing/PricingSection"));
+const B2BSection = lazy(() => import("@/components/landing/B2BSection"));
+const FAQSection = lazy(() => import("@/components/landing/FAQSection"));
+const CTASection = lazy(() => import("@/components/landing/CTASection"));
+const Footer = lazy(() => import("@/components/landing/Footer"));
+
+// Minimal loading placeholder - prevents layout shift
+const SectionLoader = () => <div className="min-h-[200px]" aria-hidden="true" />;
 
 const Index = () => {
   return (
@@ -17,17 +23,37 @@ const Index = () => {
       <Navbar />
       <main>
         <HeroSection />
-        <StatsSection />
-        <DemoSection />
-        <HowItWorks />
-        <FeaturesSection />
-        <TestimonialsSection />
-        <PricingSection />
-        <B2BSection />
-        <FAQSection />
-        <CTASection />
+        <Suspense fallback={<SectionLoader />}>
+          <StatsSection />
+        </Suspense>
+        <Suspense fallback={<SectionLoader />}>
+          <DemoSection />
+        </Suspense>
+        <Suspense fallback={<SectionLoader />}>
+          <HowItWorks />
+        </Suspense>
+        <Suspense fallback={<SectionLoader />}>
+          <FeaturesSection />
+        </Suspense>
+        <Suspense fallback={<SectionLoader />}>
+          <TestimonialsSection />
+        </Suspense>
+        <Suspense fallback={<SectionLoader />}>
+          <PricingSection />
+        </Suspense>
+        <Suspense fallback={<SectionLoader />}>
+          <B2BSection />
+        </Suspense>
+        <Suspense fallback={<SectionLoader />}>
+          <FAQSection />
+        </Suspense>
+        <Suspense fallback={<SectionLoader />}>
+          <CTASection />
+        </Suspense>
       </main>
-      <Footer />
+      <Suspense fallback={<SectionLoader />}>
+        <Footer />
+      </Suspense>
     </div>
   );
 };

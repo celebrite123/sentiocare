@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { MessageCircle, Phone, Play, Square, RotateCcw, Volume2, Loader2 } from "lucide-react";
@@ -44,6 +44,8 @@ const DemoSection = () => {
   const [whatsappPlaying, setWhatsappPlaying] = useState(false);
   const [voiceIndex, setVoiceIndex] = useState(0);
   const [voiceComplete, setVoiceComplete] = useState(false);
+  const [hasBeenVisible, setHasBeenVisible] = useState(false);
+  const sectionRef = useRef<HTMLElement>(null);
 
   const whatsappMessages = language === "hindi" ? whatsappMessagesHindi : whatsappMessagesEnglish;
   const voiceCallScript = language === "hindi" ? voiceCallScriptHindi : voiceCallScriptEnglish;
@@ -56,10 +58,24 @@ const DemoSection = () => {
     onComplete: () => setVoiceComplete(true),
   });
 
-  // Preload voice audio on mount
+  // DEFERRED PRELOAD: Only preload audio when section becomes visible
   useEffect(() => {
-    voiceAudio.preload();
-  }, [language]);
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && !hasBeenVisible) {
+          setHasBeenVisible(true);
+          voiceAudio.preload(); // Only preload when user scrolls to this section
+        }
+      },
+      { threshold: 0.1, rootMargin: '200px' } // Start preloading slightly before visible
+    );
+    
+    if (sectionRef.current) {
+      observer.observe(sectionRef.current);
+    }
+    
+    return () => observer.disconnect();
+  }, [hasBeenVisible, voiceAudio.preload]);
 
   // WhatsApp text animation - no audio
   const playWhatsApp = useCallback(() => {
@@ -100,7 +116,7 @@ const DemoSection = () => {
   }, [voiceAudio, stopWhatsApp]);
 
   return (
-    <section id="demo" className="py-12 md:py-20 bg-muted/30">
+    <section ref={sectionRef} id="demo" className="py-12 md:py-20 bg-muted/30">
       <div className="container mx-auto px-4">
         <div className="text-center mb-6 md:mb-8">
           <h2 className="text-2xl md:text-4xl font-bold text-foreground mb-3 md:mb-4">

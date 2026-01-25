@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, memo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { TrendingUp, TrendingDown, Minus } from "lucide-react";
@@ -15,7 +15,7 @@ interface CheckInData {
   well_being_score: number | null;
 }
 
-export const WellbeingTrendChart = ({ elderId }: WellbeingTrendChartProps) => {
+const WellbeingTrendChartComponent = ({ elderId }: WellbeingTrendChartProps) => {
   const [data, setData] = useState<{ date: string; score: number }[]>([]);
   const [loading, setLoading] = useState(true);
   const [trend, setTrend] = useState<"up" | "down" | "stable">("stable");
@@ -178,3 +178,6 @@ export const WellbeingTrendChart = ({ elderId }: WellbeingTrendChartProps) => {
     </Card>
   );
 };
+
+// Memoize to prevent unnecessary re-renders when parent updates
+export const WellbeingTrendChart = memo(WellbeingTrendChartComponent);

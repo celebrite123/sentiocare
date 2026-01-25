@@ -207,32 +207,37 @@ const Dashboard = () => {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       
-      const { data: checkIns } = await supabase
-        .from("check_ins")
-        .select("*")
-        .eq("elder_id", elderId!)
-        .gte("created_at", today.toISOString())
-        .order("created_at", { ascending: false });
+      // PARALLEL QUERIES - Run all database calls simultaneously for maximum speed
+      const [checkInsRes, latestCheckInRes, alertCountRes, medicineCountRes] = await Promise.all([
+        supabase
+          .from("check_ins")
+          .select("id, medicines_taken, created_at")
+          .eq("elder_id", elderId!)
+          .gte("created_at", today.toISOString())
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("check_ins")
+          .select("well_being_score, medicines_taken, created_at")
+          .eq("elder_id", elderId!)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+        supabase
+          .from("alerts")
+          .select("*", { count: "exact", head: true })
+          .eq("elder_id", elderId!)
+          .eq("resolved", false),
+        supabase
+          .from("medicines")
+          .select("*", { count: "exact", head: true })
+          .eq("elder_id", elderId!)
+          .eq("active", true),
+      ]);
 
-      const { data: latestCheckIn } = await supabase
-        .from("check_ins")
-        .select("well_being_score, medicines_taken, created_at")
-        .eq("elder_id", elderId!)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .single();
-
-      const { count: alertCount } = await supabase
-        .from("alerts")
-        .select("*", { count: "exact", head: true })
-        .eq("elder_id", elderId!)
-        .eq("resolved", false);
-
-      const { count: medicineCount } = await supabase
-        .from("medicines")
-        .select("*", { count: "exact", head: true })
-        .eq("elder_id", elderId!)
-        .eq("active", true);
+      const checkIns = checkInsRes.data;
+      const latestCheckIn = latestCheckInRes.data;
+      const alertCount = alertCountRes.count;
+      const medicineCount = medicineCountRes.count;
 
       const medicinesTakenToday = checkIns?.filter((c) => c.medicines_taken)?.length || 0;
 

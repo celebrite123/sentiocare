@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -22,6 +22,9 @@ interface SubscriptionState {
   isCancelled: boolean;
 }
 
+// Cache TTL: 30 seconds - prevents redundant API calls across components
+const CACHE_TTL_MS = 30000;
+
 export const useSubscription = () => {
   const { user } = useAuth();
   const [state, setState] = useState<SubscriptionState>({
@@ -40,16 +43,27 @@ export const useSubscription = () => {
     canAddElder: true,
     isCancelled: false,
   });
+  
+  const lastFetchedRef = useRef<number>(0);
+  const isFetchingRef = useRef<boolean>(false);
 
   useEffect(() => {
     if (user) {
+      // Use cached data if still fresh
+      const now = Date.now();
+      if (now - lastFetchedRef.current < CACHE_TTL_MS && !state.loading) {
+        return; // Data is still fresh, skip fetch
+      }
       loadSubscription();
     } else {
       setState(prev => ({ ...prev, loading: false }));
     }
   }, [user]);
 
-  const loadSubscription = async () => {
+  const loadSubscription = useCallback(async () => {
+    // Prevent concurrent fetches
+    if (isFetchingRef.current) return;
+    isFetchingRef.current = true;
     try {
       const { data: profile, error } = await supabase
         .from("profiles")
@@ -112,11 +126,14 @@ export const useSubscription = () => {
         canAddElder,
         isCancelled,
       });
+      lastFetchedRef.current = Date.now(); // Update cache timestamp
     } catch (error) {
       console.error("Error loading subscription:", error);
       setState(prev => ({ ...prev, loading: false }));
+    } finally {
+      isFetchingRef.current = false;
     }
-  };
+  }, [user]);
 
   const updateTier = async (newTier: SubscriptionTier) => {
     if (!user) return false;
