@@ -52,6 +52,15 @@ verify_jwt = false
 [functions.b2b-whatsapp-webhook]
 verify_jwt = false
 
+[functions.b2b-bolna-webhook]
+verify_jwt = false
+
+[functions.run-scheduled-b2b-calls]
+verify_jwt = false
+
+[functions.update-b2b-organization]
+verify_jwt = false
+
 [functions.run-48hr-check]
 verify_jwt = false
 

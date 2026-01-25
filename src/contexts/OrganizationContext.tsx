@@ -9,6 +9,7 @@ export interface Organization {
   contact_email: string | null;
   contact_phone: string | null;
   logo_url: string | null;
+  address: string | null;
   default_language: string;
   monthly_patient_limit: number;
   monthly_sms_limit: number;
@@ -20,6 +21,14 @@ export interface Organization {
   auto_medicine_reminders: boolean;
   hospital_contact_number: string | null;
   discharge_message_template: string | null;
+  escalation_phone: string | null;
+  escalation_email: string | null;
+  bolna_agent_id: string | null;
+  bolna_agent_id_hindi: string | null;
+  voice_enabled: boolean;
+  default_call_schedule: number[] | null;
+  data_retention_days: number;
+  usage_reset_at: string | null;
 }
 
 interface OrganizationMember {
