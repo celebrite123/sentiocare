@@ -40,17 +40,17 @@ const StatCard = ({ title, value, description, icon, trend, variant = 'default' 
 
   return (
     <Card className={cn("transition-all hover:shadow-md", variantStyles[variant])}>
-      <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">
+      <CardHeader className="flex flex-row items-center justify-between pb-1 sm:pb-2 p-3 sm:p-4">
+        <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground leading-tight">
           {title}
         </CardTitle>
-        <div className={cn("h-5 w-5", iconStyles[variant])}>
+        <div className={cn("h-4 w-4 sm:h-5 sm:w-5 shrink-0", iconStyles[variant])}>
           {icon}
         </div>
       </CardHeader>
-      <CardContent>
-        <div className="flex items-baseline gap-2">
-          <span className="text-2xl font-bold">{value}</span>
+      <CardContent className="p-3 pt-0 sm:p-4 sm:pt-0">
+        <div className="flex items-baseline gap-1 sm:gap-2">
+          <span className="text-xl sm:text-2xl font-bold">{value}</span>
           {trend && (
             <span className={cn(
               "text-xs flex items-center",
@@ -65,7 +65,7 @@ const StatCard = ({ title, value, description, icon, trend, variant = 'default' 
           )}
         </div>
         {description && (
-          <p className="text-xs text-muted-foreground mt-1">{description}</p>
+          <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1 leading-tight">{description}</p>
         )}
       </CardContent>
     </Card>
@@ -87,7 +87,7 @@ interface StatsCardsProps {
 
 export const StatsCards = ({ stats }: StatsCardsProps) => {
   return (
-    <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-3 sm:gap-4 grid-cols-2 md:grid-cols-4">
       <StatCard
         title="Total Patients"
         value={stats.totalPatients}

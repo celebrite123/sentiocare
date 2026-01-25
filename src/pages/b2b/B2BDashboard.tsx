@@ -113,15 +113,17 @@ export default function B2BDashboard() {
 
   return (
     <B2BLayout>
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold">Dashboard</h1>
+      <div className="space-y-4 sm:space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <h1 className="text-2xl sm:text-3xl font-bold">Dashboard</h1>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={handleDownloadReport}>
-              <Download className="h-4 w-4 mr-2" /> Export Report
+            <Button variant="outline" size="sm" className="flex-1 sm:flex-none" onClick={handleDownloadReport}>
+              <Download className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Export</span>
             </Button>
-            <Button onClick={() => navigate('/b2b/upload')}>
-              <Upload className="h-4 w-4 mr-2" /> Upload Patients
+            <Button size="sm" className="flex-1 sm:flex-none" onClick={() => navigate('/b2b/upload')}>
+              <Upload className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Upload</span>
             </Button>
           </div>
         </div>
@@ -130,38 +132,38 @@ export default function B2BDashboard() {
 
         {/* Contact Rate Card */}
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <BarChart3 className="h-5 w-5" />
+          <CardHeader className="p-4 sm:p-6">
+            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+              <BarChart3 className="h-4 w-4 sm:h-5 sm:w-5" />
               Contact Performance
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
               <div>
-                <p className="text-sm text-muted-foreground mb-1">Contact Rate</p>
+                <p className="text-xs sm:text-sm text-muted-foreground mb-1">Contact Rate</p>
                 <div className="flex items-end gap-2">
-                  <span className="text-3xl font-bold">{contactRate}%</span>
+                  <span className="text-2xl sm:text-3xl font-bold">{contactRate}%</span>
                 </div>
                 <Progress value={contactRate} className="mt-2" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground mb-1">Total Discharged</p>
-                <p className="text-2xl font-bold">{contactStats.totalDischarged}</p>
+                <p className="text-xs sm:text-sm text-muted-foreground mb-1">Total Discharged</p>
+                <p className="text-xl sm:text-2xl font-bold">{contactStats.totalDischarged}</p>
               </div>
               <div>
-                <p className="text-sm text-muted-foreground mb-1">Successfully Contacted</p>
-                <p className="text-2xl font-bold text-green-600">{contactStats.contacted}</p>
+                <p className="text-xs sm:text-sm text-muted-foreground mb-1">Contacted</p>
+                <p className="text-xl sm:text-2xl font-bold text-green-600">{contactStats.contacted}</p>
               </div>
               <div>
-                <p className="text-sm text-muted-foreground mb-1">Escalated Cases</p>
-                <p className="text-2xl font-bold text-destructive">{contactStats.escalated}</p>
+                <p className="text-xs sm:text-sm text-muted-foreground mb-1">Escalated</p>
+                <p className="text-xl sm:text-2xl font-bold text-destructive">{contactStats.escalated}</p>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <div className="grid md:grid-cols-2 gap-6">
+        <div className="grid md:grid-cols-2 gap-4 sm:gap-6">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="text-lg flex items-center gap-2">

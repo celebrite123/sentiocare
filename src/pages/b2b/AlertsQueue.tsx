@@ -164,25 +164,26 @@ export default function AlertsQueue() {
     <B2BLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <Bell className="h-6 w-6" />
-              Alerts Queue
+            <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
+              <Bell className="h-5 w-5 sm:h-6 sm:w-6" />
+              Alerts
               {pendingAlerts.length > 0 && (
-                <Badge variant="destructive" className="ml-2">
+                <Badge variant="destructive" className="ml-1">
                   {pendingAlerts.length}
                 </Badge>
               )}
             </h1>
-            <p className="text-muted-foreground">
-              Manage patient alerts requiring staff attention
+            <p className="text-sm text-muted-foreground">
+              Manage patient alerts
             </p>
           </div>
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
               size="icon"
+              className="h-9 w-9"
               onClick={() => setSoundEnabled(!soundEnabled)}
               title={soundEnabled ? "Mute notifications" : "Enable notifications"}
             >
@@ -192,7 +193,7 @@ export default function AlertsQueue() {
                 <BellOff className="h-4 w-4" />
               )}
             </Button>
-            <Button variant="outline" size="icon" onClick={fetchAlerts} title="Refresh">
+            <Button variant="outline" size="icon" className="h-9 w-9" onClick={fetchAlerts} title="Refresh">
               <RefreshCw className="h-4 w-4" />
             </Button>
           </div>
@@ -200,19 +201,19 @@ export default function AlertsQueue() {
 
         {/* Critical Alerts Banner */}
         {criticalAlerts.length > 0 && (
-          <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4">
-            <div className="flex items-center gap-2 text-destructive font-semibold mb-2">
-              <Bell className="h-5 w-5 animate-pulse" />
-              {criticalAlerts.length} Critical Alert{criticalAlerts.length > 1 ? "s" : ""} Requiring Immediate Attention
+          <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3 sm:p-4">
+            <div className="flex items-center gap-2 text-destructive font-semibold text-sm sm:text-base mb-2">
+              <Bell className="h-4 w-4 sm:h-5 sm:w-5 animate-pulse shrink-0" />
+              <span>{criticalAlerts.length} Critical Alert{criticalAlerts.length > 1 ? "s" : ""}</span>
             </div>
-            <div className="grid gap-2">
+            <div className="grid gap-1 sm:gap-2">
               {criticalAlerts.slice(0, 3).map((alert) => (
-                <div key={alert.id} className="text-sm">
+                <div key={alert.id} className="text-xs sm:text-sm truncate">
                   <span className="font-medium">{alert.patient_name}</span>
                   {alert.patient_ward && (
                     <span className="text-muted-foreground"> · {alert.patient_ward}</span>
                   )}
-                  <span className="text-muted-foreground"> · {alert.title}</span>
+                  <span className="text-muted-foreground hidden sm:inline"> · {alert.title}</span>
                 </div>
               ))}
             </div>

@@ -73,44 +73,44 @@ export const AlertCard = ({ alert, onAssign, onResolve, onCall }: AlertCardProps
       "border-l-4 transition-all hover:shadow-md",
       severityStyles[alert.severity]
     )}>
-      <CardHeader className="pb-2">
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <div className={config.color}>{config.icon}</div>
-            <div>
-              <CardTitle className="text-base font-semibold">
+      <CardHeader className="pb-2 p-3 sm:p-4">
+        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
+          <div className="flex items-start gap-2 min-w-0 flex-1">
+            <div className={cn("shrink-0 mt-0.5", config.color)}>{config.icon}</div>
+            <div className="min-w-0 flex-1">
+              <CardTitle className="text-sm sm:text-base font-semibold leading-tight">
                 {alert.title}
               </CardTitle>
-              <div className="flex items-center gap-2 text-sm text-muted-foreground mt-0.5">
-                <User className="h-3 w-3" />
-                <span>{alert.patient_name || 'Unknown Patient'}</span>
+              <div className="flex flex-wrap items-center gap-1 sm:gap-2 text-xs sm:text-sm text-muted-foreground mt-0.5">
+                <User className="h-3 w-3 shrink-0" />
+                <span className="truncate">{alert.patient_name || 'Unknown Patient'}</span>
                 {alert.patient_phone && (
                   <>
-                    <span>•</span>
-                    <span>{alert.patient_phone}</span>
+                    <span className="hidden sm:inline">•</span>
+                    <span className="text-xs">{alert.patient_phone}</span>
                   </>
                 )}
               </div>
             </div>
           </div>
-          <div className="flex flex-col items-end gap-1">
-            <Badge variant={alert.severity === 'critical' ? 'destructive' : 'secondary'}>
+          <div className="flex sm:flex-col items-center sm:items-end gap-2 sm:gap-1">
+            <Badge variant={alert.severity === 'critical' ? 'destructive' : 'secondary'} className="text-xs">
               {alert.severity}
             </Badge>
-            <span className="text-xs text-muted-foreground flex items-center gap-1">
+            <span className="text-[10px] sm:text-xs text-muted-foreground flex items-center gap-1">
               <Clock className="h-3 w-3" />
               {formatDistanceToNow(new Date(alert.created_at), { addSuffix: true })}
             </span>
           </div>
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="p-3 pt-0 sm:p-4 sm:pt-0">
         {alert.description && (
-          <p className="text-sm text-muted-foreground mb-3">{alert.description}</p>
+          <p className="text-xs sm:text-sm text-muted-foreground mb-3">{alert.description}</p>
         )}
 
         {alert.assigned_to && (
-          <div className="text-sm text-muted-foreground mb-3 flex items-center gap-1">
+          <div className="text-xs sm:text-sm text-muted-foreground mb-3 flex items-center gap-1">
             <User className="h-3 w-3" />
             Assigned to: <span className="font-medium">{alert.assigned_name || 'Staff Member'}</span>
           </div>
@@ -122,7 +122,8 @@ export const AlertCard = ({ alert, onAssign, onResolve, onCall }: AlertCardProps
               placeholder="Add resolution notes..."
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              className="mb-2"
+              className="mb-2 text-sm"
+              rows={3}
             />
           </div>
         )}
@@ -132,10 +133,11 @@ export const AlertCard = ({ alert, onAssign, onResolve, onCall }: AlertCardProps
             <Button
               size="sm"
               variant="outline"
+              className="text-xs sm:text-sm h-8 sm:h-9"
               onClick={() => onCall(alert.patient_phone!)}
             >
-              <Phone className="h-4 w-4 mr-1" />
-              Call Patient
+              <Phone className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+              Call
             </Button>
           )}
           
@@ -143,10 +145,11 @@ export const AlertCard = ({ alert, onAssign, onResolve, onCall }: AlertCardProps
             <Button
               size="sm"
               variant="secondary"
+              className="text-xs sm:text-sm h-8 sm:h-9"
               onClick={() => onAssign(alert.id)}
             >
-              <User className="h-4 w-4 mr-1" />
-              Assign to Me
+              <User className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+              Assign
             </Button>
           )}
           
@@ -156,18 +159,19 @@ export const AlertCard = ({ alert, onAssign, onResolve, onCall }: AlertCardProps
                 <Button
                   size="sm"
                   variant="default"
+                  className="text-xs sm:text-sm h-8 sm:h-9"
                   onClick={() => setShowNotes(true)}
                 >
-                  <MessageSquare className="h-4 w-4 mr-1" />
-                  Add Notes & Resolve
+                  <MessageSquare className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+                  Resolve
                 </Button>
               ) : (
-                <div className="flex gap-2">
-                  <Button size="sm" variant="ghost" onClick={() => setShowNotes(false)}>
+                <div className="flex gap-2 w-full sm:w-auto">
+                  <Button size="sm" variant="ghost" className="text-xs h-8" onClick={() => setShowNotes(false)}>
                     Cancel
                   </Button>
-                  <Button size="sm" variant="default" onClick={handleResolve}>
-                    <CheckCircle2 className="h-4 w-4 mr-1" />
+                  <Button size="sm" variant="default" className="text-xs h-8" onClick={handleResolve}>
+                    <CheckCircle2 className="h-3 w-3 mr-1" />
                     Resolve
                   </Button>
                 </div>
