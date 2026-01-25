@@ -103,6 +103,22 @@ export default function PatientUpload() {
           }
         }
 
+        // Calculate next_call_due based on discharge date and call schedule
+        const callScheduleDays = organization.default_call_schedule || [1, 3, 7];
+        const dischargeDateObj = new Date(dischargeDate);
+        
+        // Build call_schedule JSONB array
+        const callSchedule = callScheduleDays.map((day: number) => ({
+          day,
+          completed: false,
+        }));
+        
+        // Calculate first call due date (Day 1 = discharge date + 1 day at 10am IST)
+        const firstDayOffset = callScheduleDays[0] || 1;
+        const nextCallDue = new Date(dischargeDateObj);
+        nextCallDue.setDate(nextCallDue.getDate() + firstDayOffset);
+        nextCallDue.setHours(10, 0, 0, 0); // 10:00 AM local time
+        
         const { data, error } = await (supabase.from("discharged_patients" as any).insert({
           organization_id: organization.id,
           patient_name: patient.patient_name,
@@ -117,8 +133,9 @@ export default function PatientUpload() {
           language: organization.default_language || "hindi",
           status: "active",
           consent_given: patient.consent_given,
-          check_48hr_scheduled_at: new Date(new Date(dischargeDate).getTime() + 48 * 60 * 60 * 1000).toISOString(),
-          call_schedule: (organization as any).default_call_schedule || [1, 3, 7],
+          check_48hr_scheduled_at: new Date(dischargeDateObj.getTime() + 48 * 60 * 60 * 1000).toISOString(),
+          call_schedule: callSchedule,
+          next_call_due: nextCallDue.toISOString(),
         }).select("id").single() as any);
 
         if (error) throw error;

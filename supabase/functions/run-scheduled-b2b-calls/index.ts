@@ -162,6 +162,9 @@ serve(async (req) => {
 
         const bolnaData = await bolnaResponse.json();
         console.log(`Call initiated for ${patient.id}: ${bolnaData.execution_id || bolnaData.call_id}`);
+        
+        // Mark this day as in-progress and calculate next call date
+        await updatePatientCallSchedule(supabase, patient, org, dayNumber, "voice");
         processed++;
 
       } catch (callError: any) {
@@ -169,6 +172,7 @@ serve(async (req) => {
         
         // Fallback to WhatsApp on error
         await sendWhatsAppFallback(supabase, patient, org, callType, dayNumber);
+        await updatePatientCallSchedule(supabase, patient, org, dayNumber, "whatsapp");
         processed++;
       }
     }
@@ -192,6 +196,60 @@ serve(async (req) => {
     );
   }
 });
+
+async function updatePatientCallSchedule(
+  supabase: any,
+  patient: any,
+  org: any,
+  completedDay: number,
+  method: string
+) {
+  const schedule = patient.call_schedule || [];
+  const callScheduleDays = org.default_call_schedule || [1, 3, 7];
+  
+  // Mark current day as completed
+  const updatedSchedule = schedule.map((item: any) => {
+    if (item.day === completedDay) {
+      return { 
+        ...item, 
+        completed: true, 
+        method: method,
+        completed_at: new Date().toISOString() 
+      };
+    }
+    return item;
+  });
+  
+  // Find next pending day
+  const nextPendingItem = updatedSchedule.find((item: any) => !item.completed);
+  
+  let nextCallDue = null;
+  if (nextPendingItem) {
+    // Calculate next call due date based on discharge date
+    const dischargeDate = new Date(patient.discharge_date);
+    nextCallDue = new Date(dischargeDate);
+    nextCallDue.setDate(nextCallDue.getDate() + nextPendingItem.day);
+    nextCallDue.setHours(10, 0, 0, 0); // 10:00 AM
+  }
+  
+  // Update patient record
+  await supabase
+    .from("discharged_patients")
+    .update({
+      call_schedule: updatedSchedule,
+      next_call_due: nextCallDue?.toISOString() || null,
+      last_call_date: new Date().toISOString(),
+    })
+    .eq("id", patient.id);
+  
+  // Increment call count for org if voice call
+  if (method === "voice") {
+    await supabase
+      .from("organizations")
+      .update({ calls_used_this_month: (org.calls_used_this_month || 0) + 1 })
+      .eq("id", org.id);
+  }
+}
 
 async function sendWhatsAppFallback(
   supabase: any, 
