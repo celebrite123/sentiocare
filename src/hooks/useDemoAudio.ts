@@ -29,6 +29,10 @@ export function useDemoAudio({ language, messages, demoType, onMessageComplete, 
     return `${demoType}-${language}-${role}-${index}`;
   }, [language, demoType]);
 
+  const getPublicUrl = useCallback((index: number, role: string) => {
+    return `/demo-audio/${demoType}-${language}-${role}-${index + 1}.mp3`;
+  }, [language, demoType]);
+
   const getStorageUrl = useCallback((index: number, role: string) => {
     return `${SUPABASE_URL}/storage/v1/object/public/demo-audio/${demoType}-${language}-${role}-${index + 1}.mp3`;
   }, [language, demoType]);
@@ -71,20 +75,29 @@ export function useDemoAudio({ language, messages, demoType, onMessageComplete, 
       return audioCache.get(cacheKey)!;
     }
 
-    // Try pre-recorded audio first
-    const storageUrl = getStorageUrl(index, message.role);
-    const exists = await checkAudioExists(storageUrl);
+    // Try public folder first (local assets)
+    const publicUrl = getPublicUrl(index, message.role);
+    const publicExists = await checkAudioExists(publicUrl);
     
-    if (exists) {
+    if (publicExists) {
+      audioCache.set(cacheKey, publicUrl);
+      return publicUrl;
+    }
+
+    // Try Supabase storage next
+    const storageUrl = getStorageUrl(index, message.role);
+    const storageExists = await checkAudioExists(storageUrl);
+    
+    if (storageExists) {
       audioCache.set(cacheKey, storageUrl);
       return storageUrl;
     }
 
-    // Generate with ElevenLabs TTS and cache
+    // Generate with ElevenLabs TTS as final fallback and cache
     const ttsUrl = await generateTTSAudio(message.text, message.role);
     audioCache.set(cacheKey, ttsUrl);
     return ttsUrl;
-  }, [getCacheKey, getStorageUrl, checkAudioExists, generateTTSAudio]);
+  }, [getCacheKey, getPublicUrl, getStorageUrl, checkAudioExists, generateTTSAudio]);
 
   // Preload all audio on mount
   const preloadAudio = useCallback(async () => {
