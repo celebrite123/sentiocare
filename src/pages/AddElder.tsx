@@ -175,7 +175,9 @@ const AddElder = () => {
   const canProceed = () => {
     switch (step) {
       case 1:
-        return formData.full_name.trim() && formData.age;
+        // Validate name and age range (18-120)
+        const ageNum = formData.age ? parseInt(formData.age) : 0;
+        return formData.full_name.trim() && formData.age && ageNum >= 18 && ageNum <= 120;
       case 2:
         // Validate phone numbers (must be at least 10 digits)
         return formData.phone_number.replace(/\D/g, '').length >= 10 && 
@@ -350,10 +352,23 @@ const AddElder = () => {
                   id="age"
                   type="number"
                   value={formData.age}
-                  onChange={(e) => setFormData({ ...formData, age: e.target.value })}
-                  placeholder="Enter age"
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    // Allow empty or valid age range
+                    if (val === "" || (parseInt(val) >= 1 && parseInt(val) <= 120)) {
+                      setFormData({ ...formData, age: val });
+                    }
+                  }}
+                  placeholder="Enter age (18-120)"
                   className="text-lg"
+                  min="18"
+                  max="120"
                 />
+                {formData.age && (parseInt(formData.age) < 18 || parseInt(formData.age) > 120) && (
+                  <p className="text-sm text-destructive">
+                    Age must be between 18 and 120 years
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">

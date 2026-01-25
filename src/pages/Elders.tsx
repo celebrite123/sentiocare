@@ -8,7 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSubscription } from "@/hooks/useSubscription";
 import { toast } from "@/hooks/use-toast";
-import { Skeleton } from "@/components/ui/skeleton";
+import { EldersListSkeleton } from "@/components/LoadingSkeletons";
 import Navbar from "@/components/Navbar";
 import { TrialExpiredModal } from "@/components/TrialExpiredModal";
 import RenewalReminderBanner from "@/components/RenewalReminderBanner";
@@ -111,19 +111,7 @@ const Elders = () => {
         <Navbar />
         <div className="min-h-screen bg-muted/30">
           <div className="container mx-auto px-4 py-8">
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {[1, 2, 3].map((i) => (
-                <Card key={i}>
-                  <CardHeader>
-                    <Skeleton className="h-6 w-32" />
-                    <Skeleton className="h-4 w-24" />
-                  </CardHeader>
-                  <CardContent>
-                    <Skeleton className="h-20 w-full" />
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+            <EldersListSkeleton />
           </div>
         </div>
       </>

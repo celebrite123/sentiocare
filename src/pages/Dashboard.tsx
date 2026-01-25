@@ -1,9 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { Activity, Bell, Heart, Phone, Pill, Loader2, BookHeart, Lock, Sparkles, AlertTriangle, Clock, Settings } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSubscription } from "@/hooks/useSubscription";
+import { useRateLimiter } from "@/hooks/useRateLimiter";
 import { toast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -34,6 +35,7 @@ import { MedicationAdherenceChart } from "@/components/dashboard/MedicationAdher
 import CallStatusCard from "@/components/dashboard/CallStatusCard";
 import { TrialExpiredModal } from "@/components/TrialExpiredModal";
 import RenewalReminderBanner from "@/components/RenewalReminderBanner";
+import { DashboardSkeleton } from "@/components/LoadingSkeletons";
 import { format } from "date-fns";
 
 interface Elder {
@@ -85,6 +87,13 @@ const Dashboard = () => {
   const [alertsOpen, setAlertsOpen] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentModalDismissed, setPaymentModalDismissed] = useState(false);
+  
+  // Rate limiter for emergency calls - 30 second cooldown, max 3 per hour
+  const emergencyRateLimiter = useRateLimiter({
+    cooldownMs: 30000, // 30 seconds between calls
+    maxActions: 3,
+    windowMs: 3600000, // 3 per hour max
+  });
 
   // Check if trial has expired (was on trial but trial is no longer active)
   const isTrialExpired = !isTrialActive && status === "trial";
@@ -265,6 +274,16 @@ const Dashboard = () => {
       return;
     }
 
+    // Check rate limiter
+    if (!emergencyRateLimiter.canPerform) {
+      toast({
+        title: "Please Wait",
+        description: `You can make another emergency call in ${emergencyRateLimiter.cooldownRemaining} seconds.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
     setCalling(true);
     try {
       const { data, error } = await supabase.functions.invoke("bolna-voice-call", {
@@ -335,8 +354,8 @@ const Dashboard = () => {
 
   if (loading || subscriptionLoading) {
     return (
-      <div className="min-h-screen bg-muted/30 flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="min-h-screen bg-muted/30">
+        <DashboardSkeleton />
       </div>
     );
   }
