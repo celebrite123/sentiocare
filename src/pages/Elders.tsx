@@ -140,12 +140,18 @@ const Elders = () => {
     });
   };
 
+  const handleModalDismiss = () => {
+    setPaymentModalDismissed(true);
+    setShowPaymentModal(false);
+  };
+
   return (
     <>
       <Navbar />
       <TrialExpiredModal 
         open={showPaymentModal} 
-        onSuccess={handlePaymentSuccess} 
+        onSuccess={handlePaymentSuccess}
+        onDismiss={handleModalDismiss}
       />
       <div className="min-h-screen bg-gradient-to-br from-background via-muted/20 to-background">
         <div className="border-b bg-background/80 backdrop-blur-sm sticky top-16 z-10">

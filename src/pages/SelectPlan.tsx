@@ -1,46 +1,41 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Check, Phone, MessageCircle, Loader2, Heart, Sparkles, Lock, CreditCard } from "lucide-react";
+import { Check, Phone, MessageCircle, Loader2, Heart, Sparkles, Lock, CreditCard, ArrowLeft, X } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useRazorpayPayment } from "@/hooks/useRazorpay";
 import { toast } from "@/hooks/use-toast";
+import Navbar from "@/components/Navbar";
 
 const plans = [
   {
     id: "basic" as const,
     name: "Basic",
     price: "₹299",
-    period: "/month",
-    description: "WhatsApp check-ins for daily care",
+    period: "/mo",
+    description: "WhatsApp check-ins",
     icon: MessageCircle,
     features: [
       "Daily WhatsApp check-ins",
       "Health tracking dashboard",
       "Medicine reminders",
       "Email alerts & reports",
-      "AI health insights",
     ],
-    notIncluded: [
-      "Voice calls"
-    ],
+    notIncluded: ["Voice calls"],
   },
   {
     id: "premium" as const,
     name: "Premium",
     price: "₹699",
-    period: "/month",
-    description: "Complete care with voice + WhatsApp",
+    period: "/mo",
+    description: "Voice + WhatsApp",
     icon: Phone,
     features: [
       "Daily AI voice calls",
       "WhatsApp check-ins",
-      "Health tracking dashboard",
-      "Medicine reminders",
-      "Instant SMS & email alerts",
-      "Advanced AI health insights",
+      "SMS & email alerts",
       "Priority support",
     ],
     notIncluded: [],
@@ -102,169 +97,137 @@ const SelectPlan = () => {
     setLoading(null);
   };
 
+  const canSkip = isTrialActive || isTrialExpired;
+
   return (
-    <div className="min-h-screen bg-gradient-hero">
-      <div className="absolute inset-0 bg-background/95" />
-      
-      <div className="relative container mx-auto px-4 py-12">
-        {/* Header */}
-        <div className="text-center mb-12">
-          <div className="inline-flex items-center gap-2 mb-4">
-            <Heart className="h-8 w-8 text-primary" />
-            <h1 className="text-3xl font-bold">Welcome to Sentio AI</h1>
+    <>
+      <Navbar />
+      <div className="min-h-screen bg-muted/30 pt-16">
+        <div className="container mx-auto px-4 py-8 max-w-3xl">
+          {/* Back button */}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => navigate("/elders")}
+            className="mb-4 -ml-2"
+          >
+            <ArrowLeft className="h-4 w-4 mr-1" />
+            Back
+          </Button>
+
+          {/* Compact Header */}
+          <div className="text-center mb-8">
+            <div className="inline-flex items-center gap-2 mb-3">
+              <Heart className="h-6 w-6 text-primary" />
+              <h1 className="text-2xl font-bold">
+                {isTrialExpired 
+                  ? "Continue with Sentio" 
+                  : isTrialActive 
+                    ? "Choose Your Plan" 
+                    : "Select a Plan"}
+              </h1>
+            </div>
+            
+            {isTrialActive && (
+              <Badge variant="default" className="bg-primary">
+                <Sparkles className="h-3 w-3 mr-1" />
+                {trialDaysLeft} days left in trial
+              </Badge>
+            )}
+
+            {isTrialExpired && (
+              <Badge variant="outline" className="border-destructive text-destructive">
+                Trial ended
+              </Badge>
+            )}
           </div>
-          <h2 className="text-2xl md:text-3xl font-bold mb-4">
-            {isTrialExpired 
-              ? "Your Trial Has Ended" 
-              : isTrialActive 
-                ? "Choose Your Plan After Trial" 
-                : "Choose Your Care Plan"}
-          </h2>
-          <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-            {isTrialExpired
-              ? "Continue caring for your loved ones by selecting a plan below."
-              : isTrialActive 
-                ? "You're currently enjoying all Premium features for free. Select your plan for after the trial ends."
-                : "Select the plan that best fits your loved one's needs"}
-          </p>
-          
-          {isTrialActive && (
-            <div className="mt-6 inline-flex flex-col items-center">
-              <Badge variant="default" className="text-sm px-4 py-2 bg-gradient-primary">
-                <Sparkles className="h-4 w-4 mr-2" />
-                {trialDaysLeft} days left in your free trial
-              </Badge>
-              <p className="text-sm text-muted-foreground mt-2">
-                All Premium features unlocked during trial!
-              </p>
-            </div>
-          )}
 
-          {isTrialExpired && (
-            <div className="mt-6 inline-flex flex-col items-center">
-              <Badge variant="destructive" className="text-sm px-4 py-2">
-                Trial Expired
-              </Badge>
-              <p className="text-sm text-muted-foreground mt-2">
-                Subscribe now to continue using Sentio AI
-              </p>
-            </div>
-          )}
-        </div>
-
-        {/* Plans */}
-        <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-          {plans.map((plan) => (
-            <Card
-              key={plan.id}
-              className={`relative p-6 bg-card border-2 transition-all duration-300 hover:shadow-xl ${
-                plan.popular 
-                  ? "border-primary shadow-lg" 
-                  : "border-border hover:border-primary/50"
-              }`}
-            >
-              {plan.popular && (
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                  <Badge className="bg-primary text-primary-foreground px-4 py-1">
+          {/* Plans - Compact Grid */}
+          <div className="grid md:grid-cols-2 gap-4">
+            {plans.map((plan) => (
+              <Card
+                key={plan.id}
+                className={`relative transition-all ${
+                  plan.popular 
+                    ? "border-primary shadow-md" 
+                    : "border-border"
+                }`}
+              >
+                {plan.popular && (
+                  <Badge className="absolute -top-2 left-1/2 -translate-x-1/2 bg-primary text-xs">
                     Recommended
                   </Badge>
-                </div>
-              )}
+                )}
 
-              <CardHeader className="text-center pb-2">
-                <div className="mx-auto mb-4 p-4 rounded-full bg-primary/10">
-                  <plan.icon className="h-8 w-8 text-primary" />
-                </div>
-                <CardTitle className="text-2xl">{plan.name}</CardTitle>
-                <CardDescription className="text-base">{plan.description}</CardDescription>
-              </CardHeader>
-
-              <CardContent className="space-y-4 md:space-y-6">
-                <div className="text-center">
-                  <div className="flex items-baseline justify-center gap-1">
-                    <span className="text-3xl md:text-4xl font-bold">{plan.price}</span>
-                    <span className="text-muted-foreground text-sm md:text-base">{plan.period}</span>
+                <CardHeader className="text-center pb-2 pt-5">
+                  <div className="mx-auto mb-2 p-2 rounded-full bg-primary/10 w-fit">
+                    <plan.icon className="h-5 w-5 text-primary" />
                   </div>
-                  <p className="text-xs md:text-sm text-muted-foreground mt-1">per elder</p>
-                  {isTrialActive && (
-                    <p className="text-xs text-primary mt-2">Billing starts after trial</p>
-                  )}
-                </div>
+                  <CardTitle className="text-lg">{plan.name}</CardTitle>
+                  <CardDescription className="text-xs">{plan.description}</CardDescription>
+                </CardHeader>
 
-                <ul className="space-y-3">
-                  {plan.features.map((feature, i) => (
-                    <li key={i} className="flex items-start gap-3">
-                      <Check className="h-5 w-5 text-accent shrink-0 mt-0.5" />
-                      <span className="text-sm">{feature}</span>
-                    </li>
-                  ))}
-                  {plan.notIncluded.map((feature, i) => (
-                    <li key={`not-${i}`} className="flex items-start gap-3 opacity-50">
-                      <span className="h-5 w-5 shrink-0 mt-0.5 text-center">✕</span>
-                      <span className="text-sm line-through">{feature}</span>
-                    </li>
-                  ))}
-                </ul>
+                <CardContent className="space-y-4 pt-0">
+                  <div className="text-center">
+                    <span className="text-2xl font-bold">{plan.price}</span>
+                    <span className="text-muted-foreground text-sm">{plan.period}</span>
+                    <p className="text-xs text-muted-foreground">per elder</p>
+                  </div>
 
-                <Button
-                  onClick={() => handleSelectPlan(plan.id)}
-                  disabled={loading !== null || paymentLoading}
-                  className={`w-full py-4 md:py-6 text-base md:text-lg ${
-                    plan.popular 
-                      ? "bg-gradient-primary hover:opacity-90" 
-                      : ""
-                  }`}
-                  variant={plan.popular ? "default" : "outline"}
-                >
-                  {(loading === plan.id || (paymentLoading && loading === plan.id)) ? (
-                    <Loader2 className="h-5 w-5 animate-spin mr-2" />
-                  ) : isTrialExpired ? (
-                    <CreditCard className="h-5 w-5 mr-2" />
-                  ) : null}
-                  {isTrialExpired 
-                    ? `Pay ${plan.price}` 
-                    : isTrialActive 
-                      ? `Select ${plan.name}` 
-                      : `Select ${plan.name}`}
-                </Button>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+                  <ul className="space-y-1.5 text-sm">
+                    {plan.features.map((feature, i) => (
+                      <li key={i} className="flex items-center gap-2">
+                        <Check className="h-4 w-4 text-primary shrink-0" />
+                        <span className="text-xs">{feature}</span>
+                      </li>
+                    ))}
+                    {plan.notIncluded.map((feature, i) => (
+                      <li key={`not-${i}`} className="flex items-center gap-2 opacity-50">
+                        <X className="h-4 w-4 shrink-0" />
+                        <span className="text-xs line-through">{feature}</span>
+                      </li>
+                    ))}
+                  </ul>
 
-        {/* Trial info */}
-        <div className="text-center mt-12">
-          {isTrialActive ? (
-            <>
-              <p className="text-muted-foreground">
-                <Lock className="inline h-4 w-4 mr-1" />
-                Your plan choice will be applied when your trial ends.
-              </p>
+                  <Button
+                    onClick={() => handleSelectPlan(plan.id)}
+                    disabled={loading !== null || paymentLoading}
+                    className={`w-full ${plan.popular ? "bg-primary" : ""}`}
+                    variant={plan.popular ? "default" : "outline"}
+                    size="sm"
+                  >
+                    {(loading === plan.id || (paymentLoading && loading === plan.id)) ? (
+                      <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                    ) : isTrialExpired ? (
+                      <CreditCard className="h-4 w-4 mr-1" />
+                    ) : null}
+                    {isTrialExpired ? `Pay ${plan.price}` : `Select ${plan.name}`}
+                  </Button>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          {/* Footer */}
+          <div className="text-center mt-6 space-y-3">
+            {canSkip && (
               <Button 
-                variant="secondary" 
-                className="mt-4 px-6"
+                variant="ghost" 
                 onClick={() => navigate("/elders")}
+                className="text-muted-foreground"
               >
-                Skip for now — Continue with Trial
+                {isTrialActive ? "Skip — Continue with Trial" : "Continue with limited access"}
               </Button>
-            </>
-          ) : isTrialExpired ? (
-            <p className="text-sm text-muted-foreground">
-              Secure payment powered by Razorpay • Cancel anytime
+            )}
+            <p className="text-xs text-muted-foreground">
+              {isTrialExpired 
+                ? "Secure payment • Cancel anytime"
+                : "5-day free trial • No credit card required"}
             </p>
-          ) : (
-            <>
-              <p className="text-muted-foreground">
-                Start with a 5-day free trial. All premium features included.
-              </p>
-              <p className="text-sm text-muted-foreground mt-2">
-                No credit card required • Cancel anytime
-              </p>
-            </>
-          )}
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 };
 

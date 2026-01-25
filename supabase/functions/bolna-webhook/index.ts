@@ -216,11 +216,12 @@ serve(async (req) => {
 
     // Determine if call was answered
     const callDuration = conversation_duration || duration || 0;
+    const transcriptLength = transcript?.length || 0;
     const wasAnswered = (
       normalizedStatus === 'completed' || 
       normalizedStatus === 'ended' ||
       callDuration > 30 || 
-      (transcript && transcript.length > 50)
+      transcriptLength > 50
     );
 
     // Handle multiple formats for no-answer detection
@@ -234,10 +235,27 @@ serve(async (req) => {
       normalizedHangup === 'no-answer' ||
       normalizedHangup === 'busy' ||
       normalizedHangup === 'timeout' ||
-      (callDuration < 15 && (!transcript || transcript.length < 20))
+      (callDuration < 15 && transcriptLength < 20)
     );
 
-    console.log("Call analysis:", { wasAnswered, wasNoAnswer, status, callDuration, hasAttempt: !!callAttempt });
+    // SILENCE DETECTION: Flag calls that were answered but AI went silent
+    // Ratio: expect at least 5 chars per second of call for a healthy conversation
+    const expectedMinTranscript = callDuration * 3; // Lower threshold: 3 chars/sec
+    const wasSilentCall = wasAnswered && 
+                          callDuration > 30 && 
+                          transcriptLength < expectedMinTranscript && 
+                          transcriptLength < 100;
+    
+    if (wasSilentCall) {
+      console.warn("SILENT CALL DETECTED:", { 
+        callDuration, 
+        transcriptLength, 
+        expectedMin: expectedMinTranscript,
+        executionId: actualExecutionId 
+      });
+    }
+
+    console.log("Call analysis:", { wasAnswered, wasNoAnswer, wasSilentCall, status, callDuration, transcriptLength, hasAttempt: !!callAttempt });
 
     // Handle callback retry logic if we have a call attempt record
     if (callAttempt && !wasAnswered && wasNoAnswer) {
@@ -455,28 +473,59 @@ Respond ONLY in valid JSON format:
       analysis.alertReason = "Symptom persisting for 5+ days - doctor consultation recommended";
     }
 
-    // Save resolved symptoms
+    // Save resolved symptoms - with improved normalization
     const resolvedSymptoms = (analysis as any).resolvedSymptoms || [];
     if (resolvedSymptoms.length > 0) {
       for (const symptom of resolvedSymptoms) {
+        // Normalize symptom for consistent storage
+        const normalizedSymptom = symptom.toLowerCase().trim();
+        
         const { data: existing } = await supabase
           .from("resolved_symptoms")
           .select("id")
           .eq("elder_id", elderId)
-          .ilike("symptom", `%${symptom}%`)
+          .ilike("symptom", `%${normalizedSymptom}%`)
           .limit(1);
         
         if (!existing || existing.length === 0) {
           await supabase.from("resolved_symptoms").insert({
             elder_id: elderId,
-            symptom: symptom,
+            symptom: normalizedSymptom, // Store normalized
             reported_at: new Date().toISOString(),
             resolved_at: new Date().toISOString(),
             resolution_note: `Confirmed resolved during voice check-in`,
           });
+          console.log(`Marked symptom as resolved: ${normalizedSymptom}`);
         }
       }
     }
+
+    // CRITICAL: Filter symptomsReported to exclude already-resolved symptoms
+    // This prevents re-adding symptoms that were just marked resolved
+    const { data: allResolvedSymptoms } = await supabase
+      .from("resolved_symptoms")
+      .select("symptom")
+      .eq("elder_id", elderId);
+    
+    const resolvedSymptomSet = new Set(
+      (allResolvedSymptoms || []).map(r => r.symptom.toLowerCase().trim())
+    );
+    
+    // Filter out resolved symptoms from symptomsReported
+    const filteredSymptoms = (analysis.symptomsReported || []).filter((s: string) => {
+      const normalized = s.toLowerCase().trim();
+      // Check if this symptom matches any resolved symptom
+      const isResolved = Array.from(resolvedSymptomSet).some(resolved => 
+        normalized.includes(resolved) || resolved.includes(normalized)
+      );
+      if (isResolved) {
+        console.log(`Filtering out resolved symptom from report: ${s}`);
+      }
+      return !isResolved;
+    });
+    
+    // Update analysis with filtered symptoms
+    analysis.symptomsReported = filteredSymptoms;
 
     // Save check-in with raw transcript and monitoring responses
     const { data: checkIn, error: checkInError } = await supabase

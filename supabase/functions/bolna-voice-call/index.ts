@@ -165,13 +165,46 @@ serve(async (req) => {
       lastSummary = previousCheckIns[0]?.conversation_summary || '';
     }
 
-    // Get active symptoms (exclude resolved ones)
+    // Get active symptoms (exclude resolved ones) - IMPROVED MATCHING
     const { data: resolvedSymptomsData } = await supabase
       .from("resolved_symptoms")
-      .select("symptom")
+      .select("symptom, resolved_at")
       .eq("elder_id", elderId);
 
-    const resolvedSymptomNames = resolvedSymptomsData?.map(s => s.symptom.toLowerCase()) || [];
+    // Normalize function for better matching
+    const normalizeSymptom = (s: string) => 
+      s.toLowerCase()
+        .replace(/[^a-z0-9\s]/gi, '') // Remove punctuation
+        .replace(/\s+/g, ' ')          // Normalize spaces
+        .trim();
+    
+    // Extract key words from symptom for matching
+    const getSymptomKeywords = (s: string) => {
+      const normalized = normalizeSymptom(s);
+      // Common symptom keywords
+      const keywords = normalized.split(' ').filter(word => 
+        word.length > 2 && !['the', 'and', 'has', 'had', 'was', 'for', 'with'].includes(word)
+      );
+      return keywords;
+    };
+
+    // Check if two symptoms match using keyword overlap
+    const symptomsMatch = (s1: string, s2: string): boolean => {
+      const n1 = normalizeSymptom(s1);
+      const n2 = normalizeSymptom(s2);
+      
+      // Direct match
+      if (n1 === n2 || n1.includes(n2) || n2.includes(n1)) return true;
+      
+      // Keyword matching - if 50%+ keywords overlap, consider it a match
+      const k1 = getSymptomKeywords(s1);
+      const k2 = getSymptomKeywords(s2);
+      const overlap = k1.filter(k => k2.some(kk => kk.includes(k) || k.includes(kk)));
+      
+      return overlap.length >= Math.min(k1.length, k2.length) * 0.5 && overlap.length > 0;
+    };
+
+    const resolvedSymptomsList = resolvedSymptomsData || [];
 
     let previousSymptoms: string[] = [];
     previousCheckIns?.forEach(checkIn => {
@@ -181,19 +214,27 @@ serve(async (req) => {
     });
     previousSymptoms = [...new Set(previousSymptoms)];
 
-    const activeSymptoms = previousSymptoms.filter(
-      s => !resolvedSymptomNames.some(r => s.toLowerCase().includes(r) || r.includes(s.toLowerCase()))
-    );
+    // Filter out resolved symptoms with improved matching
+    const activeSymptoms = previousSymptoms.filter(symptom => {
+      // Check if this symptom matches any resolved symptom
+      const isResolved = resolvedSymptomsList.some(resolved => 
+        symptomsMatch(symptom, resolved.symptom)
+      );
+      return !isResolved;
+    });
 
-    // NEW: Calculate symptom duration (days since first reported)
+    console.log('Symptom filtering:', { 
+      previous: previousSymptoms.length, 
+      resolved: resolvedSymptomsList.length, 
+      active: activeSymptoms.length 
+    });
+
+    // Calculate symptom duration (days since first reported)
     const symptomDaysMap: Record<string, number> = {};
     for (const symptom of activeSymptoms.slice(0, 3)) {
       // Find the earliest check-in where this symptom was reported
       const earliestWithSymptom = previousCheckIns
-        ?.filter(c => c.symptoms_reported?.some((s: string) => 
-          s.toLowerCase().includes(symptom.toLowerCase()) || 
-          symptom.toLowerCase().includes(s.toLowerCase())
-        ))
+        ?.filter(c => c.symptoms_reported?.some((s: string) => symptomsMatch(s, symptom)))
         .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())[0];
       
       if (earliestWithSymptom) {
