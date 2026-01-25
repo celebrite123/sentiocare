@@ -65,21 +65,21 @@ export const PatientTable = ({
 
   return (
     <div className="space-y-4">
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
+      {/* Filters - Stack on mobile */}
+      <div className="flex flex-col gap-3">
+        <div className="relative w-full">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Search by name or phone..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
+            className="pl-9 w-full"
           />
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-col sm:flex-row gap-2 w-full">
           <Select value={riskFilter} onValueChange={setRiskFilter}>
-            <SelectTrigger className="w-[160px]">
-              <Filter className="h-4 w-4 mr-2" />
+            <SelectTrigger className="w-full sm:w-[160px]">
+              <Filter className="h-4 w-4 mr-2 shrink-0" />
               <SelectValue placeholder="Risk Status" />
             </SelectTrigger>
             <SelectContent>
@@ -91,7 +91,7 @@ export const PatientTable = ({
             </SelectContent>
           </Select>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-[140px]">
+            <SelectTrigger className="w-full sm:w-[140px]">
               <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
@@ -104,8 +104,77 @@ export const PatientTable = ({
         </div>
       </div>
 
-      {/* Table */}
-      <div className="rounded-md border">
+      {/* Mobile Card View */}
+      <div className="block md:hidden space-y-3">
+        {loading ? (
+          <div className="text-center py-8 text-muted-foreground">Loading patients...</div>
+        ) : filteredPatients.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">No patients found</div>
+        ) : (
+          filteredPatients.map((patient) => (
+            <div 
+              key={patient.id} 
+              className="p-4 border rounded-lg bg-card space-y-3"
+              onClick={() => onViewPatient(patient.id)}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium truncate">{patient.patient_name}</p>
+                  <p className="text-sm text-muted-foreground">{patient.mobile_number}</p>
+                </div>
+                <RiskBadge status={patient.risk_status} size="sm" />
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <div>
+                  <span className="text-muted-foreground">Discharged: </span>
+                  {format(new Date(patient.discharge_date), "dd MMM")}
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Day: </span>
+                  {patient.medicine_day_count}
+                </div>
+                {patient.ward && (
+                  <div>
+                    <span className="text-muted-foreground">Ward: </span>
+                    {patient.ward}
+                  </div>
+                )}
+                <div>
+                  <span className="text-muted-foreground">48hr: </span>
+                  {patient.check_48hr_completed ? (
+                    <span className="text-green-600">✓ Done</span>
+                  ) : (
+                    <span>Pending</span>
+                  )}
+                </div>
+              </div>
+              <div className="flex gap-2 pt-2 border-t">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="flex-1"
+                  onClick={(e) => { e.stopPropagation(); onViewPatient(patient.id); }}
+                >
+                  <Eye className="h-4 w-4 mr-1" /> View
+                </Button>
+                {onCallPatient && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="flex-1"
+                    onClick={(e) => { e.stopPropagation(); onCallPatient(patient.mobile_number); }}
+                  >
+                    <Phone className="h-4 w-4 mr-1" /> Call
+                  </Button>
+                )}
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Desktop Table - Hidden on mobile */}
+      <div className="hidden md:block rounded-md border overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>

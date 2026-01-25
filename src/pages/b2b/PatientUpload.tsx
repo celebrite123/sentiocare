@@ -214,32 +214,32 @@ export default function PatientUpload() {
 
   return (
     <B2BLayout>
-      <div className="max-w-3xl mx-auto space-y-6">
+      <div className="max-w-3xl mx-auto space-y-4 sm:space-y-6">
         <div>
-          <h1 className="text-3xl font-bold">Upload Patients</h1>
-          <p className="text-muted-foreground mt-1">
+          <h1 className="text-2xl sm:text-3xl font-bold">Upload Patients</h1>
+          <p className="text-muted-foreground text-sm sm:text-base mt-1">
             Bulk upload discharged patients to start automated follow-up
           </p>
         </div>
 
-        <Alert>
-          <Info className="h-4 w-4" />
+        <Alert className="text-sm">
+          <Info className="h-4 w-4 shrink-0" />
           <AlertDescription>
             <strong>What happens after upload:</strong>
-            <ul className="list-disc list-inside mt-2 space-y-1 text-sm">
-              <li>Discharge summary sent via WhatsApp immediately</li>
-              <li>48-hour check-in scheduled (voice call + WhatsApp fallback)</li>
+            <ul className="list-disc list-inside mt-2 space-y-1 text-xs sm:text-sm">
+              <li>Discharge summary sent via WhatsApp</li>
+              <li>48-hour check-in scheduled</li>
               <li>Daily medicine reminders for 7 days</li>
-              <li>AI monitors responses and creates alerts for staff</li>
+              <li>AI monitors responses and alerts staff</li>
             </ul>
           </AlertDescription>
         </Alert>
 
         {progress && (
-          <div className="bg-muted rounded-lg p-4 space-y-2">
+          <div className="bg-muted rounded-lg p-3 sm:p-4 space-y-2">
             <div className="flex items-center gap-2">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              <span className="text-sm font-medium">{getProgressText()}</span>
+              <Loader2 className="h-4 w-4 animate-spin shrink-0" />
+              <span className="text-xs sm:text-sm font-medium">{getProgressText()}</span>
             </div>
             <Progress value={(progress.current / progress.total) * 100} />
           </div>
@@ -248,7 +248,7 @@ export default function PatientUpload() {
         <ExcelUploader onUpload={handleUpload} />
 
         {organization && (
-          <div className="text-sm text-muted-foreground">
+          <div className="text-xs sm:text-sm text-muted-foreground">
             <strong>Monthly usage:</strong> {organization.patients_this_month || 0} / {organization.monthly_patient_limit || 500} patients
           </div>
         )}

@@ -49,7 +49,7 @@ export const B2BLayout = ({ children }: B2BLayoutProps) => {
   return (
     <div className="min-h-screen bg-background">
       <B2BNavbar alertCount={alertCount} />
-      <main className="container py-6">{children}</main>
+      <main className="container py-4 sm:py-6 px-3 sm:px-4">{children}</main>
     </div>
   );
 };

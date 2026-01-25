@@ -206,63 +206,63 @@ const PatientDetail = () => {
 
   return (
     <B2BLayout>
-      <div className="space-y-6">
+      <div className="space-y-4 sm:space-y-6">
         {/* Header */}
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+        <div className="flex items-center gap-3 sm:gap-4">
+          <Button variant="ghost" size="icon" className="shrink-0 h-9 w-9" onClick={() => navigate(-1)}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
-          <div className="flex-1">
-            <h1 className="text-2xl font-bold">{patient.patient_name}</h1>
-            <p className="text-muted-foreground">
+          <div className="flex-1 min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold truncate">{patient.patient_name}</h1>
+            <p className="text-sm text-muted-foreground">
               Discharged: {new Date(patient.discharge_date).toLocaleDateString()}
             </p>
           </div>
           <RiskBadge status={patient.risk_status} />
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
           {/* Patient Info */}
-          <div className="lg:col-span-2 space-y-6">
+          <div className="lg:col-span-2 space-y-4 sm:space-y-6">
             {/* Basic Info Card */}
             <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <User className="h-5 w-5" />
+              <CardHeader className="p-4 sm:p-6">
+                <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                  <User className="h-4 w-4 sm:h-5 sm:w-5" />
                   Patient Information
                 </CardTitle>
               </CardHeader>
-              <CardContent className="grid grid-cols-2 gap-4">
+              <CardContent className="grid grid-cols-2 gap-3 sm:gap-4 p-4 pt-0 sm:p-6 sm:pt-0">
                 <div>
-                  <p className="text-sm text-muted-foreground">Phone</p>
-                  <p className="font-medium">{patient.mobile_number}</p>
+                  <p className="text-xs sm:text-sm text-muted-foreground">Phone</p>
+                  <p className="font-medium text-sm sm:text-base">{patient.mobile_number}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Language</p>
-                  <p className="font-medium capitalize">{patient.language || "Hindi"}</p>
+                  <p className="text-xs sm:text-sm text-muted-foreground">Language</p>
+                  <p className="font-medium text-sm sm:text-base capitalize">{patient.language || "Hindi"}</p>
                 </div>
                 {patient.ward && (
                   <div>
-                    <p className="text-sm text-muted-foreground">Ward</p>
-                    <p className="font-medium">{patient.ward}</p>
+                    <p className="text-xs sm:text-sm text-muted-foreground">Ward</p>
+                    <p className="font-medium text-sm sm:text-base">{patient.ward}</p>
                   </div>
                 )}
                 {patient.doctor_name && (
                   <div>
-                    <p className="text-sm text-muted-foreground">Doctor</p>
-                    <p className="font-medium">{patient.doctor_name}</p>
+                    <p className="text-xs sm:text-sm text-muted-foreground">Doctor</p>
+                    <p className="font-medium text-sm sm:text-base">{patient.doctor_name}</p>
                   </div>
                 )}
                 {patient.diagnosis && (
                   <div className="col-span-2">
-                    <p className="text-sm text-muted-foreground">Diagnosis</p>
-                    <p className="font-medium">{patient.diagnosis}</p>
+                    <p className="text-xs sm:text-sm text-muted-foreground">Diagnosis</p>
+                    <p className="font-medium text-sm sm:text-base">{patient.diagnosis}</p>
                   </div>
                 )}
                 {patient.follow_up_date && (
                   <div>
-                    <p className="text-sm text-muted-foreground">Follow-up Date</p>
-                    <p className="font-medium">
+                    <p className="text-xs sm:text-sm text-muted-foreground">Follow-up Date</p>
+                    <p className="font-medium text-sm sm:text-base">
                       {new Date(patient.follow_up_date).toLocaleDateString()}
                     </p>
                   </div>
@@ -272,34 +272,34 @@ const PatientDetail = () => {
 
             {/* Medicines Card */}
             <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Pill className="h-5 w-5" />
+              <CardHeader className="p-4 sm:p-6">
+                <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                  <Pill className="h-4 w-4 sm:h-5 sm:w-5" />
                   Medicines
                 </CardTitle>
-                <CardDescription>
+                <CardDescription className="text-xs sm:text-sm">
                   Day {patient.medicine_day_count || 0} of 7-day monitoring
                 </CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
                 {patient.medicine_list && patient.medicine_list.length > 0 ? (
-                  <div className="space-y-3">
+                  <div className="space-y-2 sm:space-y-3">
                     {patient.medicine_list.map((med: any, index: number) => (
-                      <div key={index} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                        <div>
-                          <p className="font-medium">{med.name}</p>
-                          <p className="text-sm text-muted-foreground">
+                      <div key={index} className="flex items-center justify-between p-2 sm:p-3 bg-muted/50 rounded-lg gap-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="font-medium text-sm sm:text-base truncate">{med.name}</p>
+                          <p className="text-xs sm:text-sm text-muted-foreground truncate">
                             {med.dosage} - {med.timing}
                           </p>
                         </div>
                         {med.frequency && (
-                          <Badge variant="outline">{med.frequency}</Badge>
+                          <Badge variant="outline" className="shrink-0 text-xs">{med.frequency}</Badge>
                         )}
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-muted-foreground">No medicines recorded</p>
+                  <p className="text-muted-foreground text-sm">No medicines recorded</p>
                 )}
               </CardContent>
             </Card>
@@ -307,21 +307,21 @@ const PatientDetail = () => {
             {/* Risk Info */}
             {patient.risk_reason && (
               <Card className={patient.risk_status === "urgent" ? "border-destructive" : ""}>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <AlertTriangle className="h-5 w-5" />
+                <CardHeader className="p-4 sm:p-6">
+                  <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                    <AlertTriangle className="h-4 w-4 sm:h-5 sm:w-5" />
                     Risk Assessment
                   </CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <p className="text-sm">{patient.risk_reason}</p>
+                <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
+                  <p className="text-xs sm:text-sm">{patient.risk_reason}</p>
                   {patient.risk_status !== "stable" && (
-                    <div className="flex gap-2 mt-4">
-                      <Button onClick={handleMarkStable} variant="outline">
+                    <div className="flex flex-col sm:flex-row gap-2 mt-4">
+                      <Button onClick={handleMarkStable} variant="outline" size="sm" className="w-full sm:w-auto">
                         <CheckCircle className="h-4 w-4 mr-2" />
-                        Mark as Stable
+                        Mark Stable
                       </Button>
-                      <Button onClick={() => setCallbackDialogOpen(true)} variant="outline">
+                      <Button onClick={() => setCallbackDialogOpen(true)} variant="outline" size="sm" className="w-full sm:w-auto">
                         <PhoneCall className="h-4 w-4 mr-2" />
                         Schedule Callback
                       </Button>

@@ -352,21 +352,21 @@ export const ExcelUploader = ({ onUpload }: ExcelUploaderProps) => {
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <FileSpreadsheet className="h-5 w-5" />
+      <CardHeader className="p-4 sm:p-6">
+        <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+          <FileSpreadsheet className="h-4 w-4 sm:h-5 sm:w-5" />
           Upload Patient Data
         </CardTitle>
-        <CardDescription>
-          Upload an Excel or CSV file with discharged patient information
+        <CardDescription className="text-xs sm:text-sm">
+          Upload an Excel or CSV file with patient information
         </CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
         {step === 'upload' && (
           <div className="space-y-4">
             <div
               className={cn(
-                "border-2 border-dashed rounded-lg p-8 text-center transition-colors",
+                "border-2 border-dashed rounded-lg p-4 sm:p-8 text-center transition-colors",
                 isDragging
                   ? "border-primary bg-primary/5"
                   : "border-muted-foreground/25 hover:border-primary/50"
@@ -375,11 +375,11 @@ export const ExcelUploader = ({ onUpload }: ExcelUploaderProps) => {
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
             >
-              <Upload className="h-10 w-10 mx-auto text-muted-foreground mb-4" />
-              <p className="text-lg font-medium mb-1">
+              <Upload className="h-8 w-8 sm:h-10 sm:w-10 mx-auto text-muted-foreground mb-3 sm:mb-4" />
+              <p className="text-base sm:text-lg font-medium mb-1">
                 Drag & drop your file here
               </p>
-              <p className="text-sm text-muted-foreground mb-4">
+              <p className="text-xs sm:text-sm text-muted-foreground mb-3 sm:mb-4">
                 or click to browse
               </p>
               <input
@@ -390,24 +390,24 @@ export const ExcelUploader = ({ onUpload }: ExcelUploaderProps) => {
                 id="file-upload"
               />
               <label htmlFor="file-upload">
-                <Button variant="outline" asChild>
+                <Button variant="outline" size="sm" asChild>
                   <span>Choose File</span>
                 </Button>
               </label>
             </div>
 
-            <div className="flex justify-between items-center">
-              <Button variant="ghost" size="sm" onClick={downloadTemplate}>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+              <Button variant="ghost" size="sm" onClick={downloadTemplate} className="text-xs sm:text-sm">
                 <Download className="h-4 w-4 mr-2" />
                 Download Template
               </Button>
-              <p className="text-xs text-muted-foreground">
-                Supported: CSV, Excel (.xlsx, .xls)
+              <p className="text-[10px] sm:text-xs text-muted-foreground">
+                Supported: CSV, Excel
               </p>
             </div>
 
             {parseErrors.length > 0 && (
-              <Alert variant="destructive">
+              <Alert variant="destructive" className="text-xs sm:text-sm">
                 <AlertTriangle className="h-4 w-4" />
                 <AlertDescription>
                   {parseErrors.map((err, i) => (
@@ -421,41 +421,74 @@ export const ExcelUploader = ({ onUpload }: ExcelUploaderProps) => {
 
         {step === 'preview' && (
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div>
-                <p className="font-medium">{file?.name}</p>
-                <p className="text-sm text-muted-foreground">
+                <p className="font-medium text-sm sm:text-base truncate">{file?.name}</p>
+                <p className="text-xs sm:text-sm text-muted-foreground">
                   {parsedData.length} patients found
                 </p>
               </div>
-              <div className="flex gap-2 flex-wrap">
-                <span className="text-sm text-green-600 flex items-center gap-1">
-                  <CheckCircle2 className="h-4 w-4" />
+              <div className="flex gap-2 flex-wrap text-xs sm:text-sm">
+                <span className="text-green-600 flex items-center gap-1">
+                  <CheckCircle2 className="h-3 w-3 sm:h-4 sm:w-4" />
                   {validCount} valid
                 </span>
                 {invalidCount > 0 && (
-                  <span className="text-sm text-red-600 flex items-center gap-1">
-                    <XCircle className="h-4 w-4" />
+                  <span className="text-red-600 flex items-center gap-1">
+                    <XCircle className="h-3 w-3 sm:h-4 sm:w-4" />
                     {invalidCount} invalid
                   </span>
                 )}
                 {skippedCount > 0 && (
-                  <span className="text-sm text-yellow-600 flex items-center gap-1">
-                    <AlertTriangle className="h-4 w-4" />
-                    {skippedCount} skipped (no consent)
+                  <span className="text-yellow-600 flex items-center gap-1">
+                    <AlertTriangle className="h-3 w-3 sm:h-4 sm:w-4" />
+                    {skippedCount} skipped
                   </span>
                 )}
               </div>
             </div>
 
-            <div className="max-h-[300px] overflow-auto rounded-md border">
+            {/* Mobile Card View */}
+            <div className="block sm:hidden space-y-2 max-h-[300px] overflow-y-auto">
+              {parsedData.slice(0, 20).map((patient, idx) => (
+                <div
+                  key={idx}
+                  className={cn(
+                    "p-3 border rounded-lg text-sm",
+                    !patient.isValid && "bg-red-50 dark:bg-red-950/20 border-red-200"
+                  )}
+                >
+                  <div className="flex justify-between items-start gap-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium truncate">{patient.patient_name || '-'}</p>
+                      <p className="text-xs text-muted-foreground">{patient.mobile_number}</p>
+                    </div>
+                    {patient.skipped ? (
+                      <span className="text-[10px] text-yellow-600 bg-yellow-100 px-1.5 py-0.5 rounded shrink-0">
+                        {patient.skipReason}
+                      </span>
+                    ) : patient.isValid ? (
+                      <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
+                    ) : (
+                      <XCircle className="h-4 w-4 text-red-600 shrink-0" />
+                    )}
+                  </div>
+                  {!patient.isValid && !patient.skipped && (
+                    <p className="text-[10px] text-red-600 mt-1 truncate">{patient.errors.join(', ')}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Desktop Table View */}
+            <div className="hidden sm:block max-h-[300px] overflow-auto rounded-md border">
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-8">#</TableHead>
                     <TableHead>Name</TableHead>
                     <TableHead>Mobile</TableHead>
-                    <TableHead>Discharge Date</TableHead>
+                    <TableHead>Discharge</TableHead>
                     <TableHead>Medicines</TableHead>
                     <TableHead>Status</TableHead>
                   </TableRow>
@@ -467,10 +500,10 @@ export const ExcelUploader = ({ onUpload }: ExcelUploaderProps) => {
                       className={cn(!patient.isValid && "bg-red-50 dark:bg-red-950/20")}
                     >
                       <TableCell className="font-mono text-xs">{idx + 1}</TableCell>
-                      <TableCell>{patient.patient_name || '-'}</TableCell>
-                      <TableCell>{patient.mobile_number || '-'}</TableCell>
-                      <TableCell>{patient.discharge_date || '-'}</TableCell>
-                      <TableCell className="max-w-[150px] truncate" title={patient.medicine_list}>
+                      <TableCell className="text-sm">{patient.patient_name || '-'}</TableCell>
+                      <TableCell className="text-sm">{patient.mobile_number || '-'}</TableCell>
+                      <TableCell className="text-sm">{patient.discharge_date || '-'}</TableCell>
+                      <TableCell className="max-w-[150px] truncate text-sm" title={patient.medicine_list}>
                         {patient.medicine_list || '-'}
                       </TableCell>
                       <TableCell>
@@ -494,25 +527,26 @@ export const ExcelUploader = ({ onUpload }: ExcelUploaderProps) => {
             </div>
 
             {parsedData.length > 20 && (
-              <p className="text-sm text-muted-foreground text-center">
+              <p className="text-xs sm:text-sm text-muted-foreground text-center">
                 Showing first 20 of {parsedData.length} patients
               </p>
             )}
 
             <div className="flex gap-2 justify-end">
-              <Button variant="outline" onClick={handleReset}>
+              <Button variant="outline" size="sm" onClick={handleReset}>
                 Cancel
               </Button>
-              <Button onClick={handleUpload} disabled={validCount === 0 || isUploading}>
+              <Button size="sm" onClick={handleUpload} disabled={validCount === 0 || isUploading}>
                 {isUploading ? (
                   <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Uploading...
+                    <Loader2 className="h-4 w-4 mr-1 sm:mr-2 animate-spin" />
+                    <span className="hidden sm:inline">Uploading...</span>
+                    <span className="sm:hidden">...</span>
                   </>
                 ) : (
                   <>
-                    <Upload className="h-4 w-4 mr-2" />
-                    Upload {validCount} Patients
+                    <Upload className="h-4 w-4 mr-1 sm:mr-2" />
+                    Upload {validCount}
                   </>
                 )}
               </Button>
@@ -523,37 +557,37 @@ export const ExcelUploader = ({ onUpload }: ExcelUploaderProps) => {
         {step === 'result' && uploadResult && (
           <div className="space-y-4 text-center">
             {uploadResult.success ? (
-              <CheckCircle2 className="h-16 w-16 mx-auto text-green-600" />
+              <CheckCircle2 className="h-12 w-12 sm:h-16 sm:w-16 mx-auto text-green-600" />
             ) : (
-              <AlertTriangle className="h-16 w-16 mx-auto text-yellow-600" />
+              <AlertTriangle className="h-12 w-12 sm:h-16 sm:w-16 mx-auto text-yellow-600" />
             )}
             
             <div>
-              <h3 className="text-lg font-semibold">
-                {uploadResult.success ? 'Upload Complete!' : 'Upload Completed with Errors'}
+              <h3 className="text-base sm:text-lg font-semibold">
+                {uploadResult.success ? 'Upload Complete!' : 'Completed with Errors'}
               </h3>
-              <p className="text-muted-foreground">
-                {uploadResult.successful} of {uploadResult.total} patients imported successfully
+              <p className="text-xs sm:text-sm text-muted-foreground">
+                {uploadResult.successful} of {uploadResult.total} patients imported
               </p>
             </div>
 
-            <div className="grid grid-cols-3 gap-4 max-w-md mx-auto">
-              <div className="p-4 bg-muted rounded-lg">
-                <div className="text-2xl font-bold">{uploadResult.total}</div>
-                <div className="text-xs text-muted-foreground">Total</div>
+            <div className="grid grid-cols-3 gap-2 sm:gap-4 max-w-md mx-auto">
+              <div className="p-2 sm:p-4 bg-muted rounded-lg">
+                <div className="text-xl sm:text-2xl font-bold">{uploadResult.total}</div>
+                <div className="text-[10px] sm:text-xs text-muted-foreground">Total</div>
               </div>
-              <div className="p-4 bg-green-100 dark:bg-green-950/30 rounded-lg">
-                <div className="text-2xl font-bold text-green-600">{uploadResult.successful}</div>
-                <div className="text-xs text-muted-foreground">Success</div>
+              <div className="p-2 sm:p-4 bg-green-100 dark:bg-green-950/30 rounded-lg">
+                <div className="text-xl sm:text-2xl font-bold text-green-600">{uploadResult.successful}</div>
+                <div className="text-[10px] sm:text-xs text-muted-foreground">Success</div>
               </div>
-              <div className="p-4 bg-red-100 dark:bg-red-950/30 rounded-lg">
-                <div className="text-2xl font-bold text-red-600">{uploadResult.failed}</div>
-                <div className="text-xs text-muted-foreground">Failed</div>
+              <div className="p-2 sm:p-4 bg-red-100 dark:bg-red-950/30 rounded-lg">
+                <div className="text-xl sm:text-2xl font-bold text-red-600">{uploadResult.failed}</div>
+                <div className="text-[10px] sm:text-xs text-muted-foreground">Failed</div>
               </div>
             </div>
 
             {uploadResult.errors.length > 0 && (
-              <Alert variant="destructive" className="text-left">
+              <Alert variant="destructive" className="text-left text-xs sm:text-sm">
                 <AlertTriangle className="h-4 w-4" />
                 <AlertDescription>
                   <ul className="list-disc list-inside">
@@ -561,14 +595,14 @@ export const ExcelUploader = ({ onUpload }: ExcelUploaderProps) => {
                       <li key={i}>Row {err.row}: {err.message}</li>
                     ))}
                     {uploadResult.errors.length > 5 && (
-                      <li>...and {uploadResult.errors.length - 5} more errors</li>
+                      <li>...and {uploadResult.errors.length - 5} more</li>
                     )}
                   </ul>
                 </AlertDescription>
               </Alert>
             )}
 
-            <Button onClick={handleReset}>
+            <Button size="sm" onClick={handleReset}>
               Upload Another File
             </Button>
           </div>

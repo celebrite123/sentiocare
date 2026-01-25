@@ -200,20 +200,20 @@ export function PendingCallbacks({
   return (
     <>
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Phone className="h-5 w-5" />
+        <CardHeader className="p-4 sm:p-6">
+          <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+            <Phone className="h-4 w-4 sm:h-5 sm:w-5" />
             {compact ? "Pending Callbacks" : "Scheduled Callbacks"}
-            <Badge variant="secondary" className="ml-auto">
+            <Badge variant="secondary" className="ml-auto text-xs">
               {callbacks.length}
             </Badge>
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3">
+        <CardContent className="space-y-2 sm:space-y-3 p-4 pt-0 sm:p-6 sm:pt-0">
           {callbacks.map((callback) => (
             <div
               key={callback.id}
-              className={`p-3 rounded-lg border ${
+              className={`p-2 sm:p-3 rounded-lg border ${
                 isPast(callback.scheduled_for)
                   ? "border-destructive bg-destructive/5"
                   : "border-border"
@@ -222,53 +222,53 @@ export function PendingCallbacks({
               <div className="flex items-start justify-between gap-2">
                 <div className="flex-1 min-w-0">
                   {!patientId && callback.patient && (
-                    <p className="font-medium truncate">
+                    <p className="font-medium text-sm sm:text-base truncate">
                       {callback.patient.patient_name}
                     </p>
                   )}
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Clock className="h-3 w-3" />
+                  <div className="flex flex-wrap items-center gap-1 sm:gap-2 text-xs sm:text-sm text-muted-foreground">
+                    <Clock className="h-3 w-3 shrink-0" />
                     <span>
                       {format(new Date(callback.scheduled_for), "MMM d, h:mm a")}
                     </span>
                     {isPast(callback.scheduled_for) && (
-                      <Badge variant="destructive" className="text-xs">
+                      <Badge variant="destructive" className="text-[10px] sm:text-xs">
                         Overdue
                       </Badge>
                     )}
                   </div>
                   {callback.reason && (
-                    <p className="text-sm text-muted-foreground mt-1 line-clamp-1">
+                    <p className="text-xs sm:text-sm text-muted-foreground mt-1 line-clamp-1">
                       {callback.reason}
                     </p>
                   )}
                 </div>
-                <div className="flex gap-1">
+                <div className="flex gap-0.5 sm:gap-1 shrink-0">
                   {callback.patient && (
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8"
+                      className="h-7 w-7 sm:h-8 sm:w-8"
                       onClick={() => window.open(`tel:${callback.patient?.mobile_number}`, "_self")}
                     >
-                      <Phone className="h-4 w-4" />
+                      <Phone className="h-3 w-3 sm:h-4 sm:w-4" />
                     </Button>
                   )}
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-8 w-8 text-green-600"
+                    className="h-7 w-7 sm:h-8 sm:w-8 text-green-600"
                     onClick={() => handleComplete(callback)}
                   >
-                    <CheckCircle className="h-4 w-4" />
+                    <CheckCircle className="h-3 w-3 sm:h-4 sm:w-4" />
                   </Button>
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-8 w-8 text-muted-foreground"
+                    className="h-7 w-7 sm:h-8 sm:w-8 text-muted-foreground"
                     onClick={() => handleCancel(callback.id)}
                   >
-                    <X className="h-4 w-4" />
+                    <X className="h-3 w-3 sm:h-4 sm:w-4" />
                   </Button>
                 </div>
               </div>
