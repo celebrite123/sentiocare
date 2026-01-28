@@ -39,6 +39,10 @@ interface Patient {
   language: string;
   status: string;
   created_at: string;
+  // Caregiver fields
+  caregiver_name: string | null;
+  caregiver_phone: string | null;
+  caregiver_relation: string | null;
   organizations?: { name: string; hospital_contact_number: string | null };
 }
 
@@ -269,6 +273,38 @@ const PatientDetail = () => {
                 )}
               </CardContent>
             </Card>
+
+            {/* Caregiver Card */}
+            {(patient.caregiver_name || patient.caregiver_phone) && (
+              <Card>
+                <CardHeader className="p-4 sm:p-6">
+                  <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                    <User className="h-4 w-4 sm:h-5 sm:w-5" />
+                    Registered Caregiver
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="grid grid-cols-2 gap-3 sm:gap-4 p-4 pt-0 sm:p-6 sm:pt-0">
+                  {patient.caregiver_name && (
+                    <div>
+                      <p className="text-xs sm:text-sm text-muted-foreground">Name</p>
+                      <p className="font-medium text-sm sm:text-base">{patient.caregiver_name}</p>
+                    </div>
+                  )}
+                  {patient.caregiver_relation && (
+                    <div>
+                      <p className="text-xs sm:text-sm text-muted-foreground">Relation</p>
+                      <p className="font-medium text-sm sm:text-base capitalize">{patient.caregiver_relation.replace('_', ' ')}</p>
+                    </div>
+                  )}
+                  {patient.caregiver_phone && (
+                    <div className="col-span-2">
+                      <p className="text-xs sm:text-sm text-muted-foreground">Phone</p>
+                      <p className="font-medium text-sm sm:text-base">{patient.caregiver_phone}</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
 
             {/* Medicines Card */}
             <Card>

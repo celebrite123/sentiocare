@@ -144,6 +144,10 @@ serve(async (req) => {
               medicines: medicines,
               red_flag_symptoms: redFlagSymptoms,
               follow_up_date: patient.follow_up_date || "Not scheduled",
+              // Caregiver context
+              caregiver_name: patient.caregiver_name || null,
+              caregiver_relation: patient.caregiver_relation || null,
+              has_registered_caregiver: !!patient.caregiver_name,
               hospital_contact: org.hospital_contact_number || "hospital helpline",
               language: language,
             },

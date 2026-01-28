@@ -258,6 +258,54 @@ serve(async (req) => {
       }
     }
 
+    // Send WhatsApp to caregiver for RED alerts (if caregiver phone is registered)
+    if (severity === "red" && patient.caregiver_phone) {
+      const twilioAccountSid = Deno.env.get("TWILIO_ACCOUNT_SID");
+      const twilioAuthToken = Deno.env.get("TWILIO_AUTH_TOKEN");
+      const twilioWhatsApp = Deno.env.get("TWILIO_WHATSAPP_NUMBER");
+
+      if (twilioAccountSid && twilioAuthToken && twilioWhatsApp) {
+        try {
+          let caregiverPhone = patient.caregiver_phone.replace(/\D/g, "");
+          if (caregiverPhone.length === 10) {
+            caregiverPhone = "91" + caregiverPhone;
+          }
+
+          const caregiverName = patient.caregiver_name || "परिवार के सदस्य";
+          const caregiverMessage = patient.language === "english"
+            ? `🚨 URGENT Health Alert from ${org?.name || "Hospital"}\n\nDear ${caregiverName},\n\n${patient.patient_name} has reported concerning symptoms: ${symptomText}.\n\nPlease check on them immediately.\n\nHospital helpline: ${org?.hospital_contact_number || "hospital"}\n\nA hospital staff member will also call back within 15 minutes.`
+            : `🚨 अर्जेंट: ${org?.name || "अस्पताल"} से स्वास्थ्य अलर्ट\n\nप्रिय ${caregiverName},\n\n${patient.patient_name} जी ने चिंताजनक लक्षण बताए हैं: ${symptomText}.\n\nकृपया तुरंत उनसे संपर्क करें।\n\nअस्पताल हेल्पलाइन: ${org?.hospital_contact_number || "अस्पताल"}\n\nअस्पताल का स्टाफ़ भी 15 मिनट में कॉल करेगा।`;
+
+          const formData = new URLSearchParams();
+          formData.append("To", `whatsapp:+${caregiverPhone}`);
+          formData.append("From", twilioWhatsApp);
+          formData.append("Body", caregiverMessage);
+
+          const response = await fetch(
+            `https://api.twilio.com/2010-04-01/Accounts/${twilioAccountSid}/Messages.json`,
+            {
+              method: "POST",
+              headers: {
+                "Authorization": `Basic ${btoa(`${twilioAccountSid}:${twilioAuthToken}`)}`,
+                "Content-Type": "application/x-www-form-urlencoded",
+              },
+              body: formData.toString(),
+            }
+          );
+
+          if (response.ok) {
+            notificationResults.push("WhatsApp sent to caregiver");
+            console.log(`WhatsApp sent to caregiver: ${patient.caregiver_name} at ${caregiverPhone}`);
+          } else {
+            const error = await response.text();
+            console.error(`WhatsApp failed to caregiver:`, error);
+          }
+        } catch (e) {
+          console.error(`WhatsApp error to caregiver:`, e);
+        }
+      }
+    }
+
     // Update alert with notification status
     if (alert_id) {
       await supabase
