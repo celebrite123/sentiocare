@@ -90,3 +90,6 @@ verify_jwt = false
 
 [functions.schedule-guaranteed-callback]
 verify_jwt = false
+
+[functions.proxy-recording]
+verify_jwt = false
