@@ -136,6 +136,10 @@ export default function PatientUpload() {
           check_48hr_scheduled_at: new Date(dischargeDateObj.getTime() + 48 * 60 * 60 * 1000).toISOString(),
           call_schedule: callSchedule,
           next_call_due: nextCallDue.toISOString(),
+          // Caregiver fields
+          caregiver_name: patient.caregiver_name || null,
+          caregiver_phone: patient.caregiver_phone || null,
+          caregiver_relation: patient.caregiver_relation || null,
         }).select("id").single() as any);
 
         if (error) throw error;

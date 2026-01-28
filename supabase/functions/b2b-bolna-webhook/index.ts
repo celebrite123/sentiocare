@@ -81,9 +81,10 @@ serve(async (req) => {
       .filter(([_, v]) => v === "yes")
       .map(([k, _]) => k);
 
-    // Detect identity and consent from transcript
+    // Detect identity, consent, and respondent type from transcript
     const identityVerified = detectIdentityVerification(transcript || "", patient.patient_name);
     const consentObtained = detectConsent(transcript || "");
+    const { respondentType, respondentRelation } = detectRespondent(transcript || "", patient.patient_name);
 
     // Analyze transcript with AI if call was answered
     let analysis = {
@@ -131,7 +132,7 @@ serve(async (req) => {
         call_id: execution_id || call_id,
         call_duration_seconds: duration || null,
         recording_url: recording_url || null,
-        // New structured fields
+        // Structured fields
         safety_check_responses: {
           ...safetyCheckResponses,
           red_flag_triggered: redFlagTriggered,
@@ -140,6 +141,9 @@ serve(async (req) => {
         },
         identity_verified: identityVerified,
         consent_obtained: consentObtained,
+        // Respondent tracking (caregiver-aware)
+        respondent_type: respondentType,
+        respondent_relation: respondentRelation,
       })
       .select()
       .single();
@@ -387,6 +391,72 @@ function detectConsent(transcript: string): boolean {
   const hasConfirmation = yesPatterns.some(p => lowerTranscript.includes(p));
   
   return hasConsentQuestion && hasConfirmation;
+}
+
+/**
+ * Detect respondent type (patient vs caregiver) from transcript
+ */
+function detectRespondent(transcript: string, patientName: string): {
+  respondentType: "patient" | "caregiver" | "unknown";
+  respondentRelation: string | null;
+} {
+  const lowerTranscript = transcript.toLowerCase();
+  const firstName = patientName.split(" ")[0].toLowerCase();
+  
+  // Relationship patterns (Hindi + English)
+  const relationPatterns: Record<string, string[]> = {
+    "spouse": ["wife", "husband", "pati", "patni", "पति", "पत्नी", "biwi", "बीवी"],
+    "son": ["son", "beta", "बेटा", "ladka", "लड़का"],
+    "daughter": ["daughter", "beti", "बेटी", "ladki", "लड़की"],
+    "daughter_in_law": ["bahu", "बहू", "daughter-in-law", "daughter in law"],
+    "son_in_law": ["damaad", "दामाद", "son-in-law", "son in law"],
+    "parent": ["father", "mother", "papa", "mummy", "maa", "पापा", "माँ", "पिताजी", "माता"],
+    "sibling": ["brother", "sister", "bhai", "behen", "भाई", "बहन"],
+    "other": ["relative", "caregiver", "family", "rishtedar", "रिश्तेदार", "guardian", "attendant"],
+  };
+  
+  // Check if patient answered directly
+  const patientConfirmPatterns = [
+    `${firstName}`, "haan main", "yes i am", "ji main", "speaking",
+    "bol raha", "bol rahi", "बोल रहा", "बोल रही", "main hi", "मैं ही",
+    "yes speaking", "haan ji", "हां जी"
+  ];
+  
+  // Check for caregiver indicators first (before patient confirmation)
+  // Look for phrases like "main unki beti hoon" or "I am his daughter"
+  const caregiverPhrases = [
+    "unki", "unka", "unke", "उनकी", "उनका", "उनके",
+    "his", "her", "their", "patient ka", "patient ki",
+    "main hoon", "i am", "मैं हूं", "मैं हूँ"
+  ];
+  
+  const hasCaregiverPhrase = caregiverPhrases.some(p => lowerTranscript.includes(p));
+  
+  // Check for relationship mentions
+  for (const [relation, patterns] of Object.entries(relationPatterns)) {
+    if (patterns.some(p => lowerTranscript.includes(p))) {
+      // If they mention a relationship AND caregiver phrases, they're a caregiver
+      if (hasCaregiverPhrase) {
+        return { respondentType: "caregiver", respondentRelation: relation };
+      }
+      // If they just mention a relationship early in transcript, likely caregiver
+      const firstMentionIndex = patterns.reduce((min, p) => {
+        const idx = lowerTranscript.indexOf(p);
+        return idx >= 0 && idx < min ? idx : min;
+      }, Infinity);
+      
+      if (firstMentionIndex < 200) { // Within first ~200 chars (early in conversation)
+        return { respondentType: "caregiver", respondentRelation: relation };
+      }
+    }
+  }
+  
+  // Check if patient confirmed their own identity
+  if (patientConfirmPatterns.some(p => lowerTranscript.includes(p))) {
+    return { respondentType: "patient", respondentRelation: null };
+  }
+  
+  return { respondentType: "unknown", respondentRelation: null };
 }
 
 async function analyzeTranscript(

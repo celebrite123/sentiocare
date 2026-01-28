@@ -33,6 +33,10 @@ export interface ParsedPatient {
   follow_up_date?: string;
   red_flag_symptoms?: string;
   consent_given: boolean;
+  // Caregiver fields
+  caregiver_name?: string;
+  caregiver_phone?: string;
+  caregiver_relation?: string;
   isValid: boolean;
   errors: string[];
   skipped?: boolean;
@@ -160,6 +164,10 @@ export const ExcelUploader = ({ onUpload }: ExcelUploaderProps) => {
       followupdate: ['followupdate', 'followup', 'nextvisit', 'nextappointment', 'revisitdate'],
       redflagsymptoms: ['redflagsymptoms', 'symptoms', 'warningsymptoms', 'dangersigns', 'redflag'],
       consent: ['consent', 'patientconsent', 'agreed', 'optin', 'optedIn', 'permission', 'consentgiven'],
+      // Caregiver fields
+      caregivername: ['caregivername', 'familycontactname', 'attendantname', 'relativename'],
+      caregiverphone: ['caregiverphone', 'familyphone', 'attendantphone', 'relativephone', 'familycontact'],
+      caregiverrelation: ['caregiverrelation', 'relation', 'relationship', 'attendantrelation'],
     };
 
     const findHeaderIndex = (key: string): number => {
@@ -220,6 +228,10 @@ export const ExcelUploader = ({ onUpload }: ExcelUploaderProps) => {
       const followupIdx = findHeaderIndex('followupdate');
       const symptomsIdx = findHeaderIndex('redflagsymptoms');
       const consentIdx = findHeaderIndex('consent');
+      // Caregiver indices
+      const caregiverNameIdx = findHeaderIndex('caregivername');
+      const caregiverPhoneIdx = findHeaderIndex('caregiverphone');
+      const caregiverRelationIdx = findHeaderIndex('caregiverrelation');
 
       const followUpDateRaw = followupIdx !== -1 ? values[followupIdx]?.trim() : '';
       const followUpDate = parseDate(followUpDateRaw);
@@ -244,6 +256,11 @@ export const ExcelUploader = ({ onUpload }: ExcelUploaderProps) => {
         }
       }
 
+      // Parse caregiver fields
+      const caregiverName = caregiverNameIdx !== -1 ? values[caregiverNameIdx]?.trim() : '';
+      const caregiverPhone = caregiverPhoneIdx !== -1 ? values[caregiverPhoneIdx]?.trim().replace(/\D/g, '').slice(-10) : '';
+      const caregiverRelation = caregiverRelationIdx !== -1 ? normalizeRelation(values[caregiverRelationIdx]?.trim()) : '';
+
       patients.push({
         patient_name: patientName,
         mobile_number: mobileNumber,
@@ -255,6 +272,9 @@ export const ExcelUploader = ({ onUpload }: ExcelUploaderProps) => {
         follow_up_date: followUpDate || '',
         red_flag_symptoms: symptomsIdx !== -1 ? values[symptomsIdx]?.trim() : '',
         consent_given: consentGiven,
+        caregiver_name: caregiverName || undefined,
+        caregiver_phone: caregiverPhone || undefined,
+        caregiver_relation: caregiverRelation || undefined,
         isValid: errors.length === 0 && !skipped,
         errors,
         skipped,
@@ -263,6 +283,22 @@ export const ExcelUploader = ({ onUpload }: ExcelUploaderProps) => {
     }
 
     return patients;
+  };
+
+  // Helper to normalize caregiver relation
+  const normalizeRelation = (relation: string): string => {
+    if (!relation) return '';
+    const lower = relation.toLowerCase().trim();
+    const relationMap: Record<string, string> = {
+      'wife': 'spouse', 'husband': 'spouse', 'spouse': 'spouse',
+      'son': 'son', 'beta': 'son',
+      'daughter': 'daughter', 'beti': 'daughter',
+      'daughter-in-law': 'daughter_in_law', 'bahu': 'daughter_in_law',
+      'son-in-law': 'son_in_law', 'damaad': 'son_in_law',
+      'father': 'parent', 'mother': 'parent', 'parent': 'parent',
+      'brother': 'sibling', 'sister': 'sibling', 'sibling': 'sibling',
+    };
+    return relationMap[lower] || 'other';
   };
 
   const handleFile = async (file: File) => {
@@ -332,10 +368,10 @@ export const ExcelUploader = ({ onUpload }: ExcelUploaderProps) => {
   };
 
   const downloadTemplate = () => {
-    const headers = 'Patient Name,Mobile Number,Discharge Date,Ward,Doctor Name,Diagnosis,Medicine List,Follow Up Date,Red Flag Symptoms,Consent';
-    const example1 = 'Ramesh Kumar,9876543210,15/01/2026,Ward A,Dr. Sharma,Fever,"Paracetamol 500mg twice daily, Azithromycin 500mg once daily",22/01/2026,"High fever above 102F, Breathing difficulty, Severe headache",Yes';
-    const example2 = 'Sunita Devi,8765432109,15/01/2026,ICU,Dr. Patel,Post-surgery,"Cefixime 200mg twice daily, Pantoprazole 40mg morning",29/01/2026,"Wound bleeding, Swelling, Severe pain",Yes';
-    const example3 = 'Priya Sharma,7654321098,15/01/2026,General,Dr. Gupta,Delivery,"Iron tablets twice daily",22/01/2026,"Heavy bleeding, High fever",No';
+    const headers = 'Patient Name,Mobile Number,Discharge Date,Ward,Doctor Name,Diagnosis,Medicine List,Follow Up Date,Red Flag Symptoms,Consent,Caregiver Name,Caregiver Phone,Caregiver Relation';
+    const example1 = 'Ramesh Kumar,9876543210,15/01/2026,Ward A,Dr. Sharma,Fever,"Paracetamol 500mg twice daily, Azithromycin 500mg once daily",22/01/2026,"High fever above 102F, Breathing difficulty, Severe headache",Yes,Priya Kumar,9876543211,daughter';
+    const example2 = 'Sunita Devi,8765432109,15/01/2026,ICU,Dr. Patel,Post-surgery,"Cefixime 200mg twice daily, Pantoprazole 40mg morning",29/01/2026,"Wound bleeding, Swelling, Severe pain",Yes,Ravi Sharma,8765432108,son';
+    const example3 = 'Priya Sharma,7654321098,15/01/2026,General,Dr. Gupta,Delivery,"Iron tablets twice daily",22/01/2026,"Heavy bleeding, High fever",No,,,';
     const csv = `${headers}\n${example1}\n${example2}\n${example3}`;
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);

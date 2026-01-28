@@ -457,6 +457,9 @@ export type Database = {
         Row: {
           batch_id: string | null
           call_schedule: Json | null
+          caregiver_name: string | null
+          caregiver_phone: string | null
+          caregiver_relation: string | null
           check_48hr_attempt_count: number | null
           check_48hr_completed: boolean | null
           check_48hr_method: string | null
@@ -508,6 +511,9 @@ export type Database = {
         Insert: {
           batch_id?: string | null
           call_schedule?: Json | null
+          caregiver_name?: string | null
+          caregiver_phone?: string | null
+          caregiver_relation?: string | null
           check_48hr_attempt_count?: number | null
           check_48hr_completed?: boolean | null
           check_48hr_method?: string | null
@@ -559,6 +565,9 @@ export type Database = {
         Update: {
           batch_id?: string | null
           call_schedule?: Json | null
+          caregiver_name?: string | null
+          caregiver_phone?: string | null
+          caregiver_relation?: string | null
           check_48hr_attempt_count?: number | null
           check_48hr_completed?: boolean | null
           check_48hr_method?: string | null
@@ -1053,6 +1062,9 @@ export type Database = {
           patient_id: string
           patient_response: string | null
           recording_url: string | null
+          respondent_name: string | null
+          respondent_relation: string | null
+          respondent_type: string | null
           risk_level: string | null
           risk_reason: string | null
           safety_check_responses: Json | null
@@ -1077,6 +1089,9 @@ export type Database = {
           patient_id: string
           patient_response?: string | null
           recording_url?: string | null
+          respondent_name?: string | null
+          respondent_relation?: string | null
+          respondent_type?: string | null
           risk_level?: string | null
           risk_reason?: string | null
           safety_check_responses?: Json | null
@@ -1101,6 +1116,9 @@ export type Database = {
           patient_id?: string
           patient_response?: string | null
           recording_url?: string | null
+          respondent_name?: string | null
+          respondent_relation?: string | null
+          respondent_type?: string | null
           risk_level?: string | null
           risk_reason?: string | null
           safety_check_responses?: Json | null
