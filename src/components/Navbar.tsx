@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Menu, X, Bell, LogOut, User, LayoutDashboard, Shield } from "lucide-react";
+import { Menu, X, Bell, LogOut, User, LayoutDashboard, Shield, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -12,6 +12,7 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAdminRole } from "@/hooks/useAdminRole";
+import { useB2BMembership } from "@/hooks/useB2BMembership";
 import AlertsPanel from "./AlertsPanel";
 import sentioLogo from "@/assets/sentio-logo-optimized.png";
 
@@ -20,10 +21,15 @@ const Navbar = () => {
   const location = useLocation();
   const { user, signOut } = useAuth();
   const { isAdmin, loading: adminLoading } = useAdminRole();
+  const { isB2BStaff, loading: b2bLoading } = useB2BMembership();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [alertsOpen, setAlertsOpen] = useState(false);
 
   const isActive = (path: string) => location.pathname === path;
+  
+  // Determine which dashboard to show based on user type
+  const getDashboardPath = () => isB2BStaff ? "/b2b/dashboard" : "/elders";
+  const getDashboardLabel = () => isB2BStaff ? "Hospital Dashboard" : "Dashboard";
 
   return (
     <>
@@ -33,7 +39,7 @@ const Navbar = () => {
             {/* Logo */}
             <div
               className="flex items-center gap-3 cursor-pointer"
-              onClick={() => navigate(user ? "/elders" : "/")}
+              onClick={() => navigate(user ? getDashboardPath() : "/")}
             >
               <img 
                 src={sentioLogo} 
@@ -47,15 +53,15 @@ const Navbar = () => {
 
             {/* Desktop Navigation */}
             <nav className="hidden md:flex items-center gap-4">
-              {user ? (
+              {user && !b2bLoading ? (
                 <>
                   <Button
                     variant="ghost"
-                    className={isActive("/elders") ? "bg-muted" : ""}
-                    onClick={() => navigate("/elders")}
+                    className={isActive(getDashboardPath()) ? "bg-muted" : ""}
+                    onClick={() => navigate(getDashboardPath())}
                   >
-                    <LayoutDashboard className="h-4 w-4 mr-2" />
-                    Dashboard
+                    {isB2BStaff ? <Building2 className="h-4 w-4 mr-2" /> : <LayoutDashboard className="h-4 w-4 mr-2" />}
+                    {getDashboardLabel()}
                   </Button>
                 </>
               ) : null}
@@ -65,15 +71,17 @@ const Navbar = () => {
             <div className="flex items-center gap-2">
               {user ? (
                 <>
-                  {/* Alerts Bell */}
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="relative"
-                    onClick={() => setAlertsOpen(true)}
-                  >
-                    <Bell className="h-5 w-5" />
-                  </Button>
+                  {/* Alerts Bell - only show for non-B2B users */}
+                  {!isB2BStaff && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="relative"
+                      onClick={() => setAlertsOpen(true)}
+                    >
+                      <Bell className="h-5 w-5" />
+                    </Button>
+                  )}
 
                   {/* User Menu */}
                   <DropdownMenu>
@@ -89,17 +97,21 @@ const Navbar = () => {
                     <DropdownMenuContent align="end" className="w-56">
                       <div className="px-2 py-1.5">
                         <p className="text-sm font-medium">{user.email}</p>
-                        <p className="text-xs text-muted-foreground">Family Member</p>
+                        <p className="text-xs text-muted-foreground">
+                          {isB2BStaff ? "Hospital Staff" : "Family Member"}
+                        </p>
                       </div>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={() => navigate("/elders")}>
-                        <LayoutDashboard className="h-4 w-4 mr-2" />
-                        Dashboard
+                      <DropdownMenuItem onClick={() => navigate(getDashboardPath())}>
+                        {isB2BStaff ? <Building2 className="h-4 w-4 mr-2" /> : <LayoutDashboard className="h-4 w-4 mr-2" />}
+                        {getDashboardLabel()}
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => navigate("/profile")}>
-                        <User className="h-4 w-4 mr-2" />
-                        Profile
-                      </DropdownMenuItem>
+                      {!isB2BStaff && (
+                        <DropdownMenuItem onClick={() => navigate("/profile")}>
+                          <User className="h-4 w-4 mr-2" />
+                          Profile
+                        </DropdownMenuItem>
+                      )}
                       {!adminLoading && isAdmin && (
                         <DropdownMenuItem onClick={() => navigate("/admin")}>
                           <Shield className="h-4 w-4 mr-2" />
@@ -146,14 +158,14 @@ const Navbar = () => {
                 {user ? (
                   <Button
                     variant="ghost"
-                    className={`justify-start ${isActive("/elders") ? "bg-muted" : ""}`}
+                    className={`justify-start ${isActive(getDashboardPath()) ? "bg-muted" : ""}`}
                     onClick={() => {
-                      navigate("/elders");
+                      navigate(getDashboardPath());
                       setMobileMenuOpen(false);
                     }}
                   >
-                    <LayoutDashboard className="h-4 w-4 mr-2" />
-                    Dashboard
+                    {isB2BStaff ? <Building2 className="h-4 w-4 mr-2" /> : <LayoutDashboard className="h-4 w-4 mr-2" />}
+                    {getDashboardLabel()}
                   </Button>
                 ) : (
                   <>
