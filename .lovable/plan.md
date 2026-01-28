@@ -1,286 +1,179 @@
 
-# Caregiver-Aware Voice Call Flow
+# Logo and Branding Update Plan
 
-This plan adds support for caregiver/family member answering calls on behalf of patients who may be too unwell to speak.
+## Overview
 
-## Problem Statement
+This plan updates all branding across the application to use the new Sentio logo (with elder and caregiver figures in a heart shape) and introduces a premium font for better visual appeal.
 
-Currently, the voice agent strictly requires the patient to answer and verify identity. However, in real post-discharge scenarios:
+## Current State Analysis
 
-1. **Patient may be bedridden** - recovering from surgery, can't get to phone
-2. **Patient may be elderly/confused** - needs family assistance
-3. **Family member is the actual caregiver** - handling medicines, symptoms, appointments
-4. **Patient may have handed phone to family** - who can accurately report status
+### Logo Usage Locations Found
 
-The current flow demands patient identity or reschedules, losing valuable health information.
+| Location | Current Asset | Issue |
+|----------|---------------|-------|
+| `src/components/Navbar.tsx` | `sentio-logo-optimized.png` | Old logo |
+| `src/components/landing/Footer.tsx` | `sentio-logo.png` | Old logo |
+| `src/components/dashboard/DashboardHeader.tsx` | `sentio-logo.png` | Old logo |
+| `src/pages/Auth.tsx` | `sentio-logo.png` | Old logo |
+| `src/pages/ContactUs.tsx` | `sentio-logo.png` | Old logo |
+| `src/pages/CancellationRefund.tsx` | `sentio-logo.png` | Old logo |
+| `src/pages/PrivacyPolicy.tsx` | Heart icon | No actual logo |
+| `src/pages/TermsOfService.tsx` | Heart icon | No actual logo |
+| `src/pages/SelectPlan.tsx` | Heart icon | No actual logo |
+| `src/components/b2b/B2BNavbar.tsx` | Building2 icon | No Sentio branding |
+| `src/pages/b2b/B2BLogin.tsx` | Building2 icon | No Sentio branding |
+| `public/favicon.png` | Current favicon | Needs update |
+| `index.html` | Preload reference | Needs path update |
 
----
-
-## Solution Overview
-
-```text
-┌─────────────────────────────────────────────────────────────────┐
-│                     ENHANCED IDENTITY FLOW                       │
-├─────────────────────────────────────────────────────────────────┤
-│  "Am I speaking with [Patient Name]?"                           │
-│                                                                  │
-│  ┌──────────┐    ┌──────────────────┐    ┌─────────────────┐    │
-│  │   YES    │    │  NO, but I'm     │    │   WRONG NUMBER  │    │
-│  │ (Patient)│    │  their caregiver │    │                 │    │
-│  └────┬─────┘    └────────┬─────────┘    └────────┬────────┘    │
-│       │                   │                       │             │
-│       ▼                   ▼                       ▼             │
-│  Continue as       Ask: "What is                Reschedule     │
-│  normal flow       your relationship            & note error   │
-│                    to [Patient]?"                              │
-│                          │                                      │
-│                          ▼                                      │
-│                    Log caregiver                               │
-│                    relationship &                              │
-│                    continue call                               │
-└─────────────────────────────────────────────────────────────────┘
-```
+### Current Font Stack
+- Using default Tailwind CSS system fonts (ui-sans-serif stack)
+- No custom premium font configured
 
 ---
 
-## Phase 1: Database Schema Updates
+## Implementation Plan
 
-Add caregiver fields to `discharged_patients` table to store caregiver information from Excel upload:
+### Phase 1: Add New Logo Asset
 
-```sql
--- Add caregiver fields to discharged_patients
-ALTER TABLE discharged_patients 
-  ADD COLUMN IF NOT EXISTS caregiver_name text,
-  ADD COLUMN IF NOT EXISTS caregiver_phone text,
-  ADD COLUMN IF NOT EXISTS caregiver_relation text;
+1. **Copy uploaded logo to assets folder**
+   - Save as `src/assets/sentio-logo-new.png` (the transparent background version)
+   - This will be used across all components
 
--- Track who answered in patient_checkins
-ALTER TABLE patient_checkins
-  ADD COLUMN IF NOT EXISTS respondent_type text DEFAULT 'patient',
-  ADD COLUMN IF NOT EXISTS respondent_name text,
-  ADD COLUMN IF NOT EXISTS respondent_relation text;
-```
+2. **Create favicon version**
+   - Update `public/favicon.png` with the new logo (cropped to icon format)
 
-**Fields:**
-- `caregiver_name`: Primary caregiver's name (e.g., "Priya")
-- `caregiver_phone`: Alternate contact (if different from patient)
-- `caregiver_relation`: Relationship (son, daughter, spouse, sibling, other)
-- `respondent_type`: Who actually answered the call (patient/caregiver)
-- `respondent_name`: Name of the person who answered
-- `respondent_relation`: Their relationship if caregiver
+### Phase 2: Add Premium Font
 
----
+Update font configuration for a more professional healthcare look. Recommended options:
 
-## Phase 2: Voice Script Update (B2B_VOICE_AGENT_PROMPT.md)
+**Option 1: Inter (Clean, Modern)**
+- Highly readable, works well for healthcare apps
+- Free Google Font
 
-Replace the rigid identity verification with a flexible caregiver-aware flow:
+**Option 2: Plus Jakarta Sans (Friendly, Modern)**
+- Warm and approachable, matches elder care branding
+- Free Google Font
 
-### Updated STEP 1: IDENTITY VERIFICATION
+**Implementation:**
+1. Add Google Fonts import to `index.html`
+2. Update `tailwind.config.ts` to include the custom font
+3. Update `src/index.css` to apply the font globally
 
-```text
-### STEP 1: IDENTITY VERIFICATION (Required - Caregiver Aware)
-Use {greeting} which includes hospital name.
-Then verify identity:
+### Phase 3: Update All Logo References
 
-**Hindi:** "क्या मैं {patient_name} जी से बात कर रहा हूं?"
-**English:** "Am I speaking with {patient_name}?"
+#### Consumer App Pages
 
-**If YES:** Proceed to Step 2
+| File | Change |
+|------|--------|
+| `src/components/Navbar.tsx` | Replace `sentio-logo-optimized.png` → `sentio-logo-new.png` |
+| `src/components/landing/Footer.tsx` | Replace `sentio-logo.png` → `sentio-logo-new.png` |
+| `src/components/dashboard/DashboardHeader.tsx` | Replace `sentio-logo.png` → `sentio-logo-new.png` |
+| `src/pages/Auth.tsx` | Replace `sentio-logo.png` → `sentio-logo-new.png` |
+| `src/pages/ContactUs.tsx` | Replace `sentio-logo.png` → `sentio-logo-new.png` |
+| `src/pages/CancellationRefund.tsx` | Replace `sentio-logo.png` → `sentio-logo-new.png` |
 
-**If NO (someone else answered):**
-Ask: "आप {patient_name} जी के कौन हैं?" / "What is your relationship to {patient_name}?"
+#### Pages Using Heart Icon (Replace with actual logo)
 
-- If FAMILY/CAREGIVER (wife, husband, son, daughter, bahu, beti, beta, relative, caregiver):
-  Say: "ठीक है। मैं {patient_name} जी की सेहत के बारे में आपसे बात कर सकता हूं।"
-  / "Okay. I can speak with you about {patient_name}'s health."
-  → Note respondent as CAREGIVER with their relationship
-  → Proceed to Step 2 (adjust questions to "Are THEY having fever?" instead of "Are YOU")
+| File | Change |
+|------|--------|
+| `src/pages/PrivacyPolicy.tsx` | Replace Heart icon → Sentio logo image |
+| `src/pages/TermsOfService.tsx` | Replace Heart icon → Sentio logo image |
+| `src/pages/SelectPlan.tsx` | Replace Heart icon → Sentio logo image |
 
-- If WRONG NUMBER or unrelated person:
-  Say: "माफ़ कीजिए, शायद गलत नंबर है। हम बाद में कॉल करेंगे।" 
-  / "Sorry, this might be a wrong number. We'll call back later."
-  → END CALL & flag for review
+#### B2B Portal (Add Sentio branding alongside hospital name)
 
-**Question Phrasing for Caregiver:**
-When speaking to caregiver, use third-person references:
-- "क्या उन्हें बुखार है?" instead of "क्या आपको बुखार है?"
-- "Are they having fever?" instead of "Are you having fever?"
-- "क्या वो दवाइयाँ ले रहे हैं?" instead of "क्या आप ले रहे हैं?"
-```
+| File | Change |
+|------|--------|
+| `src/components/b2b/B2BNavbar.tsx` | Add Sentio logo alongside Building2 icon |
+| `src/pages/b2b/B2BLogin.tsx` | Add Sentio logo with "Powered by Sentio" text |
 
-### New Variables for Bolna Agent
+### Phase 4: Update Meta Assets
 
-```text
-## ADDITIONAL CONTEXT VARIABLES
-- caregiver_name: {caregiver_name}
-- caregiver_relation: {caregiver_relation}
-- respondent_type: "patient" or "caregiver" (determined during call)
-```
+| File | Change |
+|------|--------|
+| `public/favicon.png` | Replace with new logo icon |
+| `index.html` | Update preload path if filename changes |
 
 ---
 
-## Phase 3: Update run-scheduled-b2b-calls Function
+## Technical Details
 
-Pass caregiver information to voice agent:
+### Font Configuration (tailwind.config.ts)
 
 ```typescript
-user_data: {
-  // ...existing fields...
-  patient_name: patient.patient_name,
-  
-  // NEW: Caregiver context
-  caregiver_name: patient.caregiver_name || null,
-  caregiver_relation: patient.caregiver_relation || null,
-  has_registered_caregiver: !!patient.caregiver_name,
+theme: {
+  extend: {
+    fontFamily: {
+      sans: ['Plus Jakarta Sans', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+    },
+  },
 }
 ```
 
----
+### Font Import (index.html)
 
-## Phase 4: Update b2b-bolna-webhook Function
+```html
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+```
 
-Detect who answered and log appropriately:
+### Logo Component Pattern
+
+For consistency, we will use the same import pattern across all files:
 
 ```typescript
-// NEW: Detect respondent type from transcript
-function detectRespondent(transcript: string, patientName: string): {
-  respondentType: "patient" | "caregiver" | "unknown";
-  respondentRelation: string | null;
-} {
-  const lowerTranscript = transcript.toLowerCase();
-  const firstName = patientName.split(" ")[0].toLowerCase();
-  
-  // Relationship patterns (Hindi + English)
-  const relationPatterns = {
-    "spouse": ["wife", "husband", "pati", "patni", "पति", "पत्नी"],
-    "son": ["son", "beta", "बेटा", "ladka"],
-    "daughter": ["daughter", "beti", "बेटी", "ladki"],
-    "daughter_in_law": ["bahu", "बहू", "daughter-in-law"],
-    "parent": ["father", "mother", "papa", "mummy", "पापा", "माँ"],
-    "sibling": ["brother", "sister", "bhai", "behen", "भाई", "बहन"],
-    "other": ["relative", "caregiver", "family", "rishtedar", "रिश्तेदार"],
-  };
-  
-  // Check if patient answered directly
-  const patientConfirmPatterns = [
-    `${firstName}`, "haan main", "yes i am", "ji main", "speaking",
-    "bol raha", "बोल रहा", "बोल रही"
-  ];
-  
-  if (patientConfirmPatterns.some(p => lowerTranscript.includes(p))) {
-    return { respondentType: "patient", respondentRelation: null };
-  }
-  
-  // Check for caregiver indicators
-  for (const [relation, patterns] of Object.entries(relationPatterns)) {
-    if (patterns.some(p => lowerTranscript.includes(p))) {
-      return { respondentType: "caregiver", respondentRelation: relation };
-    }
-  }
-  
-  return { respondentType: "unknown", respondentRelation: null };
-}
+import sentioLogo from "@/assets/sentio-logo-new.png";
 
-// Store in patient_checkins
-const { respondentType, respondentRelation } = detectRespondent(
-  transcript, 
-  patient.patient_name
-);
-
-// Include in checkin record
-await supabase.from("patient_checkins").insert({
-  // ...existing fields...
-  respondent_type: respondentType,
-  respondent_relation: respondentRelation,
-});
+// Usage
+<img 
+  src={sentioLogo} 
+  alt="Sentio" 
+  className="h-10 w-auto"
+  loading="lazy"
+/>
 ```
 
 ---
 
-## Phase 5: Update ExcelUploader for Caregiver Data
+## Files to Modify
 
-Allow hospitals to upload caregiver information during patient upload:
-
-### New Excel Columns (Optional)
-| Column | Example |
-|--------|---------|
-| Caregiver Name | Priya Sharma |
-| Caregiver Phone | 9876543210 |
-| Caregiver Relation | daughter |
-
-### Update ExcelUploader.tsx Parsing
-
-```typescript
-const caregiverName = row['Caregiver Name'] || row['caregiver_name'] || 
-                      row['Family Contact Name'] || null;
-const caregiverPhone = row['Caregiver Phone'] || row['caregiver_phone'] || 
-                       row['Family Phone'] || null;
-const caregiverRelation = row['Caregiver Relation'] || row['caregiver_relation'] || 
-                          row['Relation'] || null;
-
-// Include in patient record
-const patientRecord = {
-  // ...existing fields...
-  caregiver_name: caregiverName,
-  caregiver_phone: caregiverPhone,
-  caregiver_relation: normalizeRelation(caregiverRelation),
-};
-```
+| File | Type | Description |
+|------|------|-------------|
+| `src/assets/sentio-logo-new.png` | CREATE | Copy from uploaded logo |
+| `public/favicon.png` | UPDATE | New favicon |
+| `index.html` | UPDATE | Add font import, update preload |
+| `tailwind.config.ts` | UPDATE | Add font family |
+| `src/index.css` | UPDATE | Apply font to body |
+| `src/components/Navbar.tsx` | UPDATE | New logo import |
+| `src/components/landing/Footer.tsx` | UPDATE | New logo import |
+| `src/components/dashboard/DashboardHeader.tsx` | UPDATE | New logo import |
+| `src/pages/Auth.tsx` | UPDATE | New logo import |
+| `src/pages/ContactUs.tsx` | UPDATE | New logo import |
+| `src/pages/CancellationRefund.tsx` | UPDATE | New logo import |
+| `src/pages/PrivacyPolicy.tsx` | UPDATE | Replace Heart icon with logo |
+| `src/pages/TermsOfService.tsx` | UPDATE | Replace Heart icon with logo |
+| `src/pages/SelectPlan.tsx` | UPDATE | Replace Heart icon with logo |
+| `src/components/b2b/B2BNavbar.tsx` | UPDATE | Add Sentio branding |
+| `src/pages/b2b/B2BLogin.tsx` | UPDATE | Add Sentio branding |
 
 ---
 
-## Phase 6: Update Escalation to Include Caregiver
+## Cleanup
 
-When escalating alerts, also notify the registered caregiver if available:
+After implementation, the old logo files can be removed:
+- `src/assets/sentio-logo.png`
+- `src/assets/sentio-logo-optimized.png`
 
-### In escalate-b2b-alert Function
-
-```typescript
-// Get caregiver contact if available
-if (patient.caregiver_phone && severity === "red") {
-  // Send WhatsApp to caregiver
-  await sendWhatsAppToCaregiver(
-    patient.caregiver_phone,
-    patient.caregiver_name,
-    patient.patient_name,
-    symptomText,
-    org.hospital_contact_number
-  );
-  notificationResults.push("WhatsApp sent to caregiver");
-}
-```
+(Or keep them as backup temporarily)
 
 ---
 
-## Implementation Files Summary
-
-| File | Change Type | Description |
-|------|-------------|-------------|
-| Database Migration | NEW | Add caregiver fields to `discharged_patients` and `patient_checkins` |
-| `B2B_VOICE_AGENT_PROMPT.md` | UPDATE | Caregiver-aware identity flow with third-person questions |
-| `run-scheduled-b2b-calls/index.ts` | UPDATE | Pass caregiver context to voice agent |
-| `b2b-bolna-webhook/index.ts` | UPDATE | Detect respondent type, log who answered |
-| `ExcelUploader.tsx` | UPDATE | Parse caregiver columns from upload |
-| `escalate-b2b-alert/index.ts` | UPDATE | Notify caregiver on RED alerts |
-| `PatientDetail.tsx` | UPDATE | Display caregiver info in patient view |
-
----
-
-## Audit & Compliance Benefits
-
-1. **Full Transparency**: Each checkin records WHO answered (patient vs caregiver)
-2. **Clinical Accuracy**: Questions phrased appropriately for respondent
-3. **Escalation Chain**: Caregiver is notified alongside hospital staff
-4. **No Missed Data**: Information is collected even when patient can't speak
-5. **Relationship Tracking**: Clear audit trail of who provided health updates
-
----
-
-## Testing Recommendations
+## Expected Outcome
 
 After implementation:
-1. **Test with patient answering** - Should work as before
-2. **Test with "I'm their daughter"** - Should continue call in third-person
-3. **Test with wrong number** - Should reschedule gracefully
-4. **Test Excel upload with caregiver fields** - Should parse and store correctly
-5. **Test RED escalation with caregiver** - Should notify both hospital + caregiver
+- Consistent new Sentio logo across all 13+ screens
+- Premium "Plus Jakarta Sans" font for modern healthcare feel
+- B2B portal shows "Powered by Sentio" branding
+- Updated favicon in browser tabs
+- No more generic Heart icons as logo placeholders
