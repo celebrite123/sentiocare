@@ -1,269 +1,286 @@
 
-# B2B Voice Agent Production Hardening Plan
+# Caregiver-Aware Voice Call Flow
 
-This plan addresses critical gaps to make the voice agent production-ready with proper identity verification, structured safety checks, multi-channel escalation, and human handover capabilities.
+This plan adds support for caregiver/family member answering calls on behalf of patients who may be too unwell to speak.
 
-## Overview
+## Problem Statement
 
-The current system has a good foundation but lacks the clinical rigor required for production healthcare use. We need to:
-1. Restructure the voice script for compliance
-2. Implement multi-channel escalation (SMS + WhatsApp)  
-3. Add human handover with guaranteed callback
-4. Enhance audit logging for compliance
+Currently, the voice agent strictly requires the patient to answer and verify identity. However, in real post-discharge scenarios:
+
+1. **Patient may be bedridden** - recovering from surgery, can't get to phone
+2. **Patient may be elderly/confused** - needs family assistance
+3. **Family member is the actual caregiver** - handling medicines, symptoms, appointments
+4. **Patient may have handed phone to family** - who can accurately report status
+
+The current flow demands patient identity or reschedules, losing valuable health information.
 
 ---
 
-## Phase 1: Voice Script Restructuring
-
-### 1.1 Update B2B_VOICE_AGENT_PROMPT.md
-
-Replace the current unstructured script with a clinical-grade flow:
-
-**New Call Structure (2-3 minutes):**
+## Solution Overview
 
 ```text
-## CALL FLOW (2-3 minutes, structured)
-
-### STEP 1: IDENTITY VERIFICATION (Required)
-- Hindi: "क्या मैं {patient_name} जी से बात कर रहा/रही हूं?"
-- English: "Am I speaking with {patient_name}?"
-- If NO/WRONG PERSON: "कृपया {patient_name} जी को फ़ोन दीजिए" → Wait or reschedule
-
-### STEP 2: CONSENT CHECK (Required)
-- Hindi: "यह {hospital_name} से स्वास्थ्य जांच कॉल है। क्या आपके पास 2 मिनट हैं?"
-- English: "This is a health check call from {hospital_name}. Do you have 2 minutes?"
-- If NO: "कोई बात नहीं, हम फिर कॉल करेंगे। धन्यवाद।" → END & reschedule
-
-### STEP 3: CORE SAFETY CHECKS (Ask each, Yes/No only)
-Ask these 5 questions IN ORDER. Wait for clear Yes/No after each:
-
-1. "क्या आज आपको बुखार है?" / "Are you having fever today?"
-2. "क्या आपको कोई नया दर्द है जो दवाई से कम नहीं हो रहा?" / "Are you having new or worsening pain that tablets are not controlling?"
-3. "क्या आपको सांस लेने में तकलीफ़ हो रही है?" / "Are you having difficulty breathing or shortness of breath more than usual?"
-4. "क्या आपके घाव से खून, मवाद या पानी आ रहा है? या कोई नई सूजन?" / "Do you have bleeding, pus, or heavy discharge from your wound or any new swelling?"
-5. "क्या आपको चक्कर आया, भ्रम हुआ, या अचानक कमज़ोरी महसूस हुई?" / "Have you felt faint, confused, or had sudden weakness?"
-
-⚠️ IF ANY ANSWER IS "YES" → IMMEDIATELY go to EMERGENCY PROTOCOL
-
-### STEP 4: MEDICINE CHECK
-- "क्या आप अपनी दवाइयाँ नियमित ले रहे हैं?" / "Are you taking your medicines regularly?"
-- If NO: Ask why (cost/confusion/side effects)
-
-### STEP 5: FOLLOW-UP CONFIRMATION (if within 5 days)
-- "आपका अगला डॉक्टर अपॉइंटमेंट {follow_up_date} को है। क्या आप आएंगे?"
-- If can't attend: Note for coordinator callback
-
-### STEP 6: CLOSING
-- "और कोई सवाल या परेशानी?" / "Any other questions or concerns?"
-- If complex response: "मैं आपको एक नर्स से connect कराता हूं" → HUMAN HANDOVER
-- Normal close: "अपना ख्याल रखिए। जल्दी ठीक हों।"
-
-## EMERGENCY PROTOCOL (Any YES on safety questions)
-1. STOP all other questions immediately
-2. Say: "यह महत्वपूर्ण है। मैं अभी अस्पताल को सूचित कर रहा हूं।"
-3. Say: "कृपया तुरंत {hospital_contact} पर कॉल करें या नज़दीकी अस्पताल जाएं।"
-4. Say: "एक स्टाफ़ मेंबर 15 मिनट में आपको कॉल करेगा।"
-5. END CALL immediately
-
-## HUMAN HANDOVER TRIGGERS
-Transfer to human when:
-- Patient explicitly asks: "मुझे किसी से बात करनी है" / "I want to speak to someone"
-- Complex free-text response that can't be categorized
-- Patient sounds confused, distressed, or unresponsive
-- ANY "YES" on red-flag questions
-
-Handover script:
-- "मैं आपको एक नर्स से connect कराता हूं।"
-- If nurse unavailable: "नर्स अभी busy हैं। 30 मिनट में वापस कॉल आएगा। ज़रूरत हो तो {hospital_contact} पर कॉल करें।"
+┌─────────────────────────────────────────────────────────────────┐
+│                     ENHANCED IDENTITY FLOW                       │
+├─────────────────────────────────────────────────────────────────┤
+│  "Am I speaking with [Patient Name]?"                           │
+│                                                                  │
+│  ┌──────────┐    ┌──────────────────┐    ┌─────────────────┐    │
+│  │   YES    │    │  NO, but I'm     │    │   WRONG NUMBER  │    │
+│  │ (Patient)│    │  their caregiver │    │                 │    │
+│  └────┬─────┘    └────────┬─────────┘    └────────┬────────┘    │
+│       │                   │                       │             │
+│       ▼                   ▼                       ▼             │
+│  Continue as       Ask: "What is                Reschedule     │
+│  normal flow       your relationship            & note error   │
+│                    to [Patient]?"                              │
+│                          │                                      │
+│                          ▼                                      │
+│                    Log caregiver                               │
+│                    relationship &                              │
+│                    continue call                               │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Phase 2: Enhanced Escalation System
+## Phase 1: Database Schema Updates
 
-### 2.1 Create Multi-Channel Alert Function
+Add caregiver fields to `discharged_patients` table to store caregiver information from Excel upload:
 
-**New file: `supabase/functions/escalate-b2b-alert/index.ts`**
+```sql
+-- Add caregiver fields to discharged_patients
+ALTER TABLE discharged_patients 
+  ADD COLUMN IF NOT EXISTS caregiver_name text,
+  ADD COLUMN IF NOT EXISTS caregiver_phone text,
+  ADD COLUMN IF NOT EXISTS caregiver_relation text;
 
-This function handles tiered escalation:
-- **RED (Immediate)**: SMS + WhatsApp to on-call clinician AND duty nurse
-- **YELLOW (Urgent)**: Email + SMS to duty nurse
-- **GREEN (Advisory)**: Email to care coordinator
+-- Track who answered in patient_checkins
+ALTER TABLE patient_checkins
+  ADD COLUMN IF NOT EXISTS respondent_type text DEFAULT 'patient',
+  ADD COLUMN IF NOT EXISTS respondent_name text,
+  ADD COLUMN IF NOT EXISTS respondent_relation text;
+```
+
+**Fields:**
+- `caregiver_name`: Primary caregiver's name (e.g., "Priya")
+- `caregiver_phone`: Alternate contact (if different from patient)
+- `caregiver_relation`: Relationship (son, daughter, spouse, sibling, other)
+- `respondent_type`: Who actually answered the call (patient/caregiver)
+- `respondent_name`: Name of the person who answered
+- `respondent_relation`: Their relationship if caregiver
+
+---
+
+## Phase 2: Voice Script Update (B2B_VOICE_AGENT_PROMPT.md)
+
+Replace the rigid identity verification with a flexible caregiver-aware flow:
+
+### Updated STEP 1: IDENTITY VERIFICATION
+
+```text
+### STEP 1: IDENTITY VERIFICATION (Required - Caregiver Aware)
+Use {greeting} which includes hospital name.
+Then verify identity:
+
+**Hindi:** "क्या मैं {patient_name} जी से बात कर रहा हूं?"
+**English:** "Am I speaking with {patient_name}?"
+
+**If YES:** Proceed to Step 2
+
+**If NO (someone else answered):**
+Ask: "आप {patient_name} जी के कौन हैं?" / "What is your relationship to {patient_name}?"
+
+- If FAMILY/CAREGIVER (wife, husband, son, daughter, bahu, beti, beta, relative, caregiver):
+  Say: "ठीक है। मैं {patient_name} जी की सेहत के बारे में आपसे बात कर सकता हूं।"
+  / "Okay. I can speak with you about {patient_name}'s health."
+  → Note respondent as CAREGIVER with their relationship
+  → Proceed to Step 2 (adjust questions to "Are THEY having fever?" instead of "Are YOU")
+
+- If WRONG NUMBER or unrelated person:
+  Say: "माफ़ कीजिए, शायद गलत नंबर है। हम बाद में कॉल करेंगे।" 
+  / "Sorry, this might be a wrong number. We'll call back later."
+  → END CALL & flag for review
+
+**Question Phrasing for Caregiver:**
+When speaking to caregiver, use third-person references:
+- "क्या उन्हें बुखार है?" instead of "क्या आपको बुखार है?"
+- "Are they having fever?" instead of "Are you having fever?"
+- "क्या वो दवाइयाँ ले रहे हैं?" instead of "क्या आप ले रहे हैं?"
+```
+
+### New Variables for Bolna Agent
+
+```text
+## ADDITIONAL CONTEXT VARIABLES
+- caregiver_name: {caregiver_name}
+- caregiver_relation: {caregiver_relation}
+- respondent_type: "patient" or "caregiver" (determined during call)
+```
+
+---
+
+## Phase 3: Update run-scheduled-b2b-calls Function
+
+Pass caregiver information to voice agent:
 
 ```typescript
-// Key logic:
-const escalationConfig = {
-  red: {
-    channels: ['sms', 'whatsapp', 'voice_call'],
-    targets: ['on_call_clinician', 'duty_nurse'],
-    sla_minutes: 15,
-    template: 'URGENT: {patient_name} ({ward}) reported {symptom}. Immediate callback required.'
-  },
-  yellow: {
-    channels: ['sms', 'email'],
-    targets: ['duty_nurse'],
-    sla_minutes: 120,
-    template: 'Follow-up needed: {patient_name} - {reason}'
-  },
-  green: {
-    channels: ['email'],
-    targets: ['care_coordinator'],
-    sla_minutes: 480,
-    template: 'Advisory: {patient_name} - {reason}'
-  }
-};
-```
-
-### 2.2 Update `b2b-bolna-webhook` for Immediate Escalation
-
-When RED flag detected:
-1. Create `b2b_alerts` with `severity: 'critical'`
-2. Call `escalate-b2b-alert` immediately
-3. Auto-schedule callback in `scheduled_callbacks` with 15-min SLA
-4. Store structured responses in new `safety_check_responses` JSONB field
-
----
-
-## Phase 3: Human Handover System
-
-### 3.1 Database Changes
-
-```sql
--- Add columns to organizations for staff routing
-ALTER TABLE organizations ADD COLUMN IF NOT EXISTS 
-  on_call_clinician_phone text,
-  duty_nurse_phone text,
-  care_coordinator_email text;
-
--- Add guaranteed callback tracking
-ALTER TABLE scheduled_callbacks ADD COLUMN IF NOT EXISTS 
-  patient_notified boolean DEFAULT false,
-  patient_notified_at timestamptz,
-  sla_deadline timestamptz,
-  escalated boolean DEFAULT false;
-
--- Track safety check responses
-ALTER TABLE patient_checkins ADD COLUMN IF NOT EXISTS 
-  safety_check_responses jsonb DEFAULT '{}';
-```
-
-### 3.2 Create Callback Guarantee Function
-
-**New file: `supabase/functions/schedule-guaranteed-callback/index.ts`**
-
-When nurse is unavailable:
-1. Create callback record with SLA
-2. Send WhatsApp to patient: "A nurse will call within 30 minutes"
-3. Start SLA timer
-4. If SLA breached → escalate to supervisor
-
----
-
-## Phase 4: Enhanced Audit Logging
-
-### 4.1 Update `b2b_audit_log` Table
-
-```sql
--- Add new action types for compliance
--- Already exists, but ensure these action types are logged:
--- 'call_started', 'identity_verified', 'consent_obtained', 
--- 'safety_question_answered', 'red_flag_detected', 
--- 'escalation_triggered', 'handover_initiated', 
--- 'callback_scheduled', 'sla_breached'
-```
-
-### 4.2 Structured Call Logging
-
-Every call should log:
-```json
-{
-  "call_id": "...",
-  "identity_verified": true,
-  "consent_given": true,
-  "safety_responses": {
-    "fever": "no",
-    "uncontrolled_pain": "no", 
-    "breathing_difficulty": "yes",
-    "wound_discharge": "no",
-    "neurological_symptoms": "no"
-  },
-  "red_flag_triggered": true,
-  "escalation_type": "red",
-  "escalation_sent_to": ["clinician", "nurse"],
-  "callback_scheduled": true,
-  "call_duration_seconds": 145
+user_data: {
+  // ...existing fields...
+  patient_name: patient.patient_name,
+  
+  // NEW: Caregiver context
+  caregiver_name: patient.caregiver_name || null,
+  caregiver_relation: patient.caregiver_relation || null,
+  has_registered_caregiver: !!patient.caregiver_name,
 }
 ```
 
 ---
 
-## Phase 5: ASR Confidence Handling
+## Phase 4: Update b2b-bolna-webhook Function
 
-### 5.1 Bolna Platform Limitations
+Detect who answered and log appropriately:
 
-Bolna does not expose ASR confidence scores directly. However, we can:
+```typescript
+// NEW: Detect respondent type from transcript
+function detectRespondent(transcript: string, patientName: string): {
+  respondentType: "patient" | "caregiver" | "unknown";
+  respondentRelation: string | null;
+} {
+  const lowerTranscript = transcript.toLowerCase();
+  const firstName = patientName.split(" ")[0].toLowerCase();
+  
+  // Relationship patterns (Hindi + English)
+  const relationPatterns = {
+    "spouse": ["wife", "husband", "pati", "patni", "पति", "पत्नी"],
+    "son": ["son", "beta", "बेटा", "ladka"],
+    "daughter": ["daughter", "beti", "बेटी", "ladki"],
+    "daughter_in_law": ["bahu", "बहू", "daughter-in-law"],
+    "parent": ["father", "mother", "papa", "mummy", "पापा", "माँ"],
+    "sibling": ["brother", "sister", "bhai", "behen", "भाई", "बहन"],
+    "other": ["relative", "caregiver", "family", "rishtedar", "रिश्तेदार"],
+  };
+  
+  // Check if patient answered directly
+  const patientConfirmPatterns = [
+    `${firstName}`, "haan main", "yes i am", "ji main", "speaking",
+    "bol raha", "बोल रहा", "बोल रही"
+  ];
+  
+  if (patientConfirmPatterns.some(p => lowerTranscript.includes(p))) {
+    return { respondentType: "patient", respondentRelation: null };
+  }
+  
+  // Check for caregiver indicators
+  for (const [relation, patterns] of Object.entries(relationPatterns)) {
+    if (patterns.some(p => lowerTranscript.includes(p))) {
+      return { respondentType: "caregiver", respondentRelation: relation };
+    }
+  }
+  
+  return { respondentType: "unknown", respondentRelation: null };
+}
 
-1. **Prompt-Level Handling**: Add to agent prompt:
-   ```
-   If patient's response is unclear, ask: "माफ़ कीजिए, क्या आप दोबारा बता सकते हैं?"
-   After 2 unclear responses: "मैं आपकी बात समझ नहीं पा रहा। मैं एक नर्स से connect कराता हूं।"
-   ```
+// Store in patient_checkins
+const { respondentType, respondentRelation } = detectRespondent(
+  transcript, 
+  patient.patient_name
+);
 
-2. **Transcript Analysis**: In webhook, detect:
-   - Very short responses (< 3 words) for safety questions
-   - High pause ratio (if Bolna provides timing)
-   - Repeated "huh", "kya", confusion indicators
-
-3. **Human Handover Trigger**: If 2 safety questions have unclear responses → auto-handover
-
----
-
-## Implementation Summary
-
-| Phase | Files Changed | Priority |
-|-------|---------------|----------|
-| 1 | `B2B_VOICE_AGENT_PROMPT.md` | Critical |
-| 2 | `escalate-b2b-alert/index.ts` (new), `b2b-bolna-webhook/index.ts` | Critical |
-| 3 | `schedule-guaranteed-callback/index.ts` (new), DB migration | High |
-| 4 | `b2b-bolna-webhook/index.ts`, DB migration | High |
-| 5 | `B2B_VOICE_AGENT_PROMPT.md`, `b2b-bolna-webhook/index.ts` | Medium |
-
-### Database Migration Required
-
-```sql
--- New columns for organizations
-ALTER TABLE organizations 
-  ADD COLUMN IF NOT EXISTS on_call_clinician_phone text,
-  ADD COLUMN IF NOT EXISTS duty_nurse_phone text,
-  ADD COLUMN IF NOT EXISTS care_coordinator_email text;
-
--- Enhanced callback tracking  
-ALTER TABLE scheduled_callbacks
-  ADD COLUMN IF NOT EXISTS patient_notified boolean DEFAULT false,
-  ADD COLUMN IF NOT EXISTS patient_notified_at timestamptz,
-  ADD COLUMN IF NOT EXISTS escalated boolean DEFAULT false;
-
--- Safety check responses
-ALTER TABLE patient_checkins
-  ADD COLUMN IF NOT EXISTS safety_check_responses jsonb DEFAULT '{}',
-  ADD COLUMN IF NOT EXISTS identity_verified boolean,
-  ADD COLUMN IF NOT EXISTS consent_obtained boolean;
+// Include in checkin record
+await supabase.from("patient_checkins").insert({
+  // ...existing fields...
+  respondent_type: respondentType,
+  respondent_relation: respondentRelation,
+});
 ```
 
-### Bolna Dashboard Updates Required (Manual)
+---
 
-After code deployment, the hospital admin must:
-1. Update the agent prompt in Bolna Dashboard
-2. Set Welcome Message to `{greeting}`
-3. Test with sample calls before going live
+## Phase 5: Update ExcelUploader for Caregiver Data
+
+Allow hospitals to upload caregiver information during patient upload:
+
+### New Excel Columns (Optional)
+| Column | Example |
+|--------|---------|
+| Caregiver Name | Priya Sharma |
+| Caregiver Phone | 9876543210 |
+| Caregiver Relation | daughter |
+
+### Update ExcelUploader.tsx Parsing
+
+```typescript
+const caregiverName = row['Caregiver Name'] || row['caregiver_name'] || 
+                      row['Family Contact Name'] || null;
+const caregiverPhone = row['Caregiver Phone'] || row['caregiver_phone'] || 
+                       row['Family Phone'] || null;
+const caregiverRelation = row['Caregiver Relation'] || row['caregiver_relation'] || 
+                          row['Relation'] || null;
+
+// Include in patient record
+const patientRecord = {
+  // ...existing fields...
+  caregiver_name: caregiverName,
+  caregiver_phone: caregiverPhone,
+  caregiver_relation: normalizeRelation(caregiverRelation),
+};
+```
 
 ---
 
-## Expected Outcomes
+## Phase 6: Update Escalation to Include Caregiver
+
+When escalating alerts, also notify the registered caregiver if available:
+
+### In escalate-b2b-alert Function
+
+```typescript
+// Get caregiver contact if available
+if (patient.caregiver_phone && severity === "red") {
+  // Send WhatsApp to caregiver
+  await sendWhatsAppToCaregiver(
+    patient.caregiver_phone,
+    patient.caregiver_name,
+    patient.patient_name,
+    symptomText,
+    org.hospital_contact_number
+  );
+  notificationResults.push("WhatsApp sent to caregiver");
+}
+```
+
+---
+
+## Implementation Files Summary
+
+| File | Change Type | Description |
+|------|-------------|-------------|
+| Database Migration | NEW | Add caregiver fields to `discharged_patients` and `patient_checkins` |
+| `B2B_VOICE_AGENT_PROMPT.md` | UPDATE | Caregiver-aware identity flow with third-person questions |
+| `run-scheduled-b2b-calls/index.ts` | UPDATE | Pass caregiver context to voice agent |
+| `b2b-bolna-webhook/index.ts` | UPDATE | Detect respondent type, log who answered |
+| `ExcelUploader.tsx` | UPDATE | Parse caregiver columns from upload |
+| `escalate-b2b-alert/index.ts` | UPDATE | Notify caregiver on RED alerts |
+| `PatientDetail.tsx` | UPDATE | Display caregiver info in patient view |
+
+---
+
+## Audit & Compliance Benefits
+
+1. **Full Transparency**: Each checkin records WHO answered (patient vs caregiver)
+2. **Clinical Accuracy**: Questions phrased appropriately for respondent
+3. **Escalation Chain**: Caregiver is notified alongside hospital staff
+4. **No Missed Data**: Information is collected even when patient can't speak
+5. **Relationship Tracking**: Clear audit trail of who provided health updates
+
+---
+
+## Testing Recommendations
 
 After implementation:
-- Every call follows identity → consent → safety → meds → close flow
-- RED flags trigger immediate multi-channel notification (15-min SLA)
-- Patients receive guaranteed callback notification if nurse unavailable
-- Full audit trail for compliance/NABH requirements
-- Unclear responses trigger human handover
+1. **Test with patient answering** - Should work as before
+2. **Test with "I'm their daughter"** - Should continue call in third-person
+3. **Test with wrong number** - Should reschedule gracefully
+4. **Test Excel upload with caregiver fields** - Should parse and store correctly
+5. **Test RED escalation with caregiver** - Should notify both hospital + caregiver
