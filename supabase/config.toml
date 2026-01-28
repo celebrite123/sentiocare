@@ -84,3 +84,9 @@ verify_jwt = false
 
 [functions.elevenlabs-demo-tts]
 verify_jwt = false
+
+[functions.escalate-b2b-alert]
+verify_jwt = false
+
+[functions.schedule-guaranteed-callback]
+verify_jwt = false
