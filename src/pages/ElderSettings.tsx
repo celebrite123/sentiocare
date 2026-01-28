@@ -223,36 +223,50 @@ const ElderSettings = () => {
       // Update local elderName for display
       setElderName(fullName);
 
-      // Upsert schedule
+      // Check if time_of_day changed - if so, reset last_run_at to allow new call today
+      const { data: existingSchedule } = await supabase
+        .from("check_in_schedules")
+        .select("id, time_of_day")
+        .eq("elder_id", elderId)
+        .single();
+      
+      const timeChanged = existingSchedule && existingSchedule.time_of_day?.slice(0, 5) !== timeOfDay;
+      
+      // Upsert schedule with conditional last_run_at reset
+      const scheduleData: any = {
+        elder_id: elderId,
+        schedule_type: scheduleType,
+        time_of_day: timeOfDay,
+        days_of_week: daysOfWeek,
+        active: scheduleActive,
+      };
+      
+      // Reset last_run_at if time changed to allow call at new time
+      if (timeChanged) {
+        scheduleData.last_run_at = null;
+      }
+      
       const { error: scheduleError } = await supabase
         .from("check_in_schedules")
-        .upsert({
-          elder_id: elderId,
-          schedule_type: scheduleType,
-          time_of_day: timeOfDay,
-          days_of_week: daysOfWeek,
-          active: scheduleActive,
-        }, {
+        .upsert(scheduleData, {
           onConflict: "elder_id",
           ignoreDuplicates: false,
         });
 
       if (scheduleError) {
-        const { data: existing } = await supabase
-          .from("check_in_schedules")
-          .select("id")
-          .eq("elder_id", elderId)
-          .single();
-
-        if (existing) {
+        if (existingSchedule) {
+          const updateData: any = {
+            schedule_type: scheduleType,
+            time_of_day: timeOfDay,
+            days_of_week: daysOfWeek,
+            active: scheduleActive,
+          };
+          if (timeChanged) {
+            updateData.last_run_at = null;
+          }
           await supabase
             .from("check_in_schedules")
-            .update({
-              schedule_type: scheduleType,
-              time_of_day: timeOfDay,
-              days_of_week: daysOfWeek,
-              active: scheduleActive,
-            })
+            .update(updateData)
             .eq("elder_id", elderId);
         } else {
           await supabase
@@ -265,6 +279,14 @@ const ElderSettings = () => {
               active: scheduleActive,
             });
         }
+      }
+      
+      // Notify user if time changed
+      if (timeChanged) {
+        toast({
+          title: "Schedule Updated",
+          description: "Call time changed - a call will be triggered at the new time today.",
+        });
       }
 
       // Upsert notifications
