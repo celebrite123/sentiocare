@@ -6,6 +6,19 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Safety question keywords for detection
+const safetyQuestionPatterns = {
+  fever: ["fever", "bukhar", "बुखार", "temperature", "hot", "garam"],
+  uncontrolled_pain: ["pain", "dard", "दर्द", "takleef", "तकलीफ़", "hurting", "ache"],
+  breathing_difficulty: ["breath", "saans", "सांस", "breathing", "dam", "दम", "suffocate"],
+  wound_discharge: ["wound", "ghav", "घाव", "blood", "khoon", "खून", "pus", "discharge", "sujan", "सूजन", "swelling"],
+  neurological_symptoms: ["dizzy", "chakkar", "चक्कर", "faint", "confusion", "weakness", "kamzori", "कमज़ोरी", "behosh"],
+};
+
+// Yes/No detection patterns
+const yesPatterns = ["yes", "haan", "हां", "ha", "हा", "ji", "जी", "right", "correct", "thik", "ठीक", "ho raha", "hai", "है"];
+const noPatterns = ["no", "nahi", "नहीं", "na", "नहीं", "not", "nothing", "kuch nahi", "कुछ नहीं"];
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -61,6 +74,17 @@ serve(async (req) => {
 
     const wasAnswered = status === "completed" && transcript && transcript.length > 50;
 
+    // Parse safety check responses from transcript
+    const safetyCheckResponses = parseSafetyResponses(transcript || "");
+    const redFlagTriggered = Object.values(safetyCheckResponses).some(v => v === "yes");
+    const triggeredSymptoms = Object.entries(safetyCheckResponses)
+      .filter(([_, v]) => v === "yes")
+      .map(([k, _]) => k);
+
+    // Detect identity and consent from transcript
+    const identityVerified = detectIdentityVerification(transcript || "", patient.patient_name);
+    const consentObtained = detectConsent(transcript || "");
+
     // Analyze transcript with AI if call was answered
     let analysis = {
       medicines_taken: null as boolean | null,
@@ -70,17 +94,25 @@ serve(async (req) => {
       risk_reason: null as string | null,
       sentiment: "neutral" as string,
       ai_summary: null as string | null,
+      medicine_issue_reason: null as string | null,
     };
 
     if (wasAnswered && transcript) {
       try {
-        analysis = await analyzeTranscript(transcript, patient, supabase);
+        analysis = await analyzeTranscript(transcript, patient, safetyCheckResponses, supabase);
       } catch (e) {
         console.error("AI analysis failed:", e);
       }
     }
 
-    // Create patient checkin record
+    // Override risk level if red flags detected
+    if (redFlagTriggered) {
+      analysis.risk_level = "urgent";
+      analysis.symptoms_reported = triggeredSymptoms;
+      analysis.risk_reason = `Red flag symptoms detected: ${triggeredSymptoms.join(", ")}`;
+    }
+
+    // Create patient checkin record with structured safety responses
     const { data: checkin, error: checkinError } = await supabase
       .from("patient_checkins")
       .insert({
@@ -91,7 +123,7 @@ serve(async (req) => {
         answered: wasAnswered,
         medicines_taken: analysis.medicines_taken,
         danger_symptoms_reported: analysis.symptoms_reported.length > 0 ? analysis.symptoms_reported : null,
-        needs_hospital_help: analysis.needs_hospital_help,
+        needs_hospital_help: analysis.needs_hospital_help || redFlagTriggered,
         risk_level: analysis.risk_level,
         risk_reason: analysis.risk_reason,
         sentiment: analysis.sentiment,
@@ -99,6 +131,15 @@ serve(async (req) => {
         call_id: execution_id || call_id,
         call_duration_seconds: duration || null,
         recording_url: recording_url || null,
+        // New structured fields
+        safety_check_responses: {
+          ...safetyCheckResponses,
+          red_flag_triggered: redFlagTriggered,
+          triggered_symptoms: triggeredSymptoms,
+          medicine_issue_reason: analysis.medicine_issue_reason,
+        },
+        identity_verified: identityVerified,
+        consent_obtained: consentObtained,
       })
       .select()
       .single();
@@ -113,7 +154,7 @@ serve(async (req) => {
     };
 
     // Update risk status based on analysis
-    if (analysis.risk_level === "urgent" || analysis.needs_hospital_help) {
+    if (analysis.risk_level === "urgent" || analysis.needs_hospital_help || redFlagTriggered) {
       patientUpdates.risk_status = "urgent";
       patientUpdates.risk_reason = analysis.risk_reason || "Critical symptoms detected during voice call";
     } else if (analysis.risk_level === "nurse_followup" || analysis.symptoms_reported.length > 0 || !analysis.medicines_taken) {
@@ -156,43 +197,86 @@ serve(async (req) => {
       .update(patientUpdates)
       .eq("id", patientId);
 
-    // Create alert if risk detected
-    if (analysis.risk_level === "urgent" || analysis.risk_level === "nurse_followup") {
-      const severity = analysis.risk_level === "urgent" ? "critical" : "medium";
-      const alertType = analysis.needs_hospital_help ? "help_request" : "symptom_detected";
+    // Determine escalation severity
+    let escalationSeverity: "red" | "yellow" | "green" | null = null;
+    
+    if (redFlagTriggered || analysis.needs_hospital_help) {
+      escalationSeverity = "red";
+    } else if (analysis.risk_level === "nurse_followup" && analysis.symptoms_reported.length > 0) {
+      escalationSeverity = "yellow";
+    } else if (!analysis.medicines_taken && analysis.medicine_issue_reason) {
+      escalationSeverity = analysis.medicine_issue_reason.includes("cost") || 
+                          analysis.medicine_issue_reason.includes("confusion") 
+                          ? "green" : "yellow";
+    }
 
-      const { error: alertError } = await supabase
+    // Create alert and trigger escalation
+    if (escalationSeverity) {
+      const severity = escalationSeverity === "red" ? "critical" : 
+                      escalationSeverity === "yellow" ? "medium" : "low";
+      const alertType = analysis.needs_hospital_help ? "help_request" : 
+                       redFlagTriggered ? "red_flag_symptom" : "symptom_detected";
+
+      const { data: alert, error: alertError } = await supabase
         .from("b2b_alerts")
         .insert({
           organization_id: organizationId,
           patient_id: patientId,
           alert_type: alertType,
           severity: severity,
-          title: analysis.risk_level === "urgent" 
-            ? `URGENT: ${patient.patient_name} needs attention`
-            : `Follow-up needed: ${patient.patient_name}`,
+          title: escalationSeverity === "red" 
+            ? `🚨 URGENT: ${patient.patient_name} - Red Flag Detected`
+            : escalationSeverity === "yellow"
+            ? `⚠️ Follow-up: ${patient.patient_name}`
+            : `ℹ️ Advisory: ${patient.patient_name}`,
           description: analysis.risk_reason || analysis.ai_summary || "Review required based on voice call",
-          sla_deadline: new Date(Date.now() + (severity === "critical" ? 2 : 24) * 60 * 60 * 1000).toISOString(),
-        });
+          sla_deadline: new Date(Date.now() + (
+            escalationSeverity === "red" ? 15 : 
+            escalationSeverity === "yellow" ? 120 : 480
+          ) * 60 * 1000).toISOString(),
+        })
+        .select()
+        .single();
 
       if (alertError) {
         console.error("Failed to create alert:", alertError);
       }
 
-      // Send notification for critical alerts
-      if (severity === "critical" && patient.organizations?.escalation_phone) {
+      // Trigger escalation for RED and YELLOW alerts
+      if ((escalationSeverity === "red" || escalationSeverity === "yellow") && alert) {
         try {
-          await supabase.functions.invoke("send-b2b-alert-notification", {
+          await supabase.functions.invoke("escalate-b2b-alert", {
             body: {
               organization_id: organizationId,
               patient_id: patientId,
-              alert_type: alertType,
-              severity: severity,
-              message: analysis.risk_reason || "Urgent attention required",
+              alert_id: alert.id,
+              severity: escalationSeverity,
+              reason: analysis.risk_reason || "Symptoms detected during voice call",
+              safety_responses: safetyCheckResponses,
+              triggered_symptoms: triggeredSymptoms,
             },
           });
+          console.log(`Escalation triggered: ${escalationSeverity}`);
         } catch (e) {
-          console.error("Failed to send notification:", e);
+          console.error("Failed to trigger escalation:", e);
+        }
+      }
+
+      // Schedule guaranteed callback for RED alerts
+      if (escalationSeverity === "red") {
+        try {
+          await supabase.functions.invoke("schedule-guaranteed-callback", {
+            body: {
+              organization_id: organizationId,
+              patient_id: patientId,
+              reason: `RED ALERT: ${triggeredSymptoms.join(", ")}`,
+              sla_minutes: 15,
+              notify_patient: true,
+            },
+          });
+          console.log("Guaranteed callback scheduled for RED alert");
+        } catch (e) {
+          console.error("Failed to schedule callback:", e);
         }
       }
     }
@@ -207,10 +291,16 @@ serve(async (req) => {
       console.error("Failed to increment call count:", e);
     }
 
-    console.log(`B2B call processed for patient ${patientId}: ${analysis.risk_level}`);
+    console.log(`B2B call processed for patient ${patientId}: ${analysis.risk_level}, red_flags: ${redFlagTriggered}`);
 
     return new Response(
-      JSON.stringify({ success: true, risk_level: analysis.risk_level }),
+      JSON.stringify({ 
+        success: true, 
+        risk_level: analysis.risk_level,
+        red_flag_triggered: redFlagTriggered,
+        triggered_symptoms: triggeredSymptoms,
+        escalation_severity: escalationSeverity,
+      }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error: any) {
@@ -222,19 +312,104 @@ serve(async (req) => {
   }
 });
 
-async function analyzeTranscript(transcript: string, patient: any, supabase: any) {
+/**
+ * Parse safety check responses from transcript
+ */
+function parseSafetyResponses(transcript: string): Record<string, string> {
+  const lowerTranscript = transcript.toLowerCase();
+  const responses: Record<string, string> = {
+    fever: "unclear",
+    uncontrolled_pain: "unclear",
+    breathing_difficulty: "unclear",
+    wound_discharge: "unclear",
+    neurological_symptoms: "unclear",
+  };
+
+  // Split transcript into segments (roughly by turn)
+  const segments = lowerTranscript.split(/[.?!]/);
+
+  for (const [key, patterns] of Object.entries(safetyQuestionPatterns)) {
+    // Find segment that mentions this safety question
+    for (let i = 0; i < segments.length; i++) {
+      const segment = segments[i];
+      const hasQuestion = patterns.some(p => segment.includes(p));
+      
+      if (hasQuestion && i + 1 < segments.length) {
+        // Check the next segment for yes/no answer
+        const answerSegment = segments[i + 1];
+        
+        if (yesPatterns.some(p => answerSegment.includes(p))) {
+          responses[key] = "yes";
+          break;
+        } else if (noPatterns.some(p => answerSegment.includes(p))) {
+          responses[key] = "no";
+          break;
+        }
+      }
+    }
+  }
+
+  return responses;
+}
+
+/**
+ * Detect if identity was verified in transcript
+ */
+function detectIdentityVerification(transcript: string, patientName: string): boolean {
+  const lowerTranscript = transcript.toLowerCase();
+  const firstName = patientName.split(" ")[0].toLowerCase();
+  
+  // Check for identity confirmation patterns
+  const identityPatterns = [
+    "speaking with", "baat kar", "बात कर",
+    "am i speaking", "kya main", "क्या मैं",
+  ];
+  
+  const hasIdentityQuestion = identityPatterns.some(p => lowerTranscript.includes(p));
+  const hasNameMention = lowerTranscript.includes(firstName);
+  const hasConfirmation = yesPatterns.some(p => lowerTranscript.includes(p));
+  
+  return hasIdentityQuestion && (hasNameMention || hasConfirmation);
+}
+
+/**
+ * Detect if consent was obtained
+ */
+function detectConsent(transcript: string): boolean {
+  const lowerTranscript = transcript.toLowerCase();
+  
+  const consentPatterns = [
+    "2 minute", "do minute", "दो मिनट", "2-3 minute",
+    "health check", "sehat", "सेहत", "janch", "जांच",
+  ];
+  
+  const hasConsentQuestion = consentPatterns.some(p => lowerTranscript.includes(p));
+  const hasConfirmation = yesPatterns.some(p => lowerTranscript.includes(p));
+  
+  return hasConsentQuestion && hasConfirmation;
+}
+
+async function analyzeTranscript(
+  transcript: string, 
+  patient: any, 
+  safetyResponses: Record<string, string>,
+  supabase: any
+) {
   const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
   
   const redFlagSymptoms = patient.red_flag_symptoms || [];
   
   const prompt = `Analyze this post-discharge patient call transcript and extract:
 1. Did the patient take their medicines? (true/false/null if not mentioned)
-2. Any symptoms reported, especially these red flags: ${redFlagSymptoms.join(", ")}
-3. Does the patient need hospital help? (true/false)
-4. Risk level: "stable", "nurse_followup", or "urgent"
-5. Reason for risk assessment
-6. Overall sentiment: "positive", "neutral", "negative", "anxious"
-7. Brief summary (1-2 sentences)
+2. If not taking medicines, what is the reason? (cost/confusion/side_effects/forgot/null)
+3. Any symptoms reported, especially these red flags: ${redFlagSymptoms.join(", ")}
+4. Does the patient need hospital help? (true/false)
+5. Risk level: "stable", "nurse_followup", or "urgent"
+6. Reason for risk assessment
+7. Overall sentiment: "positive", "neutral", "negative", "anxious"
+8. Brief summary (1-2 sentences)
+
+Safety check responses already detected: ${JSON.stringify(safetyResponses)}
 
 Patient context:
 - Name: ${patient.patient_name}
@@ -248,6 +423,7 @@ ${transcript}
 Respond in JSON format:
 {
   "medicines_taken": boolean | null,
+  "medicine_issue_reason": "cost" | "confusion" | "side_effects" | "forgot" | null,
   "symptoms_reported": ["symptom1", "symptom2"],
   "needs_hospital_help": boolean,
   "risk_level": "stable" | "nurse_followup" | "urgent",
@@ -300,6 +476,20 @@ Respond in JSON format:
     lowerTranscript.includes(s.toLowerCase())
   );
 
+  // Check for medicine non-adherence reasons
+  let medicineIssueReason = null;
+  if (!medicinesTaken) {
+    if (lowerTranscript.includes("cost") || lowerTranscript.includes("paisa") || lowerTranscript.includes("mahanga")) {
+      medicineIssueReason = "cost";
+    } else if (lowerTranscript.includes("confus") || lowerTranscript.includes("samajh")) {
+      medicineIssueReason = "confusion";
+    } else if (lowerTranscript.includes("side effect") || lowerTranscript.includes("problem")) {
+      medicineIssueReason = "side_effects";
+    } else if (lowerTranscript.includes("forgot") || lowerTranscript.includes("bhool")) {
+      medicineIssueReason = "forgot";
+    }
+  }
+
   let riskLevel = "stable";
   let riskReason = null;
 
@@ -310,11 +500,12 @@ Respond in JSON format:
       : `Red flag symptoms detected: ${symptomsFound.join(", ")}`;
   } else if (!medicinesTaken) {
     riskLevel = "nurse_followup";
-    riskReason = "Patient may not be taking medicines as prescribed";
+    riskReason = `Patient may not be taking medicines as prescribed${medicineIssueReason ? ` (reason: ${medicineIssueReason})` : ""}`;
   }
 
   return {
     medicines_taken: medicinesTaken,
+    medicine_issue_reason: medicineIssueReason,
     symptoms_reported: symptomsFound,
     needs_hospital_help: needsHelp,
     risk_level: riskLevel,

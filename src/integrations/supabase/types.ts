@@ -939,6 +939,7 @@ export type Database = {
           bolna_agent_id: string | null
           bolna_agent_id_hindi: string | null
           calls_used_this_month: number | null
+          care_coordinator_email: string | null
           contact_email: string | null
           contact_phone: string | null
           created_at: string | null
@@ -946,6 +947,7 @@ export type Database = {
           default_call_schedule: Json | null
           default_language: string | null
           discharge_message_template: string | null
+          duty_nurse_phone: string | null
           escalation_email: string | null
           escalation_phone: string | null
           hospital_contact_number: string | null
@@ -955,6 +957,7 @@ export type Database = {
           monthly_patient_limit: number | null
           monthly_sms_limit: number | null
           name: string
+          on_call_clinician_phone: string | null
           patients_this_month: number | null
           sms_used_this_month: number | null
           type: string
@@ -969,6 +972,7 @@ export type Database = {
           bolna_agent_id?: string | null
           bolna_agent_id_hindi?: string | null
           calls_used_this_month?: number | null
+          care_coordinator_email?: string | null
           contact_email?: string | null
           contact_phone?: string | null
           created_at?: string | null
@@ -976,6 +980,7 @@ export type Database = {
           default_call_schedule?: Json | null
           default_language?: string | null
           discharge_message_template?: string | null
+          duty_nurse_phone?: string | null
           escalation_email?: string | null
           escalation_phone?: string | null
           hospital_contact_number?: string | null
@@ -985,6 +990,7 @@ export type Database = {
           monthly_patient_limit?: number | null
           monthly_sms_limit?: number | null
           name: string
+          on_call_clinician_phone?: string | null
           patients_this_month?: number | null
           sms_used_this_month?: number | null
           type?: string
@@ -999,6 +1005,7 @@ export type Database = {
           bolna_agent_id?: string | null
           bolna_agent_id_hindi?: string | null
           calls_used_this_month?: number | null
+          care_coordinator_email?: string | null
           contact_email?: string | null
           contact_phone?: string | null
           created_at?: string | null
@@ -1006,6 +1013,7 @@ export type Database = {
           default_call_schedule?: Json | null
           default_language?: string | null
           discharge_message_template?: string | null
+          duty_nurse_phone?: string | null
           escalation_email?: string | null
           escalation_phone?: string | null
           hospital_contact_number?: string | null
@@ -1015,6 +1023,7 @@ export type Database = {
           monthly_patient_limit?: number | null
           monthly_sms_limit?: number | null
           name?: string
+          on_call_clinician_phone?: string | null
           patients_this_month?: number | null
           sms_used_this_month?: number | null
           type?: string
@@ -1031,9 +1040,11 @@ export type Database = {
           call_duration_seconds: number | null
           call_id: string | null
           checkin_type: string
+          consent_obtained: boolean | null
           created_at: string | null
           danger_symptoms_reported: string[] | null
           id: string
+          identity_verified: boolean | null
           medicines_taken: boolean | null
           message_sid: string | null
           method: string
@@ -1044,6 +1055,7 @@ export type Database = {
           recording_url: string | null
           risk_level: string | null
           risk_reason: string | null
+          safety_check_responses: Json | null
           sentiment: string | null
         }
         Insert: {
@@ -1052,9 +1064,11 @@ export type Database = {
           call_duration_seconds?: number | null
           call_id?: string | null
           checkin_type: string
+          consent_obtained?: boolean | null
           created_at?: string | null
           danger_symptoms_reported?: string[] | null
           id?: string
+          identity_verified?: boolean | null
           medicines_taken?: boolean | null
           message_sid?: string | null
           method: string
@@ -1065,6 +1079,7 @@ export type Database = {
           recording_url?: string | null
           risk_level?: string | null
           risk_reason?: string | null
+          safety_check_responses?: Json | null
           sentiment?: string | null
         }
         Update: {
@@ -1073,9 +1088,11 @@ export type Database = {
           call_duration_seconds?: number | null
           call_id?: string | null
           checkin_type?: string
+          consent_obtained?: boolean | null
           created_at?: string | null
           danger_symptoms_reported?: string[] | null
           id?: string
+          identity_verified?: boolean | null
           medicines_taken?: boolean | null
           message_sid?: string | null
           method?: string
@@ -1086,6 +1103,7 @@ export type Database = {
           recording_url?: string | null
           risk_level?: string | null
           risk_reason?: string | null
+          safety_check_responses?: Json | null
           sentiment?: string | null
         }
         Relationships: [
@@ -1440,12 +1458,16 @@ export type Database = {
           completed_at: string | null
           completed_by: string | null
           created_at: string | null
+          escalated: boolean | null
           id: string
           notes: string | null
           organization_id: string
           patient_id: string
+          patient_notified: boolean | null
+          patient_notified_at: string | null
           reason: string | null
           scheduled_for: string
+          sla_deadline: string | null
           status: string | null
           updated_at: string | null
         }
@@ -1454,12 +1476,16 @@ export type Database = {
           completed_at?: string | null
           completed_by?: string | null
           created_at?: string | null
+          escalated?: boolean | null
           id?: string
           notes?: string | null
           organization_id: string
           patient_id: string
+          patient_notified?: boolean | null
+          patient_notified_at?: string | null
           reason?: string | null
           scheduled_for: string
+          sla_deadline?: string | null
           status?: string | null
           updated_at?: string | null
         }
@@ -1468,12 +1494,16 @@ export type Database = {
           completed_at?: string | null
           completed_by?: string | null
           created_at?: string | null
+          escalated?: boolean | null
           id?: string
           notes?: string | null
           organization_id?: string
           patient_id?: string
+          patient_notified?: boolean | null
+          patient_notified_at?: string | null
           reason?: string | null
           scheduled_for?: string
+          sla_deadline?: string | null
           status?: string | null
           updated_at?: string | null
         }
