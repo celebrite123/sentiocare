@@ -11,7 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import sentioLogo from "@/assets/sentio-logo.png";
+import sentioLogo from "@/assets/sentio-logo-new.png";
 
 interface DashboardHeaderProps {
   elderName: string;

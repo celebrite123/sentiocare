@@ -14,7 +14,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useAdminRole } from "@/hooks/useAdminRole";
 import { useB2BMembership } from "@/hooks/useB2BMembership";
 import AlertsPanel from "./AlertsPanel";
-import sentioLogo from "@/assets/sentio-logo-optimized.png";
+import sentioLogo from "@/assets/sentio-logo-new.png";
 
 const Navbar = () => {
   const navigate = useNavigate();

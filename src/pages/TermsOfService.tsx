@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
-import { ArrowLeft, Heart } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import sentioLogo from "@/assets/sentio-logo-new.png";
 
 const TermsOfService = () => {
   return (
@@ -14,7 +15,7 @@ const TermsOfService = () => {
             </Link>
           </Button>
           <div className="flex items-center gap-2">
-            <Heart className="h-6 w-6 text-primary" />
+            <img src={sentioLogo} alt="Sentio AI" className="h-8 w-auto" />
             <span className="text-xl font-bold">Sentio AI</span>
           </div>
         </div>

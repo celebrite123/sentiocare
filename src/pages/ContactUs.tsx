@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Mail, MapPin, Clock } from "lucide-react";
-import sentioLogo from "@/assets/sentio-logo.png";
+import sentioLogo from "@/assets/sentio-logo-new.png";
 
 const ContactUs = () => {
   return (

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Check, Phone, MessageCircle, Loader2, Heart, Sparkles, Lock, CreditCard, ArrowLeft, X } from "lucide-react";
+import { Check, Phone, MessageCircle, Loader2, Sparkles, CreditCard, ArrowLeft, X } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -8,6 +8,7 @@ import { useSubscription } from "@/hooks/useSubscription";
 import { useRazorpayPayment } from "@/hooks/useRazorpay";
 import { toast } from "@/hooks/use-toast";
 import Navbar from "@/components/Navbar";
+import sentioLogo from "@/assets/sentio-logo-new.png";
 
 const plans = [
   {
@@ -118,7 +119,7 @@ const SelectPlan = () => {
           {/* Compact Header */}
           <div className="text-center mb-8">
             <div className="inline-flex items-center gap-2 mb-3">
-              <Heart className="h-6 w-6 text-primary" />
+              <img src={sentioLogo} alt="Sentio" className="h-8 w-auto" />
               <h1 className="text-2xl font-bold">
                 {isTrialExpired 
                   ? "Continue with Sentio" 
