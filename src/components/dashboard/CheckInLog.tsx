@@ -1,12 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { MessageSquare, Phone, ChevronDown, ChevronUp } from "lucide-react";
+import { MessageSquare, Phone, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
-
 interface ConversationLog {
   id: string;
   role: string;
@@ -30,6 +29,92 @@ interface CheckIn {
 interface CheckInLogProps {
   elderId: string;
 }
+
+// Audio player component that uses proxy to avoid CORS issues
+const AudioPlayer = ({ checkInId }: { checkInId: string }) => {
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadAudio = async () => {
+    if (audioUrl || loading) return;
+    
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setError("Please log in to play recordings");
+        return;
+      }
+
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/proxy-recording?checkInId=${checkInId}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to load recording');
+      }
+
+      const audioBlob = await response.blob();
+      const url = URL.createObjectURL(audioBlob);
+      setAudioUrl(url);
+    } catch (err: any) {
+      console.error('Error loading audio:', err);
+      setError(err.message || 'Failed to load recording');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Cleanup blob URL on unmount
+  useEffect(() => {
+    return () => {
+      if (audioUrl) {
+        URL.revokeObjectURL(audioUrl);
+      }
+    };
+  }, [audioUrl]);
+
+  return (
+    <div className="mb-4 p-3 bg-muted/50 rounded-lg">
+      <p className="text-sm font-medium mb-2">Voice Recording</p>
+      {error ? (
+        <p className="text-sm text-destructive">{error}</p>
+      ) : audioUrl ? (
+        <audio 
+          controls 
+          className="w-full h-10"
+          src={audioUrl}
+        >
+          Your browser does not support the audio element.
+        </audio>
+      ) : (
+        <button
+          onClick={loadAudio}
+          disabled={loading}
+          className="flex items-center gap-2 text-sm text-primary hover:underline disabled:opacity-50"
+        >
+          {loading ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Loading recording...
+            </>
+          ) : (
+            "Click to load recording"
+          )}
+        </button>
+      )}
+    </div>
+  );
+};
 
 const CheckInLog = ({ elderId }: CheckInLogProps) => {
   const [checkIns, setCheckIns] = useState<CheckIn[]>([]);
@@ -231,18 +316,9 @@ const CheckInLog = ({ elderId }: CheckInLogProps) => {
 
                       <CollapsibleContent>
                         <div className="px-4 pb-4 border-t pt-4 mt-2">
-                          {/* Audio Recording */}
+                          {/* Audio Recording - use proxy to avoid CORS */}
                           {checkIn.recording_url && (
-                            <div className="mb-4 p-3 bg-muted/50 rounded-lg">
-                              <p className="text-sm font-medium mb-2">Voice Recording</p>
-                              <audio 
-                                controls 
-                                className="w-full h-10"
-                                src={checkIn.recording_url}
-                              >
-                                Your browser does not support the audio element.
-                              </audio>
-                            </div>
+                            <AudioPlayer checkInId={checkIn.id} />
                           )}
 
                           {/* Full Transcript */}
