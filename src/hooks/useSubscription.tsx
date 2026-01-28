@@ -72,6 +72,20 @@ export const useSubscription = () => {
         .single();
 
       if (error) {
+        // If no profile found (PGRST116), treat as new user in trial - don't show expired
+        if (error.code === "PGRST116") {
+          setState(prev => ({ 
+            ...prev, 
+            loading: false,
+            status: "trial",
+            isTrialActive: true,
+            isTrialExpired: false,
+            trialDaysLeft: 5,
+            canUseVoice: true,
+            canUseWhatsApp: true,
+          }));
+          return;
+        }
         console.error("Error loading subscription:", error);
         setState(prev => ({ ...prev, loading: false }));
         return;

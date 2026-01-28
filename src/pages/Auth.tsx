@@ -106,14 +106,40 @@ const Auth = () => {
   }, [navigate, passwordResetMode]);
 
   const checkAndRedirect = async (userId: string) => {
-    // Check if user has selected a plan
-    const { data: profile } = await supabase
+    // Check if user has a profile
+    const { data: profile, error: profileError } = await supabase
       .from("profiles")
       .select("subscription_tier, subscription_status")
       .eq("user_id", userId)
       .single();
 
-    // If no profile or no plan selected, go to plan selection
+    // If no profile exists (OAuth signup), create one with trial
+    if (profileError && profileError.code === "PGRST116") {
+      // Get user metadata for name
+      const { data: { user } } = await supabase.auth.getUser();
+      const fullName = user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email?.split("@")[0] || "User";
+      
+      const { error: insertError } = await supabase
+        .from("profiles")
+        .insert({
+          user_id: userId,
+          full_name: fullName,
+          subscription_status: "trial",
+          terms_accepted_at: new Date().toISOString(),
+          privacy_accepted_at: new Date().toISOString(),
+          // trial_ends_at is set by default in DB (5 days)
+        });
+
+      if (insertError) {
+        console.error("Failed to create profile:", insertError);
+      }
+      
+      // New user, go to plan selection
+      navigate("/select-plan");
+      return;
+    }
+
+    // If no plan selected, go to plan selection
     if (!profile || !profile.subscription_tier) {
       navigate("/select-plan");
     } else {
