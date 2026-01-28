@@ -10,7 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Check, Circle } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
-import sentioLogo from "@/assets/sentio-logo.png";
+import sentioLogo from "@/assets/sentio-logo-new.png";
 
 // Password requirements indicator component
 const PasswordRequirements = ({ password }: { password: string }) => {

@@ -22,11 +22,11 @@ import {
   Menu,
   X,
   Bell,
-  Building2,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { cn } from "@/lib/utils";
+import sentioLogo from "@/assets/sentio-logo-new.png";
 
 const navItems = [
   { href: "/b2b/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -67,11 +67,12 @@ export const B2BNavbar = ({ alertCount = 0 }: B2BNavbarProps) => {
       <div className="container flex h-16 items-center justify-between">
         {/* Logo & Org Name */}
         <div className="flex items-center gap-4">
-          <Link to="/b2b/dashboard" className="flex items-center gap-2">
-            <Building2 className="h-8 w-8 text-primary" />
-            <div className="hidden sm:block">
-              <span className="font-bold text-lg">{organization?.name || "Hospital"}</span>
-              <Badge variant="secondary" className="ml-2 text-xs">
+          <Link to="/b2b/dashboard" className="flex items-center gap-3">
+            <img src={sentioLogo} alt="Sentio" className="h-9 w-auto" />
+            <div className="hidden sm:flex items-center gap-2">
+              <div className="h-6 w-px bg-border" />
+              <span className="font-semibold text-base">{organization?.name || "Hospital"}</span>
+              <Badge variant="secondary" className="text-xs">
                 B2B
               </Badge>
             </div>

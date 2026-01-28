@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import sentioLogo from "@/assets/sentio-logo.png";
+import sentioLogo from "@/assets/sentio-logo-new.png";
 
 const Footer = () => {
   return (

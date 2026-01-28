@@ -4,10 +4,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Building2, Loader2, AlertCircle } from "lucide-react";
+import { Loader2, AlertCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import sentioLogo from "@/assets/sentio-logo-new.png";
 
 export default function B2BLogin() {
   const navigate = useNavigate();
@@ -69,13 +70,14 @@ export default function B2BLogin() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <div className="mx-auto mb-4 h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-            <Building2 className="h-6 w-6 text-primary" />
+          <div className="mx-auto mb-4">
+            <img src={sentioLogo} alt="Sentio" className="h-14 w-auto mx-auto" />
           </div>
           <CardTitle className="text-2xl">Hospital Staff Login</CardTitle>
           <CardDescription>
             Access the Post-Discharge Care Portal
           </CardDescription>
+          <p className="text-xs text-muted-foreground mt-2">Powered by Sentio AI</p>
         </CardHeader>
         <CardContent>
           {error && (
