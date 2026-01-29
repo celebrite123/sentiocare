@@ -27,18 +27,30 @@ serve(async (req) => {
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     
-    // Create client with user's auth token to verify identity
-    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } }
-    });
+    // Check if this is a service role call (internal from run-scheduled-checkins)
+    const token = authHeader.replace('Bearer ', '');
+    const isServiceRoleCall = token === supabaseServiceKey;
     
-    const { data: { user }, error: userError } = await supabaseAuth.auth.getUser();
-    if (userError || !user) {
-      console.error('Auth error:', userError);
-      return new Response(
-        JSON.stringify({ error: 'Unauthorized - Invalid token' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    let userIdForChecks: string | null = null;
+    
+    if (isServiceRoleCall) {
+      // Internal call from run-scheduled-checkins - skip user auth
+      console.log('Internal service call - bypassing user auth for scheduled check-in');
+    } else {
+      // Dashboard call - require user JWT
+      const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
+        global: { headers: { Authorization: authHeader } }
+      });
+      
+      const { data: { user }, error: userError } = await supabaseAuth.auth.getUser();
+      if (userError || !user) {
+        console.error('Auth error:', userError);
+        return new Response(
+          JSON.stringify({ error: 'Unauthorized - Invalid token' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      userIdForChecks = user.id;
     }
     // ============ END AUTHENTICATION CHECK ============
 
@@ -64,7 +76,7 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // ============ AUTHORIZATION CHECK ============
-    // Verify user has access to this elder
+    // Verify elder exists
     const { data: elder, error: elderError } = await supabase
       .from("elders")
       .select("family_member_id, last_manual_call_at")
@@ -78,11 +90,45 @@ serve(async (req) => {
       );
     }
 
-    // Check if user is the family member owner
+    // For user calls, verify ownership or access
+    if (!isServiceRoleCall && userIdForChecks) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("user_id", userIdForChecks)
+        .single();
+
+      if (!profile) {
+        return new Response(
+          JSON.stringify({ error: 'Profile not found' }),
+          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const isOwner = profile.id === elder.family_member_id;
+      
+      if (!isOwner) {
+        const { data: accessRecord } = await supabase
+          .from("elder_access")
+          .select("id")
+          .eq("elder_id", elderId)
+          .eq("user_id", userIdForChecks)
+          .single();
+        
+        if (!accessRecord) {
+          return new Response(
+            JSON.stringify({ error: 'Forbidden - Not authorized for this elder' }),
+            { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+    }
+
+    // Get family member's profile for subscription checks
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
       .select("id, subscription_tier, subscription_status, trial_ends_at")
-      .eq("user_id", user.id)
+      .eq("id", elder.family_member_id)
       .single();
 
     if (profileError || !profile) {
@@ -90,25 +136,6 @@ serve(async (req) => {
         JSON.stringify({ error: 'Profile not found' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
-    }
-
-    // Check ownership OR access via elder_access table
-    const isOwner = profile.id === elder.family_member_id;
-    
-    if (!isOwner) {
-      const { data: accessRecord } = await supabase
-        .from("elder_access")
-        .select("id")
-        .eq("elder_id", elderId)
-        .eq("user_id", user.id)
-        .single();
-      
-      if (!accessRecord) {
-        return new Response(
-          JSON.stringify({ error: 'Forbidden - Not authorized for this elder' }),
-          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
     }
     // ============ END AUTHORIZATION CHECK ============
 
@@ -168,7 +195,7 @@ serve(async (req) => {
       tier,
       isTrialActive,
       isEmergency,
-      userId: user.id
+      isServiceRoleCall
     });
 
     // Fetch last 5 check-ins for context
