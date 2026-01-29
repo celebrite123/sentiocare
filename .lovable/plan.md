@@ -1,115 +1,90 @@
 
 
-# Fix: Missed Scheduled Calls Bug (Parwati Devi - 3 Days Lost)
+# Fix: Rajiv's Missed Scheduled Call - Authentication Bug
 
-## Problem Confirmed
+## Problem Identified
 
-Parwati Devi, a trial customer (5 days), only received check-in calls on 2 days instead of 5. Investigation revealed:
+Rajiv registered yesterday and scheduled a call for **7:29 PM IST** (based on database: `time_of_day: 19:29:00`). The system attempted to run the call at **19:25 IST** today, but **the call never completed**.
 
-| IST Date | Expected | Actual |
-|----------|----------|--------|
-| Jan 23 | Call | ✓ (Profile created) |
-| Jan 24 | Call | ✓ |
-| Jan 25 | Call | ✓ |
-| Jan 26 | Call | ❌ MISSED |
-| Jan 27 | Call | ❌ MISSED |
-| Jan 28 | Call | ❌ MISSED (Trial ended) |
+### Root Cause: Service Role Authentication Failure
+
+The `bolna-voice-call` edge function has a strict authentication check that requires a **user JWT token**:
+
+```text
+┌─────────────────────────────────────────────────────────────────┐
+│              AUTHENTICATION FLOW - CURRENT BUG                   │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  Manual Call (Dashboard):                                        │
+│  ┌──────────┐    ┌─────────────────┐    ┌─────────────────┐     │
+│  │ User JWT │ ──▶│ bolna-voice-call│ ──▶│  ✓ Works!      │     │
+│  └──────────┘    └─────────────────┘    └─────────────────┘     │
+│                                                                  │
+│  Scheduled Call (Cron):                                          │
+│  ┌────────────────┐    ┌─────────────────┐    ┌─────────────┐   │
+│  │ Service Role   │ ──▶│ bolna-voice-call│ ──▶│ ❌ REJECTED │   │
+│  │ Key            │    │                 │    │ (401 Error) │   │
+│  └────────────────┘    └─────────────────┘    └─────────────────┘│
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Line 47-72 in `bolna-voice-call/index.ts`:**
+- Requires `Authorization: Bearer <user_jwt_token>`
+- Calls `supabaseAuth.auth.getUser()` which fails with service role key
+- Returns 401 Unauthorized, silently failing the scheduled call
+
+**Evidence:**
+- `last_run_at` was updated to `2026-01-29 13:55:03.194+00` (system tried)
+- No `call_attempts` record for today (call initiation failed)
+- No `check_ins` record for today (call never happened)
 
 ---
 
-## Root Cause: UTC vs IST Date Comparison
+## Solution: Dual Authentication Mode
 
-The bug is in `run-scheduled-checkins/index.ts` at lines 84-85:
+Modify `bolna-voice-call` to accept **both** user JWT tokens (for dashboard calls) AND service role keys (for internal scheduled calls).
 
-```javascript
-const alreadyRunToday = lastRun && 
-  lastRun.toDateString() === now.toDateString();  // Uses UTC dates!
-```
+### Implementation
 
-**Problem**: `toDateString()` returns the date in UTC timezone, but check-in schedules are in IST (India Standard Time). 
+```typescript
+// Check if this is a service role call (internal) or user call (dashboard)
+const authHeader = req.headers.get('Authorization');
+const token = authHeader?.replace('Bearer ', '');
 
-**Example Failure Scenario**:
-- Parwati's schedule: 08:00 IST = 02:30 UTC
-- `last_run_at` from Jan 25: `2026-01-25T02:30:00Z`
-- Current time on Jan 26 at 02:30 UTC: `2026-01-26T02:30:00Z`
+// Service role key check - for internal edge function calls
+const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+const isServiceRoleCall = token === serviceRoleKey;
 
-In this case, the UTC dates are different ("Jan 25" vs "Jan 26"), so it works. BUT:
-
-- If `last_run_at` = `2026-01-25T23:30:00Z` (from a late-night cron)
-- Current time = `2026-01-26T02:30:00Z` (08:00 IST next day)
-- Both dates in UTC = "Jan 26" and "Jan 26" → `alreadyRunToday = true` → **SKIPPED!**
-
-The more insidious issue: if the `last_run_at` gets updated during late UTC hours (after ~18:30 UTC = midnight IST), it will incorrectly mark the next IST day as "already run" since they share the same UTC date.
-
----
-
-## Fix: Use IST Date Comparison
-
-Replace UTC-based date comparison with IST-aware logic:
-
-```javascript
-// OLD (BUG):
-const lastRun = schedule.last_run_at ? new Date(schedule.last_run_at) : null;
-const alreadyRunToday = lastRun && 
-  lastRun.toDateString() === now.toDateString();
-
-// NEW (FIXED):
-const lastRun = schedule.last_run_at ? new Date(schedule.last_run_at) : null;
-
-// Convert both dates to IST for comparison
-function getISTDateString(date: Date): string {
-  const istOffset = 5.5 * 60 * 60 * 1000; // 5 hours 30 minutes in ms
-  const istDate = new Date(date.getTime() + istOffset);
-  return istDate.toISOString().split('T')[0]; // Returns "YYYY-MM-DD"
-}
-
-const alreadyRunToday = lastRun && 
-  getISTDateString(lastRun) === getISTDateString(now);
-```
-
----
-
-## Additional Safety Improvements
-
-### 1. Add Explicit IST Helper Function
-
-Create a reusable helper at the top of the file:
-
-```javascript
-// Convert UTC date to IST date string (YYYY-MM-DD)
-function getISTDateString(date: Date): string {
-  const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000; // 5 hours 30 minutes
-  const istDate = new Date(date.getTime() + IST_OFFSET_MS);
-  return istDate.toISOString().split('T')[0];
-}
-```
-
-### 2. Add Detailed Logging for Debugging
-
-```javascript
-console.log(`Schedule ${schedule.id}: time=${schedule.time_of_day}, ` +
-  `timeMatch=${isTimeMatch}, dayMatch=${isDayMatch}, ` +
-  `alreadyRun=${alreadyRunToday}, ` +
-  `lastRunIST=${lastRun ? getISTDateString(lastRun) : 'never'}, ` +
-  `nowIST=${getISTDateString(now)}`);
-```
-
-### 3. Update last_run_at Only on Successful Call
-
-Currently, `last_run_at` is updated even if the voice call fails. Move the update inside the success path:
-
-```javascript
-// Only update last_run_at AFTER successful voice/whatsapp initiation
-if (shouldRunVoice || shouldRunWhatsApp) {
-  // ... run calls ...
+if (isServiceRoleCall) {
+  // Internal call from run-scheduled-checkins - skip user auth
+  // Authorization is handled by the caller (service already verified elder ownership)
+  console.log('Internal service call - bypassing user auth');
+} else {
+  // Dashboard call - require user JWT
+  const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
+    global: { headers: { Authorization: authHeader! } }
+  });
   
-  // Update last_run_at only after successful initiation
-  await supabase
-    .from("check_in_schedules")
-    .update({ last_run_at: now.toISOString() })
-    .eq("id", schedule.id);
+  const { data: { user }, error: userError } = await supabaseAuth.auth.getUser();
+  if (userError || !user) {
+    return new Response(
+      JSON.stringify({ error: 'Unauthorized - Invalid token' }),
+      { status: 401, headers: corsHeaders }
+    );
+  }
+  
+  // Verify user owns this elder (existing ownership check)
+  // ...
 }
 ```
+
+### Authorization Changes
+
+For service role calls, we skip the owner verification since:
+1. The service role has full database access
+2. `run-scheduled-checkins` already fetches valid elder data
+3. Only internal Supabase functions can use the service role key
 
 ---
 
@@ -117,24 +92,63 @@ if (shouldRunVoice || shouldRunWhatsApp) {
 
 | File | Change |
 |------|--------|
-| `supabase/functions/run-scheduled-checkins/index.ts` | Fix IST date comparison, add helper function, improve logging |
+| `supabase/functions/bolna-voice-call/index.ts` | Add dual auth mode (service role + user JWT) |
 
 ---
 
-## Verification After Fix
+## Secondary Issue: Time Input Confusion
 
-1. **Manual Test**: Trigger the edge function and verify logs show correct IST date comparison
-2. **Database Check**: Ensure `last_run_at` updates only after successful calls
-3. **Monitor**: Watch for next scheduled run at 08:00 IST to confirm fix works
+User says they scheduled for "7:30 am" but database shows `19:29:00` (7:29 PM).
+
+**Possible causes:**
+1. User entered "7:30" in 24-hour format thinking it was AM (user error)
+2. UI time picker confusion (less likely - uses standard HTML time input)
+
+**Recommendation:**
+- After fixing the auth bug, verify with Rajiv what time they intended
+- Consider adding AM/PM clarity hints to the time picker UI
 
 ---
 
-## Recovery: Make Whole Missed Calls
+## Additional Safety: Better Error Handling
 
-Since Parwati missed 3 days of her trial, consider:
-1. **Extend trial** by 3 days (update `trial_ends_at` in profiles)
-2. **Trigger manual calls** for the missed days
-3. **Contact caregiver** to apologize for the gap
+Update `run-scheduled-checkins` to properly handle failed voice call responses:
 
-Would you like me to also include a migration to extend Parwati's trial as compensation?
+```typescript
+const voiceResponse = await fetch(...);
+const voiceResult = await voiceResponse.json();
+
+if (!voiceResponse.ok || !voiceResult.success) {
+  console.error(`Voice call failed for elder ${elder?.id}:`, voiceResult);
+  // DON'T update last_run_at if call failed
+  // Mark as error in results
+  results.push({
+    schedule_id: schedule.id,
+    elder_id: schedule.elder_id,
+    status: "voice_failed",
+    error: voiceResult.error || "Voice call initiation failed",
+  });
+  continue; // Skip to next schedule
+}
+```
+
+---
+
+## Expected Outcome
+
+After fix:
+1. ✅ Scheduled calls will work for trial users (voice enabled)
+2. ✅ Service role authentication accepted for internal calls
+3. ✅ Dashboard calls continue to work with user JWT
+4. ✅ Failed calls won't mark the day as "complete"
+5. ✅ Proper error logging for debugging
+
+---
+
+## Testing After Deployment
+
+1. **Manually trigger** `run-scheduled-checkins` to verify it works
+2. **Check logs** for successful voice call initiation
+3. **Verify Rajiv receives call** at next scheduled time (19:29 IST)
+4. **Confirm `call_attempts`** record is created
 
