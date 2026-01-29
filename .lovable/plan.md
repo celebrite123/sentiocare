@@ -1,179 +1,140 @@
 
-# Logo and Branding Update Plan
 
-## Overview
+# Fix: Missed Scheduled Calls Bug (Parwati Devi - 3 Days Lost)
 
-This plan updates all branding across the application to use the new Sentio logo (with elder and caregiver figures in a heart shape) and introduces a premium font for better visual appeal.
+## Problem Confirmed
 
-## Current State Analysis
+Parwati Devi, a trial customer (5 days), only received check-in calls on 2 days instead of 5. Investigation revealed:
 
-### Logo Usage Locations Found
-
-| Location | Current Asset | Issue |
-|----------|---------------|-------|
-| `src/components/Navbar.tsx` | `sentio-logo-optimized.png` | Old logo |
-| `src/components/landing/Footer.tsx` | `sentio-logo.png` | Old logo |
-| `src/components/dashboard/DashboardHeader.tsx` | `sentio-logo.png` | Old logo |
-| `src/pages/Auth.tsx` | `sentio-logo.png` | Old logo |
-| `src/pages/ContactUs.tsx` | `sentio-logo.png` | Old logo |
-| `src/pages/CancellationRefund.tsx` | `sentio-logo.png` | Old logo |
-| `src/pages/PrivacyPolicy.tsx` | Heart icon | No actual logo |
-| `src/pages/TermsOfService.tsx` | Heart icon | No actual logo |
-| `src/pages/SelectPlan.tsx` | Heart icon | No actual logo |
-| `src/components/b2b/B2BNavbar.tsx` | Building2 icon | No Sentio branding |
-| `src/pages/b2b/B2BLogin.tsx` | Building2 icon | No Sentio branding |
-| `public/favicon.png` | Current favicon | Needs update |
-| `index.html` | Preload reference | Needs path update |
-
-### Current Font Stack
-- Using default Tailwind CSS system fonts (ui-sans-serif stack)
-- No custom premium font configured
+| IST Date | Expected | Actual |
+|----------|----------|--------|
+| Jan 23 | Call | ✓ (Profile created) |
+| Jan 24 | Call | ✓ |
+| Jan 25 | Call | ✓ |
+| Jan 26 | Call | ❌ MISSED |
+| Jan 27 | Call | ❌ MISSED |
+| Jan 28 | Call | ❌ MISSED (Trial ended) |
 
 ---
 
-## Implementation Plan
+## Root Cause: UTC vs IST Date Comparison
 
-### Phase 1: Add New Logo Asset
+The bug is in `run-scheduled-checkins/index.ts` at lines 84-85:
 
-1. **Copy uploaded logo to assets folder**
-   - Save as `src/assets/sentio-logo-new.png` (the transparent background version)
-   - This will be used across all components
+```javascript
+const alreadyRunToday = lastRun && 
+  lastRun.toDateString() === now.toDateString();  // Uses UTC dates!
+```
 
-2. **Create favicon version**
-   - Update `public/favicon.png` with the new logo (cropped to icon format)
+**Problem**: `toDateString()` returns the date in UTC timezone, but check-in schedules are in IST (India Standard Time). 
 
-### Phase 2: Add Premium Font
+**Example Failure Scenario**:
+- Parwati's schedule: 08:00 IST = 02:30 UTC
+- `last_run_at` from Jan 25: `2026-01-25T02:30:00Z`
+- Current time on Jan 26 at 02:30 UTC: `2026-01-26T02:30:00Z`
 
-Update font configuration for a more professional healthcare look. Recommended options:
+In this case, the UTC dates are different ("Jan 25" vs "Jan 26"), so it works. BUT:
 
-**Option 1: Inter (Clean, Modern)**
-- Highly readable, works well for healthcare apps
-- Free Google Font
+- If `last_run_at` = `2026-01-25T23:30:00Z` (from a late-night cron)
+- Current time = `2026-01-26T02:30:00Z` (08:00 IST next day)
+- Both dates in UTC = "Jan 26" and "Jan 26" → `alreadyRunToday = true` → **SKIPPED!**
 
-**Option 2: Plus Jakarta Sans (Friendly, Modern)**
-- Warm and approachable, matches elder care branding
-- Free Google Font
-
-**Implementation:**
-1. Add Google Fonts import to `index.html`
-2. Update `tailwind.config.ts` to include the custom font
-3. Update `src/index.css` to apply the font globally
-
-### Phase 3: Update All Logo References
-
-#### Consumer App Pages
-
-| File | Change |
-|------|--------|
-| `src/components/Navbar.tsx` | Replace `sentio-logo-optimized.png` → `sentio-logo-new.png` |
-| `src/components/landing/Footer.tsx` | Replace `sentio-logo.png` → `sentio-logo-new.png` |
-| `src/components/dashboard/DashboardHeader.tsx` | Replace `sentio-logo.png` → `sentio-logo-new.png` |
-| `src/pages/Auth.tsx` | Replace `sentio-logo.png` → `sentio-logo-new.png` |
-| `src/pages/ContactUs.tsx` | Replace `sentio-logo.png` → `sentio-logo-new.png` |
-| `src/pages/CancellationRefund.tsx` | Replace `sentio-logo.png` → `sentio-logo-new.png` |
-
-#### Pages Using Heart Icon (Replace with actual logo)
-
-| File | Change |
-|------|--------|
-| `src/pages/PrivacyPolicy.tsx` | Replace Heart icon → Sentio logo image |
-| `src/pages/TermsOfService.tsx` | Replace Heart icon → Sentio logo image |
-| `src/pages/SelectPlan.tsx` | Replace Heart icon → Sentio logo image |
-
-#### B2B Portal (Add Sentio branding alongside hospital name)
-
-| File | Change |
-|------|--------|
-| `src/components/b2b/B2BNavbar.tsx` | Add Sentio logo alongside Building2 icon |
-| `src/pages/b2b/B2BLogin.tsx` | Add Sentio logo with "Powered by Sentio" text |
-
-### Phase 4: Update Meta Assets
-
-| File | Change |
-|------|--------|
-| `public/favicon.png` | Replace with new logo icon |
-| `index.html` | Update preload path if filename changes |
+The more insidious issue: if the `last_run_at` gets updated during late UTC hours (after ~18:30 UTC = midnight IST), it will incorrectly mark the next IST day as "already run" since they share the same UTC date.
 
 ---
 
-## Technical Details
+## Fix: Use IST Date Comparison
 
-### Font Configuration (tailwind.config.ts)
+Replace UTC-based date comparison with IST-aware logic:
 
-```typescript
-theme: {
-  extend: {
-    fontFamily: {
-      sans: ['Plus Jakarta Sans', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-    },
-  },
+```javascript
+// OLD (BUG):
+const lastRun = schedule.last_run_at ? new Date(schedule.last_run_at) : null;
+const alreadyRunToday = lastRun && 
+  lastRun.toDateString() === now.toDateString();
+
+// NEW (FIXED):
+const lastRun = schedule.last_run_at ? new Date(schedule.last_run_at) : null;
+
+// Convert both dates to IST for comparison
+function getISTDateString(date: Date): string {
+  const istOffset = 5.5 * 60 * 60 * 1000; // 5 hours 30 minutes in ms
+  const istDate = new Date(date.getTime() + istOffset);
+  return istDate.toISOString().split('T')[0]; // Returns "YYYY-MM-DD"
+}
+
+const alreadyRunToday = lastRun && 
+  getISTDateString(lastRun) === getISTDateString(now);
+```
+
+---
+
+## Additional Safety Improvements
+
+### 1. Add Explicit IST Helper Function
+
+Create a reusable helper at the top of the file:
+
+```javascript
+// Convert UTC date to IST date string (YYYY-MM-DD)
+function getISTDateString(date: Date): string {
+  const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000; // 5 hours 30 minutes
+  const istDate = new Date(date.getTime() + IST_OFFSET_MS);
+  return istDate.toISOString().split('T')[0];
 }
 ```
 
-### Font Import (index.html)
+### 2. Add Detailed Logging for Debugging
 
-```html
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+```javascript
+console.log(`Schedule ${schedule.id}: time=${schedule.time_of_day}, ` +
+  `timeMatch=${isTimeMatch}, dayMatch=${isDayMatch}, ` +
+  `alreadyRun=${alreadyRunToday}, ` +
+  `lastRunIST=${lastRun ? getISTDateString(lastRun) : 'never'}, ` +
+  `nowIST=${getISTDateString(now)}`);
 ```
 
-### Logo Component Pattern
+### 3. Update last_run_at Only on Successful Call
 
-For consistency, we will use the same import pattern across all files:
+Currently, `last_run_at` is updated even if the voice call fails. Move the update inside the success path:
 
-```typescript
-import sentioLogo from "@/assets/sentio-logo-new.png";
-
-// Usage
-<img 
-  src={sentioLogo} 
-  alt="Sentio" 
-  className="h-10 w-auto"
-  loading="lazy"
-/>
+```javascript
+// Only update last_run_at AFTER successful voice/whatsapp initiation
+if (shouldRunVoice || shouldRunWhatsApp) {
+  // ... run calls ...
+  
+  // Update last_run_at only after successful initiation
+  await supabase
+    .from("check_in_schedules")
+    .update({ last_run_at: now.toISOString() })
+    .eq("id", schedule.id);
+}
 ```
 
 ---
 
 ## Files to Modify
 
-| File | Type | Description |
-|------|------|-------------|
-| `src/assets/sentio-logo-new.png` | CREATE | Copy from uploaded logo |
-| `public/favicon.png` | UPDATE | New favicon |
-| `index.html` | UPDATE | Add font import, update preload |
-| `tailwind.config.ts` | UPDATE | Add font family |
-| `src/index.css` | UPDATE | Apply font to body |
-| `src/components/Navbar.tsx` | UPDATE | New logo import |
-| `src/components/landing/Footer.tsx` | UPDATE | New logo import |
-| `src/components/dashboard/DashboardHeader.tsx` | UPDATE | New logo import |
-| `src/pages/Auth.tsx` | UPDATE | New logo import |
-| `src/pages/ContactUs.tsx` | UPDATE | New logo import |
-| `src/pages/CancellationRefund.tsx` | UPDATE | New logo import |
-| `src/pages/PrivacyPolicy.tsx` | UPDATE | Replace Heart icon with logo |
-| `src/pages/TermsOfService.tsx` | UPDATE | Replace Heart icon with logo |
-| `src/pages/SelectPlan.tsx` | UPDATE | Replace Heart icon with logo |
-| `src/components/b2b/B2BNavbar.tsx` | UPDATE | Add Sentio branding |
-| `src/pages/b2b/B2BLogin.tsx` | UPDATE | Add Sentio branding |
+| File | Change |
+|------|--------|
+| `supabase/functions/run-scheduled-checkins/index.ts` | Fix IST date comparison, add helper function, improve logging |
 
 ---
 
-## Cleanup
+## Verification After Fix
 
-After implementation, the old logo files can be removed:
-- `src/assets/sentio-logo.png`
-- `src/assets/sentio-logo-optimized.png`
-
-(Or keep them as backup temporarily)
+1. **Manual Test**: Trigger the edge function and verify logs show correct IST date comparison
+2. **Database Check**: Ensure `last_run_at` updates only after successful calls
+3. **Monitor**: Watch for next scheduled run at 08:00 IST to confirm fix works
 
 ---
 
-## Expected Outcome
+## Recovery: Make Whole Missed Calls
 
-After implementation:
-- Consistent new Sentio logo across all 13+ screens
-- Premium "Plus Jakarta Sans" font for modern healthcare feel
-- B2B portal shows "Powered by Sentio" branding
-- Updated favicon in browser tabs
-- No more generic Heart icons as logo placeholders
+Since Parwati missed 3 days of her trial, consider:
+1. **Extend trial** by 3 days (update `trial_ends_at` in profiles)
+2. **Trigger manual calls** for the missed days
+3. **Contact caregiver** to apologize for the gap
+
+Would you like me to also include a migration to extend Parwati's trial as compensation?
+
