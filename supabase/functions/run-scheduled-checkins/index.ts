@@ -6,6 +6,13 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Convert UTC date to IST date string (YYYY-MM-DD) for accurate day comparison
+function getISTDateString(date: Date): string {
+  const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000; // 5 hours 30 minutes in milliseconds
+  const istDate = new Date(date.getTime() + IST_OFFSET_MS);
+  return istDate.toISOString().split('T')[0]; // Returns "YYYY-MM-DD"
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -81,10 +88,15 @@ serve(async (req) => {
       const isDayMatch = daysArray.includes(currentDay);
 
       const lastRun = schedule.last_run_at ? new Date(schedule.last_run_at) : null;
-      const alreadyRunToday = lastRun && 
-        lastRun.toDateString() === now.toDateString();
+      
+      // FIX: Use IST date comparison instead of UTC to prevent missed calls
+      // This ensures that a call at 08:00 IST on Jan 26 is correctly identified as a new day
+      // even if the last run was at 23:30 UTC on Jan 25 (which is 05:00 IST on Jan 26)
+      const nowISTDate = getISTDateString(now);
+      const lastRunISTDate = lastRun ? getISTDateString(lastRun) : null;
+      const alreadyRunToday = lastRunISTDate !== null && lastRunISTDate === nowISTDate;
 
-      console.log(`Schedule ${schedule.id}: time=${schedule.time_of_day}, timeMatch=${isTimeMatch}, dayMatch=${isDayMatch}, alreadyRun=${alreadyRunToday}`);
+      console.log(`Schedule ${schedule.id}: time=${schedule.time_of_day}, timeMatch=${isTimeMatch}, dayMatch=${isDayMatch}, alreadyRun=${alreadyRunToday}, lastRunIST=${lastRunISTDate || 'never'}, nowIST=${nowISTDate}`);
 
       if (isTimeMatch && isDayMatch && !alreadyRunToday) {
         const elder = schedule.elders;
@@ -192,11 +204,15 @@ serve(async (req) => {
 
           const result = await response.json();
           
-          // Update last_run_at
-          await supabase
-            .from("check_in_schedules")
-            .update({ last_run_at: now.toISOString() })
-            .eq("id", schedule.id);
+          // Only update last_run_at AFTER successful voice/whatsapp initiation
+          // This prevents marking the day as "done" if the calls failed to start
+          if (shouldRunVoice || shouldRunWhatsApp) {
+            await supabase
+              .from("check_in_schedules")
+              .update({ last_run_at: now.toISOString() })
+              .eq("id", schedule.id);
+            console.log(`Updated last_run_at for schedule ${schedule.id} to ${now.toISOString()}`);
+          }
 
           results.push({
             schedule_id: schedule.id,
