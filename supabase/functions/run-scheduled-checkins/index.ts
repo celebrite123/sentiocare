@@ -137,6 +137,10 @@ serve(async (req) => {
 
         console.log(`Triggering check-in for elder: ${elder?.id}, voice=${shouldRunVoice}, whatsapp=${shouldRunWhatsApp}`);
 
+        // Track if calls actually succeeded
+        let voiceSuccess = false;
+        let whatsappSuccess = false;
+
         try {
           // Run voice call if applicable (using Bolna)
           if (shouldRunVoice) {
@@ -159,10 +163,12 @@ serve(async (req) => {
             const voiceResult = await voiceResponse.json();
             console.log("Voice call FULL result:", JSON.stringify(voiceResult));
             
-            if (!voiceResult.success) {
-              console.error("Voice call failed:", voiceResult.error || voiceResult);
-            } else {
+            // CHECK BOTH HTTP STATUS AND RESPONSE SUCCESS
+            if (voiceResponse.ok && voiceResult.success) {
+              voiceSuccess = true;
               console.log(`Voice call initiated successfully. Execution ID: ${voiceResult.execution_id || voiceResult.callId}`);
+            } else {
+              console.error("Voice call FAILED:", voiceResult.error || voiceResult);
             }
           }
 
@@ -182,10 +188,12 @@ serve(async (req) => {
             const whatsappResult = await whatsappResponse.json();
             console.log("WhatsApp check-in FULL result:", JSON.stringify(whatsappResult));
             
-            if (!whatsappResult.success) {
-              console.error("WhatsApp check-in failed:", whatsappResult.error || whatsappResult);
-            } else {
+            // CHECK BOTH HTTP STATUS AND RESPONSE SUCCESS
+            if (whatsappResponse.ok && whatsappResult.success) {
+              whatsappSuccess = true;
               console.log(`WhatsApp sent successfully. SID: ${whatsappResult.messageSid}`);
+            } else {
+              console.error("WhatsApp check-in FAILED:", whatsappResult.error || whatsappResult);
             }
           }
 
@@ -204,24 +212,38 @@ serve(async (req) => {
 
           const result = await response.json();
           
-          // Only update last_run_at AFTER successful voice/whatsapp initiation
-          // This prevents marking the day as "done" if the calls failed to start
-          if (shouldRunVoice || shouldRunWhatsApp) {
+          // ONLY update last_run_at if at least ONE method succeeded
+          // This prevents marking the day as "done" if all calls failed
+          if (voiceSuccess || whatsappSuccess) {
             await supabase
               .from("check_in_schedules")
               .update({ last_run_at: now.toISOString() })
               .eq("id", schedule.id);
             console.log(`Updated last_run_at for schedule ${schedule.id} to ${now.toISOString()}`);
+            
+            results.push({
+              schedule_id: schedule.id,
+              elder_id: schedule.elder_id,
+              status: "completed",
+              check_in_method: checkInMethod,
+              voice_enabled: shouldRunVoice,
+              whatsapp_enabled: shouldRunWhatsApp,
+              voice_success: voiceSuccess,
+              whatsapp_success: whatsappSuccess,
+            });
+          } else if (shouldRunVoice || shouldRunWhatsApp) {
+            // Calls were attempted but ALL failed - don't update last_run_at so it can retry
+            console.error(`All check-in methods FAILED for schedule ${schedule.id} - NOT updating last_run_at`);
+            results.push({
+              schedule_id: schedule.id,
+              elder_id: schedule.elder_id,
+              status: "all_methods_failed",
+              check_in_method: checkInMethod,
+              voice_attempted: shouldRunVoice,
+              whatsapp_attempted: shouldRunWhatsApp,
+              error: "All check-in methods failed to initiate",
+            });
           }
-
-          results.push({
-            schedule_id: schedule.id,
-            elder_id: schedule.elder_id,
-            status: "completed",
-            check_in_method: checkInMethod,
-            voice_enabled: shouldRunVoice,
-            whatsapp_enabled: shouldRunWhatsApp,
-          });
 
           // Send notifications based on check-in result
           if (result.check_in) {
