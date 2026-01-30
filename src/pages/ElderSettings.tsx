@@ -668,6 +668,19 @@ const ElderSettings = () => {
                       value={timeOfDay}
                       onChange={(e) => setTimeOfDay(e.target.value)}
                     />
+                    {/* Show formatted time for clarity */}
+                    {timeOfDay && (
+                      <p className="text-sm text-muted-foreground">
+                        {(() => {
+                          const [hours, minutes] = timeOfDay.split(':').map(Number);
+                          const period = hours >= 12 ? 'PM' : 'AM';
+                          const hours12 = hours % 12 || 12;
+                          const formattedTime = `${hours12}:${minutes.toString().padStart(2, '0')} ${period}`;
+                          const timeLabel = hours < 12 ? '🌅 Morning' : hours < 17 ? '☀️ Afternoon' : '🌙 Evening';
+                          return `${formattedTime} IST (${timeLabel})`;
+                        })()}
+                      </p>
+                    )}
                   </div>
 
                   <div className="space-y-2">
