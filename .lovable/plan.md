@@ -1,90 +1,152 @@
 
 
-# Fix: Rajiv's Missed Scheduled Call - Authentication Bug
+# Fix: Rajiv's Missed Calls - Complete Solution
 
-## Problem Identified
+## Problem Summary
 
-Rajiv registered yesterday and scheduled a call for **7:29 PM IST** (based on database: `time_of_day: 19:29:00`). The system attempted to run the call at **19:25 IST** today, but **the call never completed**.
+| Issue | Detail |
+|-------|--------|
+| **Yesterday (Jan 29)** | Call was attempted at 7:25 PM IST but FAILED silently |
+| **Today (Jan 30)** | Call hasn't happened yet - scheduled for 7:29 PM IST (NOT 7:30 AM!) |
+| **User Expectation** | Rajiv wanted 7:30 AM, but entered 19:29 (7:29 PM) |
 
-### Root Cause: Service Role Authentication Failure
+## Root Causes Identified
 
-The `bolna-voice-call` edge function has a strict authentication check that requires a **user JWT token**:
+### 1. Silent Failure - `last_run_at` Updated Despite Failed Calls
+
+The code currently updates `last_run_at` whenever `shouldRunVoice || shouldRunWhatsApp` is true, regardless of whether the calls actually succeeded:
 
 ```text
-┌─────────────────────────────────────────────────────────────────┐
-│              AUTHENTICATION FLOW - CURRENT BUG                   │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│  Manual Call (Dashboard):                                        │
-│  ┌──────────┐    ┌─────────────────┐    ┌─────────────────┐     │
-│  │ User JWT │ ──▶│ bolna-voice-call│ ──▶│  ✓ Works!      │     │
-│  └──────────┘    └─────────────────┘    └─────────────────┘     │
-│                                                                  │
-│  Scheduled Call (Cron):                                          │
-│  ┌────────────────┐    ┌─────────────────┐    ┌─────────────┐   │
-│  │ Service Role   │ ──▶│ bolna-voice-call│ ──▶│ ❌ REJECTED │   │
-│  │ Key            │    │                 │    │ (401 Error) │   │
-│  └────────────────┘    └─────────────────┘    └─────────────────┘│
-│                                                                  │
-└─────────────────────────────────────────────────────────────────┘
+Current Flow (BROKEN):
+┌────────────────┐    ┌──────────────────┐    ┌───────────────────┐
+│ Try voice call │ ──▶│ Update last_run  │ ──▶│ Mark as "done"   │
+│ (may fail!)    │    │ regardless       │    │ for today        │
+└────────────────┘    └──────────────────┘    └───────────────────┘
 ```
 
-**Line 47-72 in `bolna-voice-call/index.ts`:**
-- Requires `Authorization: Bearer <user_jwt_token>`
-- Calls `supabaseAuth.auth.getUser()` which fails with service role key
-- Returns 401 Unauthorized, silently failing the scheduled call
+### 2. No Response Status Validation
 
-**Evidence:**
-- `last_run_at` was updated to `2026-01-29 13:55:03.194+00` (system tried)
-- No `call_attempts` record for today (call initiation failed)
-- No `check_ins` record for today (call never happened)
+The scheduler doesn't check if `voiceResponse.ok` is true before proceeding:
+- Line 159-166: Logs the result but doesn't prevent `last_run_at` update on failure
+- Line 209-214: Updates `last_run_at` without checking response status
+
+### 3. Time Input UX Issue
+
+The HTML time input shows 24-hour format, confusing users who think in AM/PM terms.
 
 ---
 
-## Solution: Dual Authentication Mode
+## Solution Plan
 
-Modify `bolna-voice-call` to accept **both** user JWT tokens (for dashboard calls) AND service role keys (for internal scheduled calls).
+### Fix 1: Validate Response Before Updating `last_run_at`
 
-### Implementation
+Only update `last_run_at` when calls actually initiate successfully:
 
-```typescript
-// Check if this is a service role call (internal) or user call (dashboard)
-const authHeader = req.headers.get('Authorization');
-const token = authHeader?.replace('Bearer ', '');
+```javascript
+// Track if any call actually succeeded
+let voiceSuccess = false;
+let whatsappSuccess = false;
 
-// Service role key check - for internal edge function calls
-const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-const isServiceRoleCall = token === serviceRoleKey;
-
-if (isServiceRoleCall) {
-  // Internal call from run-scheduled-checkins - skip user auth
-  // Authorization is handled by the caller (service already verified elder ownership)
-  console.log('Internal service call - bypassing user auth');
-} else {
-  // Dashboard call - require user JWT
-  const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
-    global: { headers: { Authorization: authHeader! } }
-  });
+if (shouldRunVoice) {
+  const voiceResponse = await fetch(...);
+  const voiceResult = await voiceResponse.json();
   
-  const { data: { user }, error: userError } = await supabaseAuth.auth.getUser();
-  if (userError || !user) {
-    return new Response(
-      JSON.stringify({ error: 'Unauthorized - Invalid token' }),
-      { status: 401, headers: corsHeaders }
-    );
+  // CHECK BOTH HTTP STATUS AND RESPONSE SUCCESS
+  if (voiceResponse.ok && voiceResult.success) {
+    voiceSuccess = true;
+    console.log(`Voice call initiated. ID: ${voiceResult.execution_id}`);
+  } else {
+    console.error("Voice call FAILED:", voiceResult.error || voiceResult);
   }
+}
+
+if (shouldRunWhatsApp && elder?.whatsapp_number) {
+  const whatsappResponse = await fetch(...);
+  const whatsappResult = await whatsappResponse.json();
   
-  // Verify user owns this elder (existing ownership check)
-  // ...
+  if (whatsappResponse.ok && whatsappResult.success) {
+    whatsappSuccess = true;
+  } else {
+    console.error("WhatsApp FAILED:", whatsappResult.error);
+  }
+}
+
+// ONLY update last_run_at if at least ONE method succeeded
+if (voiceSuccess || whatsappSuccess) {
+  await supabase
+    .from("check_in_schedules")
+    .update({ last_run_at: now.toISOString() })
+    .eq("id", schedule.id);
+} else {
+  // Mark as failed - don't update last_run_at so it retries
+  results.push({
+    schedule_id: schedule.id,
+    elder_id: schedule.elder_id,
+    status: "failed",
+    error: "All check-in methods failed",
+  });
 }
 ```
 
-### Authorization Changes
+### Fix 2: Add AM/PM Clarity to Time Picker UI
 
-For service role calls, we skip the owner verification since:
-1. The service role has full database access
-2. `run-scheduled-checkins` already fetches valid elder data
-3. Only internal Supabase functions can use the service role key
+Update `ElderSettings.tsx` to show the time in both 24-hour AND 12-hour format:
+
+```jsx
+<div className="space-y-2">
+  <Label>Time of Day (IST - India Standard Time)</Label>
+  <Input
+    type="time"
+    value={timeOfDay}
+    onChange={(e) => setTimeOfDay(e.target.value)}
+  />
+  {/* NEW: Show formatted time for clarity */}
+  <p className="text-sm text-muted-foreground">
+    {timeOfDay && formatTimeAMPM(timeOfDay)} IST
+    {parseInt(timeOfDay.split(':')[0]) < 12 ? ' (Morning)' : ' (Evening)'}
+  </p>
+</div>
+```
+
+Helper function:
+```javascript
+const formatTimeAMPM = (time24: string) => {
+  const [hours, minutes] = time24.split(':').map(Number);
+  const period = hours >= 12 ? 'PM' : 'AM';
+  const hours12 = hours % 12 || 12;
+  return `${hours12}:${minutes.toString().padStart(2, '0')} ${period}`;
+};
+```
+
+---
+
+## Immediate Actions Required
+
+### 1. Fix Rajiv's Schedule (if he wanted AM)
+
+If Rajiv wanted 7:30 AM, his schedule needs to be updated from `19:29:00` to `07:30:00`:
+
+```sql
+-- Only run this if Rajiv confirms he wanted 7:30 AM
+UPDATE check_in_schedules 
+SET time_of_day = '07:30:00', last_run_at = NULL
+WHERE id = '19a2e39c-2469-440e-becc-10a67c6ee217';
+```
+
+### 2. Trigger a Manual Call Now
+
+Since Rajiv missed yesterday's call, we should trigger one immediately to test the fix:
+- Call the `bolna-voice-call` edge function directly for Rajiv's elder ID
+
+### 3. Reset `last_run_at` for Yesterday
+
+Since yesterday's call failed, we need to clear the `last_run_at` so the scheduler doesn't think it ran:
+
+```sql
+UPDATE check_in_schedules 
+SET last_run_at = NULL
+WHERE id = '19a2e39c-2469-440e-becc-10a67c6ee217';
+```
 
 ---
 
@@ -92,63 +154,25 @@ For service role calls, we skip the owner verification since:
 
 | File | Change |
 |------|--------|
-| `supabase/functions/bolna-voice-call/index.ts` | Add dual auth mode (service role + user JWT) |
-
----
-
-## Secondary Issue: Time Input Confusion
-
-User says they scheduled for "7:30 am" but database shows `19:29:00` (7:29 PM).
-
-**Possible causes:**
-1. User entered "7:30" in 24-hour format thinking it was AM (user error)
-2. UI time picker confusion (less likely - uses standard HTML time input)
-
-**Recommendation:**
-- After fixing the auth bug, verify with Rajiv what time they intended
-- Consider adding AM/PM clarity hints to the time picker UI
-
----
-
-## Additional Safety: Better Error Handling
-
-Update `run-scheduled-checkins` to properly handle failed voice call responses:
-
-```typescript
-const voiceResponse = await fetch(...);
-const voiceResult = await voiceResponse.json();
-
-if (!voiceResponse.ok || !voiceResult.success) {
-  console.error(`Voice call failed for elder ${elder?.id}:`, voiceResult);
-  // DON'T update last_run_at if call failed
-  // Mark as error in results
-  results.push({
-    schedule_id: schedule.id,
-    elder_id: schedule.elder_id,
-    status: "voice_failed",
-    error: voiceResult.error || "Voice call initiation failed",
-  });
-  continue; // Skip to next schedule
-}
-```
-
----
-
-## Expected Outcome
-
-After fix:
-1. ✅ Scheduled calls will work for trial users (voice enabled)
-2. ✅ Service role authentication accepted for internal calls
-3. ✅ Dashboard calls continue to work with user JWT
-4. ✅ Failed calls won't mark the day as "complete"
-5. ✅ Proper error logging for debugging
+| `supabase/functions/run-scheduled-checkins/index.ts` | Add response validation before updating `last_run_at` |
+| `src/pages/ElderSettings.tsx` | Add AM/PM helper text to time picker |
 
 ---
 
 ## Testing After Deployment
 
-1. **Manually trigger** `run-scheduled-checkins` to verify it works
-2. **Check logs** for successful voice call initiation
-3. **Verify Rajiv receives call** at next scheduled time (19:29 IST)
-4. **Confirm `call_attempts`** record is created
+1. Reset Rajiv's `last_run_at` to NULL
+2. Trigger `run-scheduled-checkins` manually
+3. Verify voice call is initiated (check bolna-voice-call logs)
+4. Confirm `call_attempts` record is created
+5. Wait for call completion and verify `check_ins` record
+
+---
+
+## User Communication
+
+Contact Rajiv to:
+1. Confirm if he wanted 7:30 AM or 7:30 PM
+2. Apologize for the missed call
+3. Let him know the next call will happen at [confirmed time]
 
