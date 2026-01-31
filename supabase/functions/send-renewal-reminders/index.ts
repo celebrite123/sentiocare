@@ -189,7 +189,7 @@ serve(async (req) => {
                       Auto-renewal is disabled. Please renew your subscription today to continue protecting your loved ones.
                     </p>
                   </div>
-                  <a href="https://sentiocare.lovable.app/profile" style="display: inline-block; background: #0f766e; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; margin: 10px 0;">
+                  <a href="https://sentio.in.net/profile" style="display: inline-block; background: #0f766e; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; margin: 10px 0;">
                     Renew Now
                   </a>
                 `}
