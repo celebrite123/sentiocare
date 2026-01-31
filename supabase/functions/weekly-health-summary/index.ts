@@ -303,7 +303,7 @@ const handler = async (req: Request): Promise<Response> => {
       ` : ''}
 
       <p style="margin-top: 20px;">
-        <a href="${Deno.env.get("SITE_URL") || "https://sentiocare.lovable.app"}/dashboard/${elder.id}" 
+        <a href="${Deno.env.get("SITE_URL") || "https://sentio.in.net"}/dashboard/${elder.id}" 
            style="display: inline-block; background: linear-gradient(135deg, #3d9a94, #2d7a75); color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 500;">
           View Full Dashboard →
         </a>
@@ -313,7 +313,7 @@ const handler = async (req: Request): Promise<Response> => {
       <p><strong>Sentio AI</strong> - Caring for Your Loved Ones</p>
       <p style="margin-top: 5px;">This is an automated weekly summary. You're receiving this because weekly summaries are enabled for ${elder.full_name}.</p>
       <p style="margin-top: 10px; font-size: 11px;">
-        <a href="${Deno.env.get("SITE_URL") || "https://sentiocare.lovable.app"}/elders/${elder.id}/settings" style="color: #3d9a94;">Manage notification settings</a>
+        <a href="${Deno.env.get("SITE_URL") || "https://sentio.in.net"}/elders/${elder.id}/settings" style="color: #3d9a94;">Manage notification settings</a>
       </p>
     </div>
   </div>
