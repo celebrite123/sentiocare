@@ -55,6 +55,39 @@ serve(async (req) => {
         continue;
       }
 
+      // ============ DAILY LIMIT CHECK ============
+      // CRITICAL: Check if elder already received max calls today
+      const todayStart = new Date();
+      todayStart.setUTCHours(0, 0, 0, 0);
+      
+      const { data: todayCalls } = await supabase
+        .from("call_attempts")
+        .select("id")
+        .eq("elder_id", elder.id)
+        .gte("created_at", todayStart.toISOString());
+      
+      const MAX_CALLS_PER_DAY = 3;
+      if (todayCalls && todayCalls.length >= MAX_CALLS_PER_DAY) {
+        console.log(`DAILY LIMIT REACHED for elder ${elder.id}: ${todayCalls.length} calls. Cancelling retry.`);
+        
+        await supabase
+          .from("call_attempts")
+          .update({ 
+            status: 'daily_limit_reached',
+            next_retry_at: null
+          })
+          .eq("id", attempt.id);
+        
+        results.push({
+          elderId: elder.id,
+          elderName: elder.full_name,
+          status: 'daily_limit_reached',
+          callsToday: todayCalls.length
+        });
+        continue;
+      }
+      // ============ END DAILY LIMIT CHECK ============
+
       // DEBOUNCE CHECK: Skip if this elder has a recent call in the last 15 minutes
       const fifteenMinsAgo = new Date(Date.now() - 15 * 60 * 1000);
       const { data: recentCalls, error: recentError } = await supabase
@@ -73,82 +106,129 @@ serve(async (req) => {
           .from("call_attempts")
           .update({ 
             next_retry_at: null,
-            status: 'superseded' // Mark as superseded by newer call
+            status: 'superseded'
           })
           .eq("id", attempt.id);
         
         continue;
       }
 
-      console.log(`Retrying call for elder ${elder.id} (attempt #${attempt.retry_count + 1})`);
-
-      try {
-        // CRITICAL: Mark the old attempt as 'retried' FIRST to prevent duplicates
+      // ============ RETRY COUNT VALIDATION ============
+      // Use the SAME record's retry_count, don't create new records
+      const currentRetryCount = attempt.retry_count || 0;
+      const maxRetries = attempt.max_retries || 2;
+      
+      if (currentRetryCount >= maxRetries) {
+        console.log(`Max retries reached for attempt ${attempt.id}: ${currentRetryCount}/${maxRetries}`);
+        
         await supabase
           .from("call_attempts")
           .update({ 
-            status: 'retried',
+            status: 'max_retries_reached',
             next_retry_at: null
           })
           .eq("id", attempt.id);
+        
+        results.push({
+          elderId: elder.id,
+          elderName: elder.full_name,
+          status: 'max_retries_reached',
+          retryCount: currentRetryCount
+        });
+        continue;
+      }
+      // ============ END RETRY COUNT VALIDATION ============
+
+      console.log(`Retrying call for elder ${elder.id} (attempt #${currentRetryCount + 1}/${maxRetries})`);
+
+      try {
+        // CRITICAL: Update the EXISTING call_attempt record first
+        // Mark as 'retrying' to prevent duplicates
+        const newRetryCount = currentRetryCount + 1;
+        
+        await supabase
+          .from("call_attempts")
+          .update({ 
+            status: 'retrying',
+            retry_count: newRetryCount,
+            next_retry_at: null // Clear to prevent re-pickup
+          })
+          .eq("id", attempt.id);
+
+        // Get Bolna credentials
+        const BOLNA_API_KEY = Deno.env.get('BOLNA_API_KEY');
+        const isHindi = elder.preferred_language === 'hindi';
+        const BOLNA_AGENT_ID = isHindi 
+          ? Deno.env.get('BOLNA_AGENT_ID_HINDI') 
+          : Deno.env.get('BOLNA_AGENT_ID');
+
+        if (!BOLNA_API_KEY || !BOLNA_AGENT_ID) {
+          throw new Error('Bolna API credentials not configured');
+        }
 
         // Fetch medicines for the call
         const { data: medicines } = await supabase
           .from("medicines")
-          .select("name, dosage, timing")
+          .select("name, dosage, timing, purpose")
           .eq("elder_id", elder.id)
           .eq("active", true);
 
-        // Initiate the retry call via bolna-voice-call
-        const callResponse = await fetch(`${supabaseUrl}/functions/v1/bolna-voice-call`, {
-          method: "POST",
+        const medicineList = (medicines || []).map((m: any) => 
+          m.purpose?.trim() ? m.purpose : m.name
+        ).join(', ') || (isHindi ? 'कोई दवाई नहीं' : 'No medicines');
+
+        // Call Bolna API DIRECTLY (don't go through bolna-voice-call to avoid creating new records)
+        const bolnaResponse = await fetch('https://api.bolna.ai/call', {
+          method: 'POST',
           headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${supabaseServiceKey}`,
+            'Authorization': `Bearer ${BOLNA_API_KEY}`,
+            'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            elderId: elder.id,
-            elderName: elder.full_name,
-            elderPhone: elder.phone_number,
-            medicines: medicines || [],
-            medicalConditions: elder.medical_conditions || [],
-            preferredLanguage: elder.preferred_language || 'english',
-            isEmergency: false
+            agent_id: BOLNA_AGENT_ID,
+            recipient_phone_number: elder.phone_number,
+            user_data: {
+              elder_id: elder.id,
+              first_name: elder.full_name.split(' ')[0],
+              greeting: isHindi 
+                ? `${elder.full_name.split(' ')[0]} जी, हमने पहले फोन किया था। कैसे हैं आप?`
+                : `${elder.full_name.split(' ')[0]}, we called earlier. How are you doing?`,
+              medicines: medicineList,
+              is_retry: true,
+              retry_attempt: newRetryCount,
+              preferred_language: elder.preferred_language || 'english',
+            },
           }),
         });
 
-        const callResult = await callResponse.json();
-        
-        if (callResult.success || callResult.execution_id) {
-          console.log(`Retry call initiated for elder ${elder.id}, execution_id: ${callResult.execution_id}`);
-
-          results.push({
-            elderId: elder.id,
-            elderName: elder.full_name,
-            attemptNumber: attempt.retry_count + 1,
-            status: 'call_initiated',
-            executionId: callResult.execution_id
-          });
-
-        } else {
-          console.error("Call initiation failed:", callResult.error);
-          
-          // Revert the status back if the call failed to initiate
-          await supabase
-            .from("call_attempts")
-            .update({ 
-              status: 'failed',
-              next_retry_at: null
-            })
-            .eq("id", attempt.id);
-
-          results.push({
-            elderId: elder.id,
-            elderName: elder.full_name,
-            status: 'call_failed',
-            error: callResult.error
-          });
+        if (!bolnaResponse.ok) {
+          const error = await bolnaResponse.text();
+          throw new Error(`Bolna API error: ${error}`);
         }
+
+        const callData = await bolnaResponse.json();
+        const newExecutionId = callData.execution_id || callData.call_id || callData.id;
+        
+        // Update the SAME record with new execution ID
+        await supabase
+          .from("call_attempts")
+          .update({ 
+            status: 'initiated',
+            execution_id: newExecutionId,
+            initiated_at: new Date().toISOString()
+          })
+          .eq("id", attempt.id);
+
+        console.log(`Retry call initiated for elder ${elder.id}, execution_id: ${newExecutionId}, using SAME record ${attempt.id}`);
+
+        results.push({
+          elderId: elder.id,
+          elderName: elder.full_name,
+          attemptNumber: newRetryCount,
+          status: 'call_initiated',
+          executionId: newExecutionId,
+          callAttemptId: attempt.id
+        });
 
       } catch (callError) {
         console.error(`Error processing retry for ${elder.full_name}:`, callError);
