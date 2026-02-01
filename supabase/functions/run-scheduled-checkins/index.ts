@@ -102,6 +102,29 @@ serve(async (req) => {
         const elder = schedule.elders;
         const checkInMethod = elder?.check_in_method || "whatsapp";
         
+        // ============ CHECK FOR PENDING RETRIES ============
+        // CRITICAL: Don't start a new call if there's already a pending retry
+        const { data: pendingRetries } = await supabase
+          .from("call_attempts")
+          .select("id, status, next_retry_at, created_at")
+          .eq("elder_id", schedule.elder_id)
+          .in("status", ["initiated", "no_answer"])
+          .order("created_at", { ascending: false })
+          .limit(1);
+        
+        if (pendingRetries && pendingRetries.length > 0) {
+          const pending = pendingRetries[0];
+          console.log(`SKIPPING schedule ${schedule.id} - elder ${schedule.elder_id} has pending retry: status=${pending.status}, next_retry_at=${pending.next_retry_at}`);
+          results.push({
+            schedule_id: schedule.id,
+            elder_id: schedule.elder_id,
+            status: "skipped_pending_retry",
+            pending_call_id: pending.id,
+          });
+          continue;
+        }
+        // ============ END PENDING RETRY CHECK ============
+        
         // Get subscription info
         const profile = elder?.profiles;
         const tier = profile?.subscription_tier || "basic";

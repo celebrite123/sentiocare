@@ -123,6 +123,33 @@ serve(async (req) => {
     // Use service role for database operations
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    // ============ DAILY CALL LIMIT CHECK ============
+    // CRITICAL: Prevent call bombardment - max 3 calls per elder per day
+    const todayStart = new Date();
+    todayStart.setUTCHours(0, 0, 0, 0);
+    
+    const { data: todayCalls, error: countError } = await supabase
+      .from("call_attempts")
+      .select("id, status")
+      .eq("elder_id", elderId)
+      .gte("created_at", todayStart.toISOString());
+    
+    const MAX_CALLS_PER_DAY = 3; // 1 scheduled + 2 retries max
+    if (todayCalls && todayCalls.length >= MAX_CALLS_PER_DAY) {
+      console.log(`DAILY CALL LIMIT REACHED for elder ${elderId}: ${todayCalls.length} calls today`);
+      return new Response(
+        JSON.stringify({ 
+          error: "Daily call limit reached for this elder",
+          code: "DAILY_LIMIT_REACHED",
+          callsToday: todayCalls.length
+        }),
+        { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    console.log(`Daily call check passed: ${todayCalls?.length || 0}/${MAX_CALLS_PER_DAY} calls today for elder ${elderId}`);
+    // ============ END DAILY CALL LIMIT CHECK ============
+
     // ============ AUTHORIZATION CHECK ============
     // Verify elder exists and get needed data
     const { data: elder, error: elderError } = await supabase
