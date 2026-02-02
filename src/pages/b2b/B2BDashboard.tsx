@@ -6,10 +6,12 @@ import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { supabase } from "@/integrations/supabase/client";
-import { Upload, AlertTriangle, Users, Download, PhoneCall, BarChart3 } from "lucide-react";
+import { Upload, AlertTriangle, Users, Download, PhoneCall, BarChart3, TrendingUp } from "lucide-react";
 import { RiskBadge } from "@/components/b2b/RiskBadge";
 import { PendingCallbacks } from "@/components/b2b/PendingCallbacks";
 import { Progress } from "@/components/ui/progress";
+import { AnalyticsCharts } from "@/components/b2b/AnalyticsCharts";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 export default function B2BDashboard() {
   const navigate = useNavigate();
@@ -25,6 +27,7 @@ export default function B2BDashboard() {
     escalated: 0,
   });
   const [recentAlerts, setRecentAlerts] = useState<any[]>([]);
+  const [analyticsOpen, setAnalyticsOpen] = useState(false);
 
   useEffect(() => {
     if (!organization) return;
@@ -203,6 +206,32 @@ export default function B2BDashboard() {
             />
           )}
         </div>
+
+        {/* Feature 6: Analytics Charts */}
+        {organization && (
+          <Collapsible open={analyticsOpen} onOpenChange={setAnalyticsOpen}>
+            <Card>
+              <CardHeader className="p-4 sm:p-6">
+                <CollapsibleTrigger asChild>
+                  <Button variant="ghost" className="w-full justify-between p-0 h-auto hover:bg-transparent">
+                    <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                      <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5" />
+                      Analytics & Trends
+                    </CardTitle>
+                    <span className="text-muted-foreground text-sm">
+                      {analyticsOpen ? "Hide" : "Show"}
+                    </span>
+                  </Button>
+                </CollapsibleTrigger>
+              </CardHeader>
+              <CollapsibleContent>
+                <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
+                  <AnalyticsCharts organizationId={organization.id} />
+                </CardContent>
+              </CollapsibleContent>
+            </Card>
+          </Collapsible>
+        )}
 
         <Card>
           <CardHeader>
