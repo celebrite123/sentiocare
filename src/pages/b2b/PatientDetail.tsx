@@ -1,12 +1,13 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Phone, MessageSquare, Pill, AlertTriangle, CheckCircle, Clock, User, Calendar, Stethoscope, PhoneCall } from "lucide-react";
+import { ArrowLeft, Phone, MessageSquare, Pill, AlertTriangle, CheckCircle, Clock, User, Calendar, Stethoscope, PhoneCall, Play, Pause, Volume2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -14,6 +15,7 @@ import { B2BLayout } from "@/components/b2b/B2BLayout";
 import { RiskBadge, type RiskStatus } from "@/components/b2b/RiskBadge";
 import { ScheduleCallbackDialog } from "@/components/b2b/ScheduleCallbackDialog";
 import { PendingCallbacks } from "@/components/b2b/PendingCallbacks";
+import { formatDistanceToNow, differenceInDays, isPast, isToday, isTomorrow } from "date-fns";
 
 interface Patient {
   id: string;
@@ -39,7 +41,6 @@ interface Patient {
   language: string;
   status: string;
   created_at: string;
-  // Caregiver fields
   caregiver_name: string | null;
   caregiver_phone: string | null;
   caregiver_relation: string | null;
@@ -64,7 +65,15 @@ interface Checkin {
   risk_level: string | null;
   ai_summary: string | null;
   created_at: string;
+  recording_url: string | null;
 }
+
+const STATUS_OPTIONS = [
+  { value: "active", label: "Active", description: "Currently in follow-up cycle" },
+  { value: "completed", label: "Completed", description: "Finished 7-day cycle" },
+  { value: "readmitted", label: "Readmitted", description: "Returned to hospital" },
+  { value: "opted_out", label: "Opted Out", description: "Requested no more calls" },
+];
 
 const PatientDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -77,6 +86,8 @@ const PatientDetail = () => {
   const [nurseNotes, setNurseNotes] = useState("");
   const [savingNotes, setSavingNotes] = useState(false);
   const [callbackDialogOpen, setCallbackDialogOpen] = useState(false);
+  const [callingNow, setCallingNow] = useState(false);
+  const [updatingStatus, setUpdatingStatus] = useState(false);
 
   useEffect(() => {
     if (id && organization) {
@@ -86,7 +97,6 @@ const PatientDetail = () => {
 
   const loadPatientData = async () => {
     try {
-      // Load patient
       const { data: patientData, error: patientError } = await supabase
         .from("discharged_patients")
         .select("*")
@@ -98,7 +108,6 @@ const PatientDetail = () => {
       setPatient(patientData as Patient);
       setNurseNotes(patientData.nurse_call_notes || "");
 
-      // Load communications
       const { data: commsData } = await supabase
         .from("patient_communications")
         .select("*")
@@ -108,7 +117,6 @@ const PatientDetail = () => {
 
       setCommunications(commsData || []);
 
-      // Load checkins
       const { data: checkinsData } = await supabase
         .from("patient_checkins")
         .select("*")
@@ -116,7 +124,7 @@ const PatientDetail = () => {
         .order("created_at", { ascending: false })
         .limit(20);
 
-      setCheckins(checkinsData || []);
+      setCheckins((checkinsData || []) as Checkin[]);
     } catch (error: any) {
       toast({
         title: "Error loading patient",
@@ -183,6 +191,107 @@ const PatientDetail = () => {
     }
   };
 
+  // Feature 1: Manual Call Trigger
+  const handleCallNow = async () => {
+    if (!patient || !organization) return;
+
+    setCallingNow(true);
+    try {
+      const { data: session } = await supabase.auth.getSession();
+      
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/run-scheduled-b2b-calls`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${session?.session?.access_token}`,
+          },
+          body: JSON.stringify({
+            patient_id: patient.id,
+            manual_trigger: true,
+          }),
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to initiate call");
+      }
+
+      toast({
+        title: "Call initiated",
+        description: "AI is now calling the patient. Check back for updates.",
+      });
+      
+      // Refresh data after a short delay
+      setTimeout(loadPatientData, 3000);
+    } catch (error: any) {
+      toast({
+        title: "Failed to initiate call",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setCallingNow(false);
+    }
+  };
+
+  // Feature 2: Status Management
+  const handleStatusChange = async (newStatus: string) => {
+    if (!patient) return;
+
+    setUpdatingStatus(true);
+    try {
+      const { error } = await supabase
+        .from("discharged_patients")
+        .update({
+          status: newStatus,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", patient.id);
+
+      if (error) throw error;
+
+      toast({ title: `Patient status updated to ${newStatus}` });
+      loadPatientData();
+    } catch (error: any) {
+      toast({
+        title: "Error updating status",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setUpdatingStatus(false);
+    }
+  };
+
+  // Feature 5: Follow-up date indicator
+  const getFollowUpStatus = () => {
+    if (!patient?.follow_up_date) return null;
+    
+    const followUpDate = new Date(patient.follow_up_date);
+    const today = new Date();
+    const daysDiff = differenceInDays(followUpDate, today);
+
+    if (isPast(followUpDate) && !isToday(followUpDate)) {
+      return { status: "overdue", label: "Overdue", variant: "destructive" as const };
+    }
+    if (isToday(followUpDate)) {
+      return { status: "today", label: "Today", variant: "default" as const };
+    }
+    if (isTomorrow(followUpDate)) {
+      return { status: "tomorrow", label: "Tomorrow", variant: "secondary" as const };
+    }
+    if (daysDiff <= 3) {
+      return { status: "upcoming", label: `In ${daysDiff} days`, variant: "outline" as const };
+    }
+    return null;
+  };
+
+  const followUpStatus = getFollowUpStatus();
+
   if (loading) {
     return (
       <B2BLayout>
@@ -211,18 +320,72 @@ const PatientDetail = () => {
   return (
     <B2BLayout>
       <div className="space-y-4 sm:space-y-6">
-        {/* Header */}
-        <div className="flex items-center gap-3 sm:gap-4">
-          <Button variant="ghost" size="icon" className="shrink-0 h-9 w-9" onClick={() => navigate(-1)}>
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <div className="flex-1 min-w-0">
-            <h1 className="text-xl sm:text-2xl font-bold truncate">{patient.patient_name}</h1>
-            <p className="text-sm text-muted-foreground">
-              Discharged: {new Date(patient.discharge_date).toLocaleDateString()}
-            </p>
+        {/* Header with Call Now and Status */}
+        <div className="flex flex-col gap-3 sm:gap-4">
+          <div className="flex items-center gap-3 sm:gap-4">
+            <Button variant="ghost" size="icon" className="shrink-0 h-9 w-9" onClick={() => navigate(-1)}>
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <div className="flex-1 min-w-0">
+              <h1 className="text-xl sm:text-2xl font-bold truncate">{patient.patient_name}</h1>
+              <p className="text-sm text-muted-foreground">
+                Discharged: {new Date(patient.discharge_date).toLocaleDateString()}
+              </p>
+            </div>
+            <RiskBadge status={patient.risk_status} />
           </div>
-          <RiskBadge status={patient.risk_status} />
+
+          {/* Action Row */}
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+            {/* Feature 1: Call Now Button */}
+            <Button
+              onClick={handleCallNow}
+              disabled={callingNow || patient.status !== "active"}
+              className="gap-2"
+              size="sm"
+            >
+              {callingNow ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Calling...
+                </>
+              ) : (
+                <>
+                  <Phone className="h-4 w-4" />
+                  Call Now
+                </>
+              )}
+            </Button>
+
+            {/* Feature 2: Status Dropdown */}
+            <Select
+              value={patient.status}
+              onValueChange={handleStatusChange}
+              disabled={updatingStatus}
+            >
+              <SelectTrigger className="w-[140px] sm:w-[160px] h-9">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                {STATUS_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    <div className="flex flex-col">
+                      <span>{option.label}</span>
+                      <span className="text-xs text-muted-foreground">{option.description}</span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {/* Feature 5: Follow-up Badge */}
+            {followUpStatus && (
+              <Badge variant={followUpStatus.variant} className="gap-1">
+                <Calendar className="h-3 w-3" />
+                Follow-up {followUpStatus.label}
+              </Badge>
+            )}
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
@@ -264,11 +427,18 @@ const PatientDetail = () => {
                   </div>
                 )}
                 {patient.follow_up_date && (
-                  <div>
+                  <div className="col-span-2">
                     <p className="text-xs sm:text-sm text-muted-foreground">Follow-up Date</p>
-                    <p className="font-medium text-sm sm:text-base">
-                      {new Date(patient.follow_up_date).toLocaleDateString()}
-                    </p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium text-sm sm:text-base">
+                        {new Date(patient.follow_up_date).toLocaleDateString()}
+                      </p>
+                      {followUpStatus && (
+                        <Badge variant={followUpStatus.variant} className="text-xs">
+                          {followUpStatus.label}
+                        </Badge>
+                      )}
+                    </div>
                   </div>
                 )}
               </CardContent>
@@ -416,6 +586,13 @@ const PatientDetail = () => {
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="flex items-center justify-between">
+                  <span className="text-sm">Patient Status</span>
+                  <Badge variant={patient.status === "active" ? "default" : "secondary"} className="capitalize">
+                    {patient.status}
+                  </Badge>
+                </div>
+                <Separator />
+                <div className="flex items-center justify-between">
                   <span className="text-sm">Discharge Message</span>
                   {patient.discharge_message_sent ? (
                     <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-200">Sent</Badge>
@@ -460,7 +637,7 @@ const PatientDetail = () => {
               </Card>
             )}
 
-            {/* Recent Check-ins */}
+            {/* Recent Check-ins with Recording Playback */}
             <Card>
               <CardHeader>
                 <CardTitle>Recent Check-ins</CardTitle>
@@ -469,24 +646,7 @@ const PatientDetail = () => {
                 {checkins.length > 0 ? (
                   <div className="space-y-4">
                     {checkins.slice(0, 5).map((checkin) => (
-                      <div key={checkin.id} className="border-b pb-3 last:border-0">
-                        <div className="flex items-center justify-between mb-1">
-                          <Badge variant="outline" className="capitalize">
-                            {checkin.checkin_type.replace("_", " ")}
-                          </Badge>
-                          <span className="text-xs text-muted-foreground">
-                            {new Date(checkin.created_at).toLocaleDateString()}
-                          </span>
-                        </div>
-                        {checkin.ai_summary && (
-                          <p className="text-sm text-muted-foreground">{checkin.ai_summary}</p>
-                        )}
-                        {checkin.medicines_taken !== null && (
-                          <p className="text-sm">
-                            Medicines: {checkin.medicines_taken ? "✅ Taken" : "❌ Not taken"}
-                          </p>
-                        )}
-                      </div>
+                      <CheckinItem key={checkin.id} checkin={checkin} />
                     ))}
                   </div>
                 ) : (
@@ -548,6 +708,122 @@ const PatientDetail = () => {
         onScheduled={loadPatientData}
       />
     </B2BLayout>
+  );
+};
+
+// Feature 3: Recording Playback Component
+const CheckinItem = ({ checkin }: { checkin: Checkin }) => {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const handlePlayRecording = async () => {
+    if (!checkin.recording_url) return;
+
+    if (isPlaying && audioRef.current) {
+      audioRef.current.pause();
+      setIsPlaying(false);
+      return;
+    }
+
+    // If we already have the audio URL, just play
+    if (audioUrl && audioRef.current) {
+      audioRef.current.play();
+      setIsPlaying(true);
+      return;
+    }
+
+    // Fetch via proxy
+    setIsLoading(true);
+    try {
+      const { data: session } = await supabase.auth.getSession();
+      
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/proxy-recording?url=${encodeURIComponent(checkin.recording_url)}`,
+        {
+          headers: {
+            "Authorization": `Bearer ${session?.session?.access_token}`,
+          },
+        }
+      );
+
+      if (!response.ok) throw new Error("Failed to load recording");
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      setAudioUrl(url);
+
+      // Create and play audio
+      const audio = new Audio(url);
+      audioRef.current = audio;
+      
+      audio.onended = () => setIsPlaying(false);
+      audio.onerror = () => {
+        setIsPlaying(false);
+        toast({ title: "Error playing recording", variant: "destructive" });
+      };
+
+      await audio.play();
+      setIsPlaying(true);
+    } catch (error) {
+      toast({ title: "Failed to load recording", variant: "destructive" });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (audioUrl) {
+        URL.revokeObjectURL(audioUrl);
+      }
+      if (audioRef.current) {
+        audioRef.current.pause();
+      }
+    };
+  }, [audioUrl]);
+
+  return (
+    <div className="border-b pb-3 last:border-0">
+      <div className="flex items-center justify-between mb-1">
+        <Badge variant="outline" className="capitalize">
+          {checkin.checkin_type.replace("_", " ")}
+        </Badge>
+        <span className="text-xs text-muted-foreground">
+          {new Date(checkin.created_at).toLocaleDateString()}
+        </span>
+      </div>
+      {checkin.ai_summary && (
+        <p className="text-sm text-muted-foreground mb-2">{checkin.ai_summary}</p>
+      )}
+      {checkin.medicines_taken !== null && (
+        <p className="text-sm mb-2">
+          Medicines: {checkin.medicines_taken ? "✅ Taken" : "❌ Not taken"}
+        </p>
+      )}
+      
+      {/* Feature 3: Recording Playback */}
+      {checkin.recording_url && checkin.method === "voice" && (
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-2 mt-1"
+          onClick={handlePlayRecording}
+          disabled={isLoading}
+        >
+          {isLoading ? (
+            <Loader2 className="h-3 w-3 animate-spin" />
+          ) : isPlaying ? (
+            <Pause className="h-3 w-3" />
+          ) : (
+            <Play className="h-3 w-3" />
+          )}
+          {isPlaying ? "Pause" : "Play Recording"}
+        </Button>
+      )}
+    </div>
   );
 };
 

@@ -7,7 +7,8 @@ import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Bell, BellOff, RefreshCw, Volume2 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Bell, BellOff, RefreshCw, Volume2, CheckCircle2, User, X } from "lucide-react";
 
 export default function AlertsQueue() {
   const { organization, membership } = useOrganization();
@@ -15,6 +16,10 @@ export default function AlertsQueue() {
   const [loading, setLoading] = useState(true);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [lastAlertCount, setLastAlertCount] = useState(0);
+  
+  // Feature 4: Bulk selection state
+  const [selectedAlerts, setSelectedAlerts] = useState<Set<string>>(new Set());
+  const [bulkProcessing, setBulkProcessing] = useState(false);
 
   const fetchAlerts = useCallback(async () => {
     if (!organization) return;
@@ -47,6 +52,9 @@ export default function AlertsQueue() {
 
     setAlerts(formattedAlerts);
     setLoading(false);
+    
+    // Clear selections when data refreshes
+    setSelectedAlerts(new Set());
   }, [organization, lastAlertCount, soundEnabled]);
 
   // Initial fetch
@@ -72,7 +80,6 @@ export default function AlertsQueue() {
           console.log("Alert change received:", payload);
           
           if (payload.eventType === "INSERT") {
-            // New alert - fetch fresh data and notify
             fetchAlerts();
             if (soundEnabled) {
               playNotificationSound();
@@ -83,11 +90,7 @@ export default function AlertsQueue() {
                 onClick: () => window.scrollTo({ top: 0, behavior: "smooth" }),
               },
             });
-          } else if (payload.eventType === "UPDATE") {
-            // Alert updated - refresh
-            fetchAlerts();
-          } else if (payload.eventType === "DELETE") {
-            // Alert deleted - refresh
+          } else if (payload.eventType === "UPDATE" || payload.eventType === "DELETE") {
             fetchAlerts();
           }
         }
@@ -103,7 +106,6 @@ export default function AlertsQueue() {
 
   const playNotificationSound = () => {
     try {
-      // Create a simple notification beep using Web Audio API
       const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
       const oscillator = audioContext.createOscillator();
       const gainNode = audioContext.createGain();
@@ -118,7 +120,6 @@ export default function AlertsQueue() {
       oscillator.start();
       oscillator.stop(audioContext.currentTime + 0.2);
 
-      // Second beep
       setTimeout(() => {
         const osc2 = audioContext.createOscillator();
         const gain2 = audioContext.createGain();
@@ -155,10 +156,88 @@ export default function AlertsQueue() {
     fetchAlerts();
   };
 
+  // Feature 4: Selection handlers
+  const handleSelectAlert = (alertId: string, selected: boolean) => {
+    setSelectedAlerts(prev => {
+      const newSet = new Set(prev);
+      if (selected) {
+        newSet.add(alertId);
+      } else {
+        newSet.delete(alertId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      const allPendingIds = pendingAlerts.map(a => a.id);
+      setSelectedAlerts(new Set(allPendingIds));
+    } else {
+      setSelectedAlerts(new Set());
+    }
+  };
+
+  const handleBulkAssign = async () => {
+    if (selectedAlerts.size === 0 || !membership) return;
+    
+    setBulkProcessing(true);
+    try {
+      const updates = Array.from(selectedAlerts).map(id => 
+        supabase.from("b2b_alerts" as any).update({
+          assigned_to: membership.id,
+          assigned_at: new Date().toISOString(),
+        }).eq("id", id)
+      );
+      
+      await Promise.all(updates);
+      toast.success(`${selectedAlerts.size} alerts assigned to you`);
+      fetchAlerts();
+    } catch (error) {
+      toast.error("Failed to assign alerts");
+    } finally {
+      setBulkProcessing(false);
+    }
+  };
+
+  const handleBulkResolve = async () => {
+    if (selectedAlerts.size === 0 || !membership) return;
+    
+    setBulkProcessing(true);
+    try {
+      const updates = Array.from(selectedAlerts).map(id => 
+        supabase.from("b2b_alerts" as any).update({
+          resolved: true,
+          resolved_by: membership.id,
+          resolved_at: new Date().toISOString(),
+          resolution_notes: "Bulk resolved",
+        }).eq("id", id)
+      );
+      
+      await Promise.all(updates);
+      toast.success(`${selectedAlerts.size} alerts resolved`);
+      fetchAlerts();
+    } catch (error) {
+      toast.error("Failed to resolve alerts");
+    } finally {
+      setBulkProcessing(false);
+    }
+  };
+
+  const clearSelection = () => {
+    setSelectedAlerts(new Set());
+  };
+
   const pendingAlerts = alerts.filter((a) => !a.resolved);
   const criticalAlerts = pendingAlerts.filter((a) => a.severity === "critical");
   const warningAlerts = pendingAlerts.filter((a) => a.severity === "warning" || a.severity === "medium");
+  const otherAlerts = pendingAlerts.filter(
+    (a) => a.severity !== "critical" && a.severity !== "warning" && a.severity !== "medium"
+  );
   const resolvedAlerts = alerts.filter((a) => a.resolved);
+  
+  const allPendingSelected = pendingAlerts.length > 0 && selectedAlerts.size === pendingAlerts.length;
+  const someSelected = selectedAlerts.size > 0;
 
   return (
     <B2BLayout>
@@ -198,6 +277,39 @@ export default function AlertsQueue() {
             </Button>
           </div>
         </div>
+
+        {/* Feature 4: Bulk Actions Bar */}
+        {someSelected && (
+          <div className="sticky top-0 z-10 bg-background border rounded-lg p-3 shadow-lg flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Badge variant="secondary">{selectedAlerts.size} selected</Badge>
+              <Button variant="ghost" size="sm" onClick={clearSelection}>
+                <X className="h-4 w-4 mr-1" />
+                Clear
+              </Button>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={handleBulkAssign}
+                disabled={bulkProcessing}
+              >
+                <User className="h-4 w-4 mr-1" />
+                Assign to Me
+              </Button>
+              <Button
+                variant="default"
+                size="sm"
+                onClick={handleBulkResolve}
+                disabled={bulkProcessing}
+              >
+                <CheckCircle2 className="h-4 w-4 mr-1" />
+                Resolve All
+              </Button>
+            </div>
+          </div>
+        )}
 
         {/* Critical Alerts Banner */}
         {criticalAlerts.length > 0 && (
@@ -246,6 +358,18 @@ export default function AlertsQueue() {
               </div>
             ) : (
               <>
+                {/* Feature 4: Select All */}
+                <div className="flex items-center gap-2 pb-2 border-b">
+                  <Checkbox
+                    checked={allPendingSelected}
+                    onCheckedChange={handleSelectAll}
+                    id="select-all"
+                  />
+                  <label htmlFor="select-all" className="text-sm text-muted-foreground cursor-pointer">
+                    Select all ({pendingAlerts.length})
+                  </label>
+                </div>
+
                 {/* Critical alerts first */}
                 {criticalAlerts.length > 0 && (
                   <div className="space-y-3">
@@ -260,6 +384,9 @@ export default function AlertsQueue() {
                         onAssign={handleAssign}
                         onResolve={handleResolve}
                         onCall={(phone) => window.open(`tel:${phone}`)}
+                        selectable
+                        selected={selectedAlerts.has(alert.id)}
+                        onSelect={handleSelectAlert}
                       />
                     ))}
                   </div>
@@ -279,30 +406,30 @@ export default function AlertsQueue() {
                         onAssign={handleAssign}
                         onResolve={handleResolve}
                         onCall={(phone) => window.open(`tel:${phone}`)}
+                        selectable
+                        selected={selectedAlerts.has(alert.id)}
+                        onSelect={handleSelectAlert}
                       />
                     ))}
                   </div>
                 )}
 
                 {/* Other pending */}
-                {pendingAlerts.filter(
-                  (a) => a.severity !== "critical" && a.severity !== "warning" && a.severity !== "medium"
-                ).length > 0 && (
+                {otherAlerts.length > 0 && (
                   <div className="space-y-3">
                     <h3 className="font-semibold text-muted-foreground">Other</h3>
-                    {pendingAlerts
-                      .filter(
-                        (a) => a.severity !== "critical" && a.severity !== "warning" && a.severity !== "medium"
-                      )
-                      .map((alert) => (
-                        <AlertCard
-                          key={alert.id}
-                          alert={alert}
-                          onAssign={handleAssign}
-                          onResolve={handleResolve}
-                          onCall={(phone) => window.open(`tel:${phone}`)}
-                        />
-                      ))}
+                    {otherAlerts.map((alert) => (
+                      <AlertCard
+                        key={alert.id}
+                        alert={alert}
+                        onAssign={handleAssign}
+                        onResolve={handleResolve}
+                        onCall={(phone) => window.open(`tel:${phone}`)}
+                        selectable
+                        selected={selectedAlerts.has(alert.id)}
+                        onSelect={handleSelectAlert}
+                      />
+                    ))}
                   </div>
                 )}
               </>

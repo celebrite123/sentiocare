@@ -20,12 +20,26 @@ serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    console.log("Running scheduled B2B calls processor...");
+    // Check for manual trigger with specific patient_id
+    let body: { patient_id?: string; manual_trigger?: boolean } = {};
+    try {
+      if (req.method === "POST") {
+        body = await req.json();
+      }
+    } catch {
+      // No body or invalid JSON - proceed with scheduled calls
+    }
+
+    const isManualTrigger = body.manual_trigger === true && body.patient_id;
+    
+    console.log(isManualTrigger 
+      ? `Manual call trigger for patient: ${body.patient_id}` 
+      : "Running scheduled B2B calls processor...");
 
     // Get patients with calls due now or in the past
     const now = new Date().toISOString();
     
-    const { data: patients, error: fetchError } = await supabase
+    let query = supabase
       .from("discharged_patients")
       .select(`
         *,
@@ -43,17 +57,24 @@ serve(async (req) => {
         )
       `)
       .eq("status", "active")
-      .lte("next_call_due", now)
-      .not("next_call_due", "is", null)
-      .eq("consent_given", true)
-      .limit(50); // Process max 50 per run
+      .eq("consent_given", true);
+
+    if (isManualTrigger) {
+      // For manual trigger, fetch specific patient regardless of next_call_due
+      query = query.eq("id", body.patient_id);
+    } else {
+      // For scheduled runs, only get patients with due calls
+      query = query.lte("next_call_due", now).not("next_call_due", "is", null).limit(50);
+    }
+    
+    const { data: patients, error: fetchError } = await query;
 
     if (fetchError) {
       console.error("Error fetching patients:", fetchError);
       throw fetchError;
     }
 
-    console.log(`Found ${patients?.length || 0} patients with due calls`);
+    console.log(`Found ${patients?.length || 0} patients to process`);
 
     let processed = 0;
     let skipped = 0;

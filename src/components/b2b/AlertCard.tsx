@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   AlertTriangle,
   Phone,
@@ -14,7 +15,7 @@ import {
   MessageSquare,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow, differenceInMinutes, differenceInHours } from "date-fns";
 
 type AlertType = 'urgent' | 'nurse_followup' | 'missed_medicine' | 'help_request';
 type Severity = 'low' | 'medium' | 'high' | 'critical';
@@ -32,6 +33,8 @@ interface Alert {
   assigned_name?: string;
   resolved: boolean;
   created_at: string;
+  sla_deadline?: string | null;
+  sla_breached?: boolean;
 }
 
 interface AlertCardProps {
@@ -39,6 +42,10 @@ interface AlertCardProps {
   onAssign?: (alertId: string) => void;
   onResolve?: (alertId: string, notes: string) => void;
   onCall?: (phone: string) => void;
+  // Feature 4: Selection props
+  selectable?: boolean;
+  selected?: boolean;
+  onSelect?: (alertId: string, selected: boolean) => void;
 }
 
 const alertTypeConfig: Record<AlertType, { icon: React.ReactNode; color: string }> = {
@@ -55,10 +62,47 @@ const severityStyles: Record<Severity, string> = {
   critical: 'border-l-red-400 bg-red-50/50 dark:bg-red-950/20',
 };
 
-export const AlertCard = ({ alert, onAssign, onResolve, onCall }: AlertCardProps) => {
+// SLA countdown helper
+const getSlaStatus = (slaDeadline: string | null | undefined, breached: boolean | undefined) => {
+  if (!slaDeadline) return null;
+  
+  if (breached) {
+    return { status: 'breached', label: 'SLA Breached', color: 'text-destructive' };
+  }
+
+  const deadline = new Date(slaDeadline);
+  const now = new Date();
+  const minutesLeft = differenceInMinutes(deadline, now);
+  const hoursLeft = differenceInHours(deadline, now);
+
+  if (minutesLeft <= 0) {
+    return { status: 'breached', label: 'SLA Breached', color: 'text-destructive' };
+  }
+  
+  if (minutesLeft <= 15) {
+    return { status: 'critical', label: `${minutesLeft}m left`, color: 'text-destructive animate-pulse' };
+  }
+  
+  if (minutesLeft <= 60) {
+    return { status: 'warning', label: `${minutesLeft}m left`, color: 'text-orange-600' };
+  }
+
+  return { status: 'ok', label: `${hoursLeft}h left`, color: 'text-muted-foreground' };
+};
+
+export const AlertCard = ({ 
+  alert, 
+  onAssign, 
+  onResolve, 
+  onCall,
+  selectable = false,
+  selected = false,
+  onSelect,
+}: AlertCardProps) => {
   const [notes, setNotes] = useState("");
   const [showNotes, setShowNotes] = useState(false);
   const config = alertTypeConfig[alert.alert_type] || alertTypeConfig.urgent;
+  const slaStatus = !alert.resolved ? getSlaStatus(alert.sla_deadline, alert.sla_breached) : null;
 
   const handleResolve = () => {
     if (onResolve) {
@@ -68,14 +112,27 @@ export const AlertCard = ({ alert, onAssign, onResolve, onCall }: AlertCardProps
     }
   };
 
+  const handleCheckboxChange = (checked: boolean) => {
+    onSelect?.(alert.id, checked);
+  };
+
   return (
     <Card className={cn(
       "border-l-4 transition-all hover:shadow-md",
-      severityStyles[alert.severity]
+      severityStyles[alert.severity],
+      selected && "ring-2 ring-primary"
     )}>
       <CardHeader className="pb-2 p-3 sm:p-4">
         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
           <div className="flex items-start gap-2 min-w-0 flex-1">
+            {/* Feature 4: Checkbox for selection */}
+            {selectable && !alert.resolved && (
+              <Checkbox
+                checked={selected}
+                onCheckedChange={handleCheckboxChange}
+                className="mt-1 shrink-0"
+              />
+            )}
             <div className={cn("shrink-0 mt-0.5", config.color)}>{config.icon}</div>
             <div className="min-w-0 flex-1">
               <CardTitle className="text-sm sm:text-base font-semibold leading-tight">
@@ -97,10 +154,18 @@ export const AlertCard = ({ alert, onAssign, onResolve, onCall }: AlertCardProps
             <Badge variant={alert.severity === 'critical' ? 'destructive' : 'secondary'} className="text-xs">
               {alert.severity}
             </Badge>
-            <span className="text-[10px] sm:text-xs text-muted-foreground flex items-center gap-1">
-              <Clock className="h-3 w-3" />
-              {formatDistanceToNow(new Date(alert.created_at), { addSuffix: true })}
-            </span>
+            <div className="flex flex-col items-end gap-0.5">
+              <span className="text-[10px] sm:text-xs text-muted-foreground flex items-center gap-1">
+                <Clock className="h-3 w-3" />
+                {formatDistanceToNow(new Date(alert.created_at), { addSuffix: true })}
+              </span>
+              {/* SLA Countdown */}
+              {slaStatus && (
+                <span className={cn("text-[10px] sm:text-xs font-medium flex items-center gap-1", slaStatus.color)}>
+                  {slaStatus.status === 'breached' ? '⚠️' : '⏱️'} {slaStatus.label}
+                </span>
+              )}
+            </div>
           </div>
         </div>
       </CardHeader>
