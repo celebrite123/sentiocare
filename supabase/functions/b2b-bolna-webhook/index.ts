@@ -182,6 +182,7 @@ serve(async (req) => {
         call_id: execution_id || call_id,
         call_duration_seconds: duration || null,
         recording_url: recording_url || null,
+        patient_response: transcript || null, // Store full transcript
         // Structured fields
         safety_check_responses: {
           ...safetyCheckResponses,

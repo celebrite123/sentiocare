@@ -66,6 +66,9 @@ interface Checkin {
   ai_summary: string | null;
   created_at: string;
   recording_url: string | null;
+  patient_response: string | null;
+  call_duration_seconds: number | null;
+  answered: boolean | null;
 }
 
 const STATUS_OPTIONS = [
@@ -785,23 +788,53 @@ const CheckinItem = ({ checkin }: { checkin: Checkin }) => {
     };
   }, [audioUrl]);
 
+  const formatDuration = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${String(secs).padStart(2, '0')}`;
+  };
+
   return (
     <div className="border-b pb-3 last:border-0">
       <div className="flex items-center justify-between mb-1">
-        <Badge variant="outline" className="capitalize">
-          {checkin.checkin_type.replace("_", " ")}
-        </Badge>
+        <div className="flex items-center gap-2">
+          <Badge variant="outline" className="capitalize">
+            {checkin.checkin_type.replace("_", " ")}
+          </Badge>
+          {checkin.answered !== null && (
+            <span className="text-xs">
+              {checkin.answered ? "✅ Answered" : "❌ Not answered"}
+            </span>
+          )}
+          {checkin.call_duration_seconds && (
+            <span className="text-xs text-muted-foreground">
+              {formatDuration(checkin.call_duration_seconds)}
+            </span>
+          )}
+        </div>
         <span className="text-xs text-muted-foreground">
           {new Date(checkin.created_at).toLocaleDateString()}
         </span>
       </div>
+      
       {checkin.ai_summary && (
         <p className="text-sm text-muted-foreground mb-2">{checkin.ai_summary}</p>
       )}
+      
       {checkin.medicines_taken !== null && (
         <p className="text-sm mb-2">
           Medicines: {checkin.medicines_taken ? "✅ Taken" : "❌ Not taken"}
         </p>
+      )}
+
+      {/* Transcript Display */}
+      {checkin.patient_response && (
+        <div className="mt-2 mb-2">
+          <p className="text-xs text-muted-foreground font-medium mb-1">Call Transcript:</p>
+          <div className="text-sm bg-muted p-2 rounded text-muted-foreground max-h-32 overflow-y-auto whitespace-pre-wrap">
+            {checkin.patient_response}
+          </div>
+        </div>
       )}
       
       {/* Feature 3: Recording Playback */}
