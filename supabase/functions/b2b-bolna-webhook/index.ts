@@ -19,6 +19,52 @@ const safetyQuestionPatterns = {
 const yesPatterns = ["yes", "haan", "हां", "ha", "हा", "ji", "जी", "right", "correct", "thik", "ठीक", "ho raha", "hai", "है"];
 const noPatterns = ["no", "nahi", "नहीं", "na", "नहीं", "not", "nothing", "kuch nahi", "कुछ नहीं"];
 
+// Security: Validate webhook request has a valid pending call record
+async function validateB2BWebhookRequest(
+  supabase: any,
+  executionId: string | null,
+  patientId: string | null,
+  organizationId: string | null
+): Promise<{ valid: boolean; pendingCall: any | null; error?: string }> {
+  // Must have execution_id to validate
+  if (!executionId) {
+    return { valid: false, pendingCall: null, error: "No execution_id provided" };
+  }
+
+  // Look for a matching pending call initiated within the last hour
+  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+  
+  const { data: pendingCall, error } = await supabase
+    .from("b2b_pending_calls")
+    .select("patient_id, organization_id, call_type, day_number")
+    .eq("execution_id", executionId)
+    .gte("created_at", oneHourAgo.toISOString())
+    .single();
+  
+  if (pendingCall) {
+    return { valid: true, pendingCall };
+  }
+  
+  console.log("No b2b_pending_call found for execution_id:", executionId, error?.message);
+  
+  // Allow if patient and org are provided directly AND the patient exists (backward compatibility)
+  if (patientId && organizationId) {
+    const { data: patient, error: patientError } = await supabase
+      .from("discharged_patients")
+      .select("id")
+      .eq("id", patientId)
+      .eq("organization_id", organizationId)
+      .single();
+    
+    if (patient && !patientError) {
+      console.log("Validation fallback: patient exists in org");
+      return { valid: true, pendingCall: null };
+    }
+  }
+
+  return { valid: false, pendingCall: null, error: "No matching pending call found - request rejected" };
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -103,34 +149,34 @@ serve(async (req) => {
     let callType = user_data?.call_type || context_details?.user_data?.call_type || "health_check";
     let dayNumber = user_data?.day_number || context_details?.user_data?.day_number || 1;
 
-    // If patient info not found in payload, look up from b2b_pending_calls table
-    if ((!patientId || !organizationId) && executionId) {
-      console.log(`Looking up pending call for execution_id: ${executionId}`);
-      const { data: pendingCall, error: pendingError } = await supabase
+    // SECURITY: Validate webhook request using request correlation
+    const validation = await validateB2BWebhookRequest(supabase, executionId, patientId, organizationId);
+    
+    if (!validation.valid) {
+      console.error("SECURITY: B2B webhook request validation failed:", validation.error);
+      return new Response(
+        JSON.stringify({ error: "Unauthorized - no matching call record found" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // If we got context from pending_calls, use it
+    if (validation.pendingCall) {
+      console.log(`Found pending call: patient=${validation.pendingCall.patient_id}, org=${validation.pendingCall.organization_id}`);
+      patientId = validation.pendingCall.patient_id;
+      organizationId = validation.pendingCall.organization_id;
+      callType = validation.pendingCall.call_type || callType;
+      dayNumber = validation.pendingCall.day_number || dayNumber;
+
+      // Mark the pending call as processed
+      await supabase
         .from("b2b_pending_calls")
-        .select("patient_id, organization_id, call_type, day_number")
-        .eq("execution_id", executionId)
-        .single();
-
-      if (pendingCall && !pendingError) {
-        console.log(`Found pending call: patient=${pendingCall.patient_id}, org=${pendingCall.organization_id}`);
-        patientId = pendingCall.patient_id;
-        organizationId = pendingCall.organization_id;
-        callType = pendingCall.call_type || callType;
-        dayNumber = pendingCall.day_number || dayNumber;
-
-        // Mark the pending call as processed
-        await supabase
-          .from("b2b_pending_calls")
-          .update({ processed: true, processed_at: new Date().toISOString() })
-          .eq("execution_id", executionId);
-      } else if (pendingError) {
-        console.log(`No pending call found for execution_id ${executionId}:`, pendingError.message);
-      }
+        .update({ processed: true, processed_at: new Date().toISOString() })
+        .eq("execution_id", executionId);
     }
 
     if (!patientId || !organizationId) {
-      console.error("Missing patient_id or organization_id - not in user_data and not found in pending_calls");
+      console.error("Missing patient_id or organization_id after validation");
       return new Response(
         JSON.stringify({ error: "Missing patient context", execution_id: executionId }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }

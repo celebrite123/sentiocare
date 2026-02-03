@@ -1,10 +1,46 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createHmac } from "node:crypto";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+// Twilio signature validation - matches twilio-whatsapp-webhook implementation
+function validateTwilioSignature(
+  authToken: string,
+  signature: string,
+  url: string,
+  params: Record<string, string>
+): boolean {
+  if (!signature || !authToken) {
+    return false;
+  }
+
+  // Sort parameters alphabetically and concatenate
+  const sortedParams = Object.keys(params)
+    .sort()
+    .reduce((acc, key) => acc + key + params[key], "");
+  
+  const dataToSign = url + sortedParams;
+  
+  // Create HMAC-SHA1 signature
+  const expectedSignature = createHmac("sha1", authToken)
+    .update(dataToSign)
+    .digest("base64");
+
+  // Constant-time comparison to prevent timing attacks
+  if (signature.length !== expectedSignature.length) {
+    return false;
+  }
+  
+  let result = 0;
+  for (let i = 0; i < signature.length; i++) {
+    result |= signature.charCodeAt(i) ^ expectedSignature.charCodeAt(i);
+  }
+  return result === 0;
+}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -19,14 +55,37 @@ serve(async (req) => {
     const twilioWhatsAppNumber = Deno.env.get("TWILIO_WHATSAPP_NUMBER")!;
     const lovableApiKey = Deno.env.get("LOVABLE_API_KEY")!;
 
-    // Validate Twilio signature for security
-    const twilioSignature = req.headers.get("x-twilio-signature");
-    // In production, validate signature here
-
+    // Parse form data first
     const formData = await req.formData();
-    const from = formData.get("From")?.toString() || "";
-    const body = formData.get("Body")?.toString() || "";
-    const messageSid = formData.get("MessageSid")?.toString() || "";
+    const params: Record<string, string> = {};
+    for (const [key, value] of formData.entries()) {
+      params[key] = value.toString();
+    }
+
+    const from = params['From'] || "";
+    const body = params['Body'] || "";
+    const messageSid = params['MessageSid'] || "";
+
+    // SECURITY: Validate Twilio signature
+    const twilioSignature = req.headers.get("x-twilio-signature") || "";
+    const requestUrl = req.url;
+
+    if (twilioToken) {
+      const isValidSignature = validateTwilioSignature(
+        twilioToken,
+        twilioSignature,
+        requestUrl,
+        params
+      );
+
+      if (!isValidSignature) {
+        console.error("SECURITY: Invalid Twilio signature - request rejected");
+        return new Response("Unauthorized", { status: 403 });
+      }
+      console.log("Twilio signature validated successfully");
+    } else {
+      console.warn("TWILIO_AUTH_TOKEN not configured - signature validation skipped (NOT RECOMMENDED FOR PRODUCTION)");
+    }
 
     // Extract phone number
     const phoneNumber = from.replace("whatsapp:", "").replace("+91", "").replace("+", "");

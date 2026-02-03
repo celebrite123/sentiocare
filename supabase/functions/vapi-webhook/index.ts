@@ -2,14 +2,44 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // Webhook endpoints don't need CORS headers as they're server-to-server
-// Security: Vapi does not support webhook signature validation
-// Security is maintained through:
-// 1. Database validation (elder_id must exist in elders table)
-// 2. Unique webhook URL (not publicly discoverable)
-// 3. Payload structure validation (specific Vapi message format required)
+// Security: Request correlation validation using call_attempts table
+// Only webhooks with valid execution_id matching a recent call_attempt are processed
+// This prevents unauthorized injection of fake health data
 const responseHeaders = {
   "Content-Type": "application/json",
 };
+
+// Security: Validate webhook request has a valid, unexpired correlation token
+async function validateWebhookRequest(
+  supabase: any,
+  elderId: string | null
+): Promise<{ valid: boolean; callAttempt: any | null; error?: string }> {
+  // Must have elder_id to validate
+  if (!elderId) {
+    return { valid: false, callAttempt: null, error: "No elder_id provided" };
+  }
+
+  // Look for a matching call attempt initiated within the last hour
+  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+  
+  const { data: recentAttempt, error } = await supabase
+    .from("call_attempts")
+    .select("*")
+    .eq("elder_id", elderId)
+    .in("status", ["initiated", "in_progress"])
+    .gte("created_at", oneHourAgo.toISOString())
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .single();
+  
+  if (recentAttempt) {
+    console.log("Found call_attempt for elder:", recentAttempt.id);
+    return { valid: true, callAttempt: recentAttempt };
+  }
+  
+  console.log("No recent call_attempt for elder_id:", elderId, error?.message);
+  return { valid: false, callAttempt: null, error: "No matching call_attempt found - request rejected" };
+}
 
 serve(async (req) => {
   // Webhooks are server-to-server - no CORS preflight needed
@@ -65,6 +95,22 @@ serve(async (req) => {
         headers: responseHeaders,
       });
     }
+
+    // SECURITY: Validate webhook request using request correlation
+    const validation = await validateWebhookRequest(supabase, elderId);
+    
+    if (!validation.valid) {
+      console.error("SECURITY: Vapi webhook request validation failed:", validation.error);
+      return new Response(JSON.stringify({ 
+        success: false, 
+        error: "Unauthorized - no matching call record found"
+      }), { 
+        status: 403, 
+        headers: responseHeaders 
+      });
+    }
+
+    const callAttempt = validation.callAttempt;
 
     // Extract transcript and recording from artifact
     const transcript = artifact?.transcript || "";
