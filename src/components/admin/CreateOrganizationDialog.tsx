@@ -127,41 +127,43 @@ const CreateOrganizationDialog = ({ onSuccess, leadData, trigger }: CreateOrgani
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         {trigger || (
-          <Button>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Organization
+          <Button size="sm">
+            <Plus className="h-4 w-4 mr-1 md:mr-2" />
+            <span className="hidden sm:inline">Add Organization</span>
+            <span className="sm:hidden">Add</span>
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-[95vw] md:max-w-2xl max-h-[90vh] overflow-y-auto p-4 md:p-6">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Building2 className="h-5 w-5" />
-            {leadData ? "Convert Lead to Organization" : "Create New Organization"}
+          <DialogTitle className="flex items-center gap-2 text-base md:text-lg">
+            <Building2 className="h-4 w-4 md:h-5 md:w-5" />
+            {leadData ? "Convert Lead" : "Create Organization"}
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-xs md:text-sm">
             {leadData 
-              ? `Create organization from lead: ${leadData.contact_name}`
-              : "Add a new hospital or healthcare facility to the B2B platform"
+              ? `From lead: ${leadData.contact_name}`
+              : "Add a hospital or healthcare facility"
             }
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-4 py-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Organization Name *</Label>
+        <div className="grid gap-3 md:gap-4 py-3 md:py-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
+            <div className="space-y-1.5 md:space-y-2">
+              <Label htmlFor="name" className="text-xs md:text-sm">Organization Name *</Label>
               <Input
                 id="name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="City Hospital"
+                className="h-9 md:h-10 text-sm"
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="type">Type *</Label>
+            <div className="space-y-1.5 md:space-y-2">
+              <Label htmlFor="type" className="text-xs md:text-sm">Type *</Label>
               <Select value={type} onValueChange={setType}>
-                <SelectTrigger>
+                <SelectTrigger className="h-9 md:h-10 text-sm">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -175,53 +177,57 @@ const CreateOrganizationDialog = ({ onSuccess, leadData, trigger }: CreateOrgani
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="contactEmail">Contact Email</Label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
+            <div className="space-y-1.5 md:space-y-2">
+              <Label htmlFor="contactEmail" className="text-xs md:text-sm">Contact Email</Label>
               <Input
                 id="contactEmail"
                 type="email"
                 value={contactEmail}
                 onChange={(e) => setContactEmail(e.target.value)}
                 placeholder="admin@hospital.com"
+                className="h-9 md:h-10 text-sm"
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="contactPhone">Contact Phone</Label>
+            <div className="space-y-1.5 md:space-y-2">
+              <Label htmlFor="contactPhone" className="text-xs md:text-sm">Contact Phone</Label>
               <Input
                 id="contactPhone"
                 value={contactPhone}
                 onChange={(e) => setContactPhone(e.target.value)}
                 placeholder="+91 98765 43210"
+                className="h-9 md:h-10 text-sm"
               />
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="address">Address</Label>
+          <div className="space-y-1.5 md:space-y-2">
+            <Label htmlFor="address" className="text-xs md:text-sm">Address</Label>
             <Textarea
               id="address"
               value={address}
               onChange={(e) => setAddress(e.target.value)}
-              placeholder="Full address of the organization"
+              placeholder="Full address"
               rows={2}
+              className="text-sm"
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="hospitalNumber">Hospital Contact Number</Label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
+            <div className="space-y-1.5 md:space-y-2">
+              <Label htmlFor="hospitalNumber" className="text-xs md:text-sm">Hospital Helpline</Label>
               <Input
                 id="hospitalNumber"
                 value={hospitalContactNumber}
                 onChange={(e) => setHospitalContactNumber(e.target.value)}
                 placeholder="Helpline number"
+                className="h-9 md:h-10 text-sm"
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="language">Default Language</Label>
+            <div className="space-y-1.5 md:space-y-2">
+              <Label htmlFor="language" className="text-xs md:text-sm">Default Language</Label>
               <Select value={defaultLanguage} onValueChange={setDefaultLanguage}>
-                <SelectTrigger>
+                <SelectTrigger className="h-9 md:h-10 text-sm">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -232,52 +238,55 @@ const CreateOrganizationDialog = ({ onSuccess, leadData, trigger }: CreateOrgani
             </div>
           </div>
 
-          <div className="border-t pt-4 mt-2">
-            <h4 className="font-medium mb-3">Usage Limits (Custom Package)</h4>
-            <div className="grid grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="patientLimit">Patients / Month</Label>
+          <div className="border-t pt-3 md:pt-4 mt-2">
+            <h4 className="font-medium text-sm md:text-base mb-2 md:mb-3">Usage Limits</h4>
+            <div className="grid grid-cols-3 gap-2 md:gap-4">
+              <div className="space-y-1 md:space-y-2">
+                <Label htmlFor="patientLimit" className="text-[10px] md:text-xs">Patients/Month</Label>
                 <Input
                   id="patientLimit"
                   type="number"
                   value={monthlyPatientLimit}
                   onChange={(e) => setMonthlyPatientLimit(e.target.value)}
                   min="1"
+                  className="h-9 md:h-10 text-sm"
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="smsLimit">SMS / Month</Label>
+              <div className="space-y-1 md:space-y-2">
+                <Label htmlFor="smsLimit" className="text-[10px] md:text-xs">SMS/Month</Label>
                 <Input
                   id="smsLimit"
                   type="number"
                   value={monthlySmsLimit}
                   onChange={(e) => setMonthlySmsLimit(e.target.value)}
                   min="1"
+                  className="h-9 md:h-10 text-sm"
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="callLimit">Calls / Month</Label>
+              <div className="space-y-1 md:space-y-2">
+                <Label htmlFor="callLimit" className="text-[10px] md:text-xs">Calls/Month</Label>
                 <Input
                   id="callLimit"
                   type="number"
                   value={monthlyCallLimit}
                   onChange={(e) => setMonthlyCallLimit(e.target.value)}
                   min="1"
+                  className="h-9 md:h-10 text-sm"
                 />
               </div>
             </div>
           </div>
 
-          <div className="border-t pt-4 mt-2">
-            <h4 className="font-medium mb-3 flex items-center gap-2">
-              Voice Agent Configuration
-              <span className="text-xs font-normal text-muted-foreground">(Optional)</span>
+          <div className="border-t pt-3 md:pt-4 mt-2">
+            <h4 className="font-medium text-sm md:text-base mb-2 md:mb-3 flex items-center gap-2">
+              Voice Agent
+              <span className="text-[10px] md:text-xs font-normal text-muted-foreground">(Optional)</span>
             </h4>
-            <div className="space-y-4">
+            <div className="space-y-3 md:space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <Label>Voice Calls Enabled</Label>
-                  <p className="text-xs text-muted-foreground">Enable AI voice calls for this organization</p>
+                  <Label className="text-xs md:text-sm">Voice Calls Enabled</Label>
+                  <p className="text-[10px] md:text-xs text-muted-foreground">Enable AI voice calls</p>
                 </div>
                 <input
                   type="checkbox"
@@ -287,26 +296,26 @@ const CreateOrganizationDialog = ({ onSuccess, leadData, trigger }: CreateOrgani
                 />
               </div>
               {voiceEnabled && (
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="bolnaAgentId">Bolna Agent ID (English)</Label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
+                  <div className="space-y-1 md:space-y-2">
+                    <Label htmlFor="bolnaAgentId" className="text-xs md:text-sm">Bolna Agent (English)</Label>
                     <Input
                       id="bolnaAgentId"
                       value={bolnaAgentId}
                       onChange={(e) => setBolnaAgentId(e.target.value)}
                       placeholder="agent_xxxxxx"
+                      className="h-9 md:h-10 text-sm"
                     />
-                    <p className="text-xs text-muted-foreground">From Bolna Dashboard</p>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="bolnaAgentIdHindi">Bolna Agent ID (Hindi)</Label>
+                  <div className="space-y-1 md:space-y-2">
+                    <Label htmlFor="bolnaAgentIdHindi" className="text-xs md:text-sm">Bolna Agent (Hindi)</Label>
                     <Input
                       id="bolnaAgentIdHindi"
                       value={bolnaAgentIdHindi}
                       onChange={(e) => setBolnaAgentIdHindi(e.target.value)}
                       placeholder="agent_xxxxxx"
+                      className="h-9 md:h-10 text-sm"
                     />
-                    <p className="text-xs text-muted-foreground">Leave empty to use English agent</p>
                   </div>
                 </div>
               )}
@@ -314,13 +323,13 @@ const CreateOrganizationDialog = ({ onSuccess, leadData, trigger }: CreateOrgani
           </div>
         </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => setOpen(false)} disabled={loading}>
+        <DialogFooter className="gap-2 sm:gap-0">
+          <Button variant="outline" onClick={() => setOpen(false)} disabled={loading} size="sm">
             Cancel
           </Button>
-          <Button onClick={handleSubmit} disabled={loading}>
+          <Button onClick={handleSubmit} disabled={loading} size="sm">
             {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            Create Organization
+            Create
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -148,71 +148,74 @@ export const EditOrganizationDialog = ({ organization, onSuccess }: EditOrganiza
           Edit
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-[95vw] md:max-w-2xl max-h-[90vh] overflow-y-auto p-4 md:p-6">
         <DialogHeader>
-          <DialogTitle>Edit Organization</DialogTitle>
-          <DialogDescription>
-            Update organization settings, limits, and voice agent configuration.
+          <DialogTitle className="text-base md:text-lg">Edit Organization</DialogTitle>
+          <DialogDescription className="text-xs md:text-sm">
+            Update settings, limits, and voice agent configuration.
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit}>
           <Tabs defaultValue="details" className="w-full">
-            <TabsList className="grid w-full grid-cols-4">
-              <TabsTrigger value="details">
-                <Building2 className="h-4 w-4 mr-1" />
-                Details
+            <TabsList className="grid w-full grid-cols-4 h-9 md:h-10">
+              <TabsTrigger value="details" className="text-xs md:text-sm px-1 md:px-3">
+                <Building2 className="h-3 w-3 md:h-4 md:w-4 md:mr-1" />
+                <span className="hidden md:inline">Details</span>
               </TabsTrigger>
-              <TabsTrigger value="contact">
-                <Phone className="h-4 w-4 mr-1" />
-                Contact
+              <TabsTrigger value="contact" className="text-xs md:text-sm px-1 md:px-3">
+                <Phone className="h-3 w-3 md:h-4 md:w-4 md:mr-1" />
+                <span className="hidden md:inline">Contact</span>
               </TabsTrigger>
-              <TabsTrigger value="limits">
-                <Settings className="h-4 w-4 mr-1" />
-                Limits
+              <TabsTrigger value="limits" className="text-xs md:text-sm px-1 md:px-3">
+                <Settings className="h-3 w-3 md:h-4 md:w-4 md:mr-1" />
+                <span className="hidden md:inline">Limits</span>
               </TabsTrigger>
-              <TabsTrigger value="voice">
-                <Mic className="h-4 w-4 mr-1" />
-                Voice
+              <TabsTrigger value="voice" className="text-xs md:text-sm px-1 md:px-3">
+                <Mic className="h-3 w-3 md:h-4 md:w-4 md:mr-1" />
+                <span className="hidden md:inline">Voice</span>
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="details" className="space-y-4 mt-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">Organization Name</Label>
+            <TabsContent value="details" className="space-y-3 md:space-y-4 mt-3 md:mt-4">
+              <div className="space-y-1.5 md:space-y-2">
+                <Label htmlFor="name" className="text-xs md:text-sm">Organization Name</Label>
                 <Input
                   id="name"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   required
+                  className="h-9 md:h-10 text-sm"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="contact_email">Contact Email</Label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
+                <div className="space-y-1.5 md:space-y-2">
+                  <Label htmlFor="contact_email" className="text-xs md:text-sm">Contact Email</Label>
                   <Input
                     id="contact_email"
                     type="email"
                     value={formData.contact_email}
                     onChange={(e) => setFormData({ ...formData, contact_email: e.target.value })}
+                    className="h-9 md:h-10 text-sm"
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="contact_phone">Contact Phone</Label>
+                <div className="space-y-1.5 md:space-y-2">
+                  <Label htmlFor="contact_phone" className="text-xs md:text-sm">Contact Phone</Label>
                   <Input
                     id="contact_phone"
                     value={formData.contact_phone}
                     onChange={(e) => setFormData({ ...formData, contact_phone: e.target.value })}
+                    className="h-9 md:h-10 text-sm"
                   />
                 </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="default_language">Default Language</Label>
+              <div className="space-y-1.5 md:space-y-2">
+                <Label htmlFor="default_language" className="text-xs md:text-sm">Default Language</Label>
                 <select
                   id="default_language"
                   value={formData.default_language}
                   onChange={(e) => setFormData({ ...formData, default_language: e.target.value })}
-                  className="w-full border rounded-md px-3 py-2"
+                  className="w-full border rounded-md px-3 py-2 h-9 md:h-10 text-sm bg-background"
                 >
                   <option value="hindi">Hindi</option>
                   <option value="english">English</option>
@@ -223,93 +226,99 @@ export const EditOrganizationDialog = ({ organization, onSuccess }: EditOrganiza
               </div>
             </TabsContent>
 
-            <TabsContent value="contact" className="space-y-4 mt-4">
-              <div className="space-y-2">
-                <Label htmlFor="hospital_contact_number">Hospital Helpline Number</Label>
+            <TabsContent value="contact" className="space-y-3 md:space-y-4 mt-3 md:mt-4">
+              <div className="space-y-1.5 md:space-y-2">
+                <Label htmlFor="hospital_contact_number" className="text-xs md:text-sm">Hospital Helpline</Label>
                 <Input
                   id="hospital_contact_number"
                   value={formData.hospital_contact_number}
                   onChange={(e) => setFormData({ ...formData, hospital_contact_number: e.target.value })}
                   placeholder="1800-XXX-XXXX"
+                  className="h-9 md:h-10 text-sm"
                 />
-                <p className="text-xs text-muted-foreground">
-                  This number is given to patients during emergency escalation
+                <p className="text-[10px] md:text-xs text-muted-foreground">
+                  Given to patients during escalation
                 </p>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="escalation_phone">Escalation Phone (Duty Doctor)</Label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
+                <div className="space-y-1.5 md:space-y-2">
+                  <Label htmlFor="escalation_phone" className="text-xs md:text-sm">Escalation Phone</Label>
                   <Input
                     id="escalation_phone"
                     value={formData.escalation_phone}
                     onChange={(e) => setFormData({ ...formData, escalation_phone: e.target.value })}
                     placeholder="+919876543210"
+                    className="h-9 md:h-10 text-sm"
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="escalation_email">Escalation Email</Label>
+                <div className="space-y-1.5 md:space-y-2">
+                  <Label htmlFor="escalation_email" className="text-xs md:text-sm">Escalation Email</Label>
                   <Input
                     id="escalation_email"
                     type="email"
                     value={formData.escalation_email}
                     onChange={(e) => setFormData({ ...formData, escalation_email: e.target.value })}
-                    placeholder="duty-doctor@hospital.com"
+                    placeholder="duty@hospital.com"
+                    className="h-9 md:h-10 text-sm"
                   />
                 </div>
               </div>
             </TabsContent>
 
-            <TabsContent value="limits" className="space-y-4 mt-4">
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium">Monthly Limits</CardTitle>
-                  <CardDescription>Set usage limits for this organization</CardDescription>
+            <TabsContent value="limits" className="space-y-3 md:space-y-4 mt-3 md:mt-4">
+              <Card className="p-0">
+                <CardHeader className="p-3 md:pb-2">
+                  <CardTitle className="text-xs md:text-sm font-medium">Monthly Limits</CardTitle>
+                  <CardDescription className="text-[10px] md:text-xs">Set usage limits</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="monthly_patient_limit">Patient Limit</Label>
+                <CardContent className="p-3 pt-0 space-y-3 md:space-y-4">
+                  <div className="grid grid-cols-3 gap-2 md:gap-4">
+                    <div className="space-y-1 md:space-y-2">
+                      <Label htmlFor="monthly_patient_limit" className="text-[10px] md:text-xs">Patients</Label>
                       <Input
                         id="monthly_patient_limit"
                         type="number"
                         value={formData.monthly_patient_limit}
                         onChange={(e) => setFormData({ ...formData, monthly_patient_limit: parseInt(e.target.value) || 0 })}
                         min={0}
+                        className="h-8 md:h-10 text-sm"
                       />
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="monthly_sms_limit">SMS Limit</Label>
+                    <div className="space-y-1 md:space-y-2">
+                      <Label htmlFor="monthly_sms_limit" className="text-[10px] md:text-xs">SMS</Label>
                       <Input
                         id="monthly_sms_limit"
                         type="number"
                         value={formData.monthly_sms_limit}
                         onChange={(e) => setFormData({ ...formData, monthly_sms_limit: parseInt(e.target.value) || 0 })}
                         min={0}
+                        className="h-8 md:h-10 text-sm"
                       />
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="monthly_call_limit">Call Limit</Label>
+                    <div className="space-y-1 md:space-y-2">
+                      <Label htmlFor="monthly_call_limit" className="text-[10px] md:text-xs">Calls</Label>
                       <Input
                         id="monthly_call_limit"
                         type="number"
                         value={formData.monthly_call_limit}
                         onChange={(e) => setFormData({ ...formData, monthly_call_limit: parseInt(e.target.value) || 0 })}
                         min={0}
+                        className="h-8 md:h-10 text-sm"
                       />
                     </div>
                   </div>
                 </CardContent>
               </Card>
 
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium">Automation Settings</CardTitle>
+              <Card className="p-0">
+                <CardHeader className="p-3 md:pb-2">
+                  <CardTitle className="text-xs md:text-sm font-medium">Automation</CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4">
+                <CardContent className="p-3 pt-0 space-y-3 md:space-y-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <Label>Auto 48-Hour Check</Label>
-                      <p className="text-xs text-muted-foreground">Automatically call patients 48 hours after discharge</p>
+                      <Label className="text-xs md:text-sm">Auto 48-Hour Check</Label>
+                      <p className="text-[10px] md:text-xs text-muted-foreground">Call patients 48hr after discharge</p>
                     </div>
                     <Switch
                       checked={formData.auto_48hr_check}
@@ -318,8 +327,8 @@ export const EditOrganizationDialog = ({ organization, onSuccess }: EditOrganiza
                   </div>
                   <div className="flex items-center justify-between">
                     <div>
-                      <Label>Auto Medicine Reminders</Label>
-                      <p className="text-xs text-muted-foreground">Send daily medicine reminder messages</p>
+                      <Label className="text-xs md:text-sm">Medicine Reminders</Label>
+                      <p className="text-[10px] md:text-xs text-muted-foreground">Daily reminder messages</p>
                     </div>
                     <Switch
                       checked={formData.auto_medicine_reminders}
@@ -330,19 +339,19 @@ export const EditOrganizationDialog = ({ organization, onSuccess }: EditOrganiza
               </Card>
             </TabsContent>
 
-            <TabsContent value="voice" className="space-y-4 mt-4">
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium">Voice Agent Configuration</CardTitle>
-                  <CardDescription>
-                    Configure Bolna AI agents for this organization. Leave empty to use global defaults.
+            <TabsContent value="voice" className="space-y-3 md:space-y-4 mt-3 md:mt-4">
+              <Card className="p-0">
+                <CardHeader className="p-3 md:pb-2">
+                  <CardTitle className="text-xs md:text-sm font-medium">Voice Agent</CardTitle>
+                  <CardDescription className="text-[10px] md:text-xs">
+                    Configure Bolna AI agents. Leave empty for defaults.
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4">
+                <CardContent className="p-3 pt-0 space-y-3 md:space-y-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <Label>Enable Voice Calls</Label>
-                      <p className="text-xs text-muted-foreground">Use voice calls for patient check-ins</p>
+                      <Label className="text-xs md:text-sm">Enable Voice Calls</Label>
+                      <p className="text-[10px] md:text-xs text-muted-foreground">Use voice for check-ins</p>
                     </div>
                     <Switch
                       checked={formData.voice_enabled}
@@ -351,39 +360,41 @@ export const EditOrganizationDialog = ({ organization, onSuccess }: EditOrganiza
                   </div>
                   
                   {formData.voice_enabled && (
-                    <>
-                      <div className="space-y-2">
-                        <Label htmlFor="bolna_agent_id">Bolna Agent ID (English)</Label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
+                      <div className="space-y-1.5 md:space-y-2">
+                        <Label htmlFor="bolna_agent_id" className="text-xs md:text-sm">Bolna Agent (EN)</Label>
                         <Input
                           id="bolna_agent_id"
                           value={formData.bolna_agent_id}
                           onChange={(e) => setFormData({ ...formData, bolna_agent_id: e.target.value })}
-                          placeholder="Leave empty for global default"
+                          placeholder="Empty = default"
+                          className="h-9 md:h-10 text-sm"
                         />
                       </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="bolna_agent_id_hindi">Bolna Agent ID (Hindi)</Label>
+                      <div className="space-y-1.5 md:space-y-2">
+                        <Label htmlFor="bolna_agent_id_hindi" className="text-xs md:text-sm">Bolna Agent (HI)</Label>
                         <Input
                           id="bolna_agent_id_hindi"
                           value={formData.bolna_agent_id_hindi}
                           onChange={(e) => setFormData({ ...formData, bolna_agent_id_hindi: e.target.value })}
-                          placeholder="Leave empty for global default"
+                          placeholder="Empty = default"
+                          className="h-9 md:h-10 text-sm"
                         />
                       </div>
-                    </>
+                    </div>
                   )}
                 </CardContent>
               </Card>
             </TabsContent>
           </Tabs>
 
-          <DialogFooter className="mt-6">
-            <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={loading}>
+          <DialogFooter className="mt-4 md:mt-6 gap-2 sm:gap-0">
+            <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={loading} size="sm">
               Cancel
             </Button>
-            <Button type="submit" disabled={loading}>
+            <Button type="submit" disabled={loading} size="sm">
               {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Save Changes
+              Save
             </Button>
           </DialogFooter>
         </form>
