@@ -48,7 +48,43 @@ serve(async (req) => {
       transfer_status,
       transferred_to_number,
       transfer_duration,
+      // Telephony data - where Bolna stores recording URL
+      telephony_data,
     } = payload;
+
+    // Extract recording URL from multiple possible locations (Bolna varies where it puts this)
+    const actualRecordingUrl = 
+      telephony_data?.recording_url ||
+      telephony_data?.call_recording_url ||
+      payload.recording_url ||
+      payload.call_recording?.url ||
+      (typeof payload.call_recording === 'string' ? payload.call_recording : null) ||
+      context_details?.recording_url ||
+      recording_url ||
+      null;
+
+    // Extract call duration from multiple possible locations
+    const actualDuration = 
+      payload.conversation_duration ||
+      duration ||
+      telephony_data?.duration ||
+      telephony_data?.call_duration ||
+      (payload.total_cost ? Math.round(payload.total_cost / 0.12) : null) || // Approximate from cost
+      null;
+
+    console.log("Recording URL sources:", {
+      telephony: telephony_data?.recording_url,
+      payload: payload.recording_url,
+      call_recording: payload.call_recording,
+      context: context_details?.recording_url,
+      extracted: actualRecordingUrl
+    });
+    console.log("Duration sources:", {
+      conversation_duration: payload.conversation_duration,
+      duration,
+      telephony_duration: telephony_data?.duration,
+      extracted: actualDuration
+    });
 
     // Extract execution ID from multiple possible locations
     const executionId = execution_id || call_id || payloadId || payload.execution_id || payload.id;
@@ -180,8 +216,8 @@ serve(async (req) => {
         sentiment: analysis.sentiment,
         ai_summary: analysis.ai_summary,
         call_id: execution_id || call_id,
-        call_duration_seconds: duration || null,
-        recording_url: recording_url || null,
+        call_duration_seconds: actualDuration,
+        recording_url: actualRecordingUrl,
         patient_response: transcript || null, // Store full transcript
         // Structured fields
         safety_check_responses: {
