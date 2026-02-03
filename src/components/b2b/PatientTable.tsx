@@ -16,9 +16,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { RiskBadge } from "./RiskBadge";
 import { Eye, Phone, MessageSquare, Search, Filter } from "lucide-react";
-import { format } from "date-fns";
+import { format, formatDistanceToNow } from "date-fns";
 
 interface Patient {
   id: string;
@@ -33,6 +34,7 @@ interface Patient {
   medicine_day_count: number;
   follow_up_date: string | null;
   status: string;
+  last_call_date: string | null;
 }
 
 interface PatientTableProps {
@@ -41,6 +43,8 @@ interface PatientTableProps {
   onCallPatient?: (phone: string) => void;
   onMessagePatient?: (id: string) => void;
   loading?: boolean;
+  selectedPatients: Set<string>;
+  onSelectionChange: (selected: Set<string>) => void;
 }
 
 export const PatientTable = ({
@@ -49,6 +53,8 @@ export const PatientTable = ({
   onCallPatient,
   onMessagePatient,
   loading,
+  selectedPatients,
+  onSelectionChange,
 }: PatientTableProps) => {
   const [search, setSearch] = useState("");
   const [riskFilter, setRiskFilter] = useState<string>("all");
@@ -62,6 +68,28 @@ export const PatientTable = ({
     const matchesStatus = statusFilter === "all" || patient.status === statusFilter;
     return matchesSearch && matchesRisk && matchesStatus;
   });
+
+  const handleSelectPatient = (patientId: string, checked: boolean) => {
+    const newSelected = new Set(selectedPatients);
+    if (checked) {
+      newSelected.add(patientId);
+    } else {
+      newSelected.delete(patientId);
+    }
+    onSelectionChange(newSelected);
+  };
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      const allIds = new Set(filteredPatients.map(p => p.id));
+      onSelectionChange(allIds);
+    } else {
+      onSelectionChange(new Set());
+    }
+  };
+
+  const allSelected = filteredPatients.length > 0 && filteredPatients.every(p => selectedPatients.has(p.id));
+  const someSelected = filteredPatients.some(p => selectedPatients.has(p.id)) && !allSelected;
 
   return (
     <div className="space-y-4">
@@ -115,37 +143,46 @@ export const PatientTable = ({
             <div 
               key={patient.id} 
               className="p-4 border rounded-lg bg-card space-y-3"
-              onClick={() => onViewPatient(patient.id)}
             >
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0 flex-1">
-                  <p className="font-medium truncate">{patient.patient_name}</p>
-                  <p className="text-sm text-muted-foreground">{patient.mobile_number}</p>
-                </div>
-                <RiskBadge status={patient.risk_status} size="sm" />
-              </div>
-              <div className="grid grid-cols-2 gap-2 text-sm">
-                <div>
-                  <span className="text-muted-foreground">Discharged: </span>
-                  {format(new Date(patient.discharge_date), "dd MMM")}
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Day: </span>
-                  {patient.medicine_day_count}
-                </div>
-                {patient.ward && (
-                  <div>
-                    <span className="text-muted-foreground">Ward: </span>
-                    {patient.ward}
+              <div className="flex items-start gap-3">
+                <Checkbox
+                  checked={selectedPatients.has(patient.id)}
+                  onCheckedChange={(checked) => handleSelectPatient(patient.id, !!checked)}
+                  onClick={(e) => e.stopPropagation()}
+                  className="mt-1"
+                />
+                <div className="flex-1 min-w-0" onClick={() => onViewPatient(patient.id)}>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium truncate">{patient.patient_name}</p>
+                      <p className="text-sm text-muted-foreground">{patient.mobile_number}</p>
+                    </div>
+                    <RiskBadge status={patient.risk_status} size="sm" />
                   </div>
-                )}
-                <div>
-                  <span className="text-muted-foreground">48hr: </span>
-                  {patient.check_48hr_completed ? (
-                    <span className="text-green-600">✓ Done</span>
-                  ) : (
-                    <span>Pending</span>
-                  )}
+                  <div className="grid grid-cols-2 gap-2 text-sm mt-2">
+                    <div>
+                      <span className="text-muted-foreground">Discharged: </span>
+                      {format(new Date(patient.discharge_date), "dd MMM")}
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Day: </span>
+                      {patient.medicine_day_count}
+                    </div>
+                    {patient.last_call_date && (
+                      <div className="col-span-2">
+                        <span className="text-muted-foreground">Last call: </span>
+                        {formatDistanceToNow(new Date(patient.last_call_date), { addSuffix: true })}
+                      </div>
+                    )}
+                    <div>
+                      <span className="text-muted-foreground">48hr: </span>
+                      {patient.check_48hr_completed ? (
+                        <span className="text-emerald-600">✓ Done</span>
+                      ) : (
+                        <span>Pending</span>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
               <div className="flex gap-2 pt-2 border-t">
@@ -173,15 +210,22 @@ export const PatientTable = ({
         )}
       </div>
 
-      {/* Desktop Table - Hidden on mobile */}
       <div className="hidden md:block rounded-md border overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-12">
+                <Checkbox
+                  checked={allSelected}
+                  ref={(el) => {
+                    if (el) (el as any).indeterminate = someSelected;
+                  }}
+                  onCheckedChange={(checked) => handleSelectAll(!!checked)}
+                />
+              </TableHead>
               <TableHead>Patient</TableHead>
               <TableHead>Discharge</TableHead>
-              <TableHead>Ward</TableHead>
-              <TableHead>Doctor</TableHead>
+              <TableHead>Last Call</TableHead>
               <TableHead>Risk Status</TableHead>
               <TableHead>48hr Check</TableHead>
               <TableHead>Day</TableHead>
@@ -191,19 +235,25 @@ export const PatientTable = ({
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-8">
+                <TableCell colSpan={9} className="text-center py-8">
                   Loading patients...
                 </TableCell>
               </TableRow>
             ) : filteredPatients.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                   No patients found
                 </TableCell>
               </TableRow>
             ) : (
               filteredPatients.map((patient) => (
-                <TableRow key={patient.id} className="hover:bg-muted/50">
+                <TableRow key={patient.id} className={`hover:bg-muted/50 ${selectedPatients.has(patient.id) ? 'bg-muted/30' : ''}`}>
+                  <TableCell>
+                    <Checkbox
+                      checked={selectedPatients.has(patient.id)}
+                      onCheckedChange={(checked) => handleSelectPatient(patient.id, !!checked)}
+                    />
+                  </TableCell>
                   <TableCell>
                     <div>
                       <span className="font-medium">{patient.patient_name}</span>
@@ -215,14 +265,21 @@ export const PatientTable = ({
                   <TableCell>
                     {format(new Date(patient.discharge_date), "dd MMM")}
                   </TableCell>
-                  <TableCell>{patient.ward || "-"}</TableCell>
-                  <TableCell>{patient.doctor_name || "-"}</TableCell>
+                  <TableCell>
+                    {patient.last_call_date ? (
+                      <span className="text-sm text-muted-foreground">
+                        {formatDistanceToNow(new Date(patient.last_call_date), { addSuffix: true })}
+                      </span>
+                    ) : (
+                      <span className="text-sm text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
                   <TableCell>
                     <RiskBadge status={patient.risk_status} size="sm" />
                   </TableCell>
                   <TableCell>
                     {patient.check_48hr_completed ? (
-                      <span className="text-green-600">✓ Done</span>
+                      <span className="text-emerald-600">✓ Done</span>
                     ) : (
                       <span className="text-muted-foreground">Pending</span>
                     )}

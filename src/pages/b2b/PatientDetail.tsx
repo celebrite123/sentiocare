@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Phone, MessageSquare, Pill, AlertTriangle, CheckCircle, Clock, User, Calendar, Stethoscope, PhoneCall, Play, Pause, Volume2, Loader2 } from "lucide-react";
+import { ArrowLeft, Phone, MessageSquare, Pill, AlertTriangle, CheckCircle, Clock, User, Calendar, Stethoscope, PhoneCall, Play, Pause, Volume2, Loader2, Copy, ChevronDown, ChevronUp, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -91,11 +91,19 @@ const PatientDetail = () => {
   const [callbackDialogOpen, setCallbackDialogOpen] = useState(false);
   const [callingNow, setCallingNow] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [isPolling, setIsPolling] = useState(false);
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     if (id && organization) {
       loadPatientData();
     }
+    // Cleanup polling on unmount
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+      }
+    };
   }, [id, organization]);
 
   const loadPatientData = async () => {
@@ -225,11 +233,23 @@ const PatientDetail = () => {
 
       toast({
         title: "Call initiated",
-        description: "AI is now calling the patient. Check back for updates.",
+        description: "AI is now calling the patient. Results will appear automatically.",
       });
       
-      // Refresh data after a short delay
-      setTimeout(loadPatientData, 3000);
+      // Start polling for updates every 5 seconds for 60 seconds
+      setIsPolling(true);
+      let pollCount = 0;
+      pollIntervalRef.current = setInterval(async () => {
+        pollCount++;
+        await loadPatientData();
+        if (pollCount >= 12) { // 12 * 5s = 60 seconds
+          if (pollIntervalRef.current) {
+            clearInterval(pollIntervalRef.current);
+            pollIntervalRef.current = null;
+          }
+          setIsPolling(false);
+        }
+      }, 5000);
     } catch (error: any) {
       toast({
         title: "Failed to initiate call",
@@ -598,7 +618,7 @@ const PatientDetail = () => {
                 <div className="flex items-center justify-between">
                   <span className="text-sm">Discharge Message</span>
                   {patient.discharge_message_sent ? (
-                    <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-200">Sent</Badge>
+                    <Badge variant="default" className="bg-primary/10 text-primary border-primary/20">Sent</Badge>
                   ) : (
                     <Badge variant="secondary">Pending</Badge>
                   )}
@@ -606,7 +626,7 @@ const PatientDetail = () => {
                 <div className="flex items-center justify-between">
                   <span className="text-sm">48hr Check</span>
                   {patient.check_48hr_completed ? (
-                    <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-200">
+                    <Badge variant="default" className="bg-primary/10 text-primary border-primary/20">
                       {patient.check_48hr_method === "voice" ? "Called" : "Messaged"}
                     </Badge>
                   ) : (
@@ -616,7 +636,7 @@ const PatientDetail = () => {
                 <div className="flex items-center justify-between">
                   <span className="text-sm">Nurse Callback</span>
                   {patient.nurse_called_back ? (
-                    <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-200">Done</Badge>
+                    <Badge variant="default" className="bg-primary/10 text-primary border-primary/20">Done</Badge>
                   ) : (
                     <Badge variant="secondary">Pending</Badge>
                   )}
@@ -714,11 +734,12 @@ const PatientDetail = () => {
   );
 };
 
-// Feature 3: Recording Playback Component
+// Feature 3: Recording Playback Component with Collapsible Transcript
 const CheckinItem = ({ checkin }: { checkin: Checkin }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [showFullTranscript, setShowFullTranscript] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const handlePlayRecording = async () => {
@@ -776,6 +797,16 @@ const CheckinItem = ({ checkin }: { checkin: Checkin }) => {
     }
   };
 
+  const handleCopyTranscript = async () => {
+    if (!checkin.patient_response) return;
+    try {
+      await navigator.clipboard.writeText(checkin.patient_response);
+      toast({ title: "Transcript copied to clipboard" });
+    } catch (e) {
+      toast({ title: "Failed to copy", variant: "destructive" });
+    }
+  };
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -794,6 +825,8 @@ const CheckinItem = ({ checkin }: { checkin: Checkin }) => {
     return `${mins}:${String(secs).padStart(2, '0')}`;
   };
 
+  const isTranscriptLong = checkin.patient_response && checkin.patient_response.length > 200;
+
   return (
     <div className="border-b pb-3 last:border-0">
       <div className="flex items-center justify-between mb-1">
@@ -802,9 +835,9 @@ const CheckinItem = ({ checkin }: { checkin: Checkin }) => {
             {checkin.checkin_type.replace("_", " ")}
           </Badge>
           {checkin.answered !== null && (
-            <span className="text-xs">
-              {checkin.answered ? "✅ Answered" : "❌ Not answered"}
-            </span>
+            <Badge variant={checkin.answered ? "default" : "secondary"} className="text-xs">
+              {checkin.answered ? "Answered" : "Not answered"}
+            </Badge>
           )}
           {checkin.call_duration_seconds && (
             <span className="text-xs text-muted-foreground">
@@ -827,11 +860,48 @@ const CheckinItem = ({ checkin }: { checkin: Checkin }) => {
         </p>
       )}
 
-      {/* Transcript Display */}
+      {/* Collapsible Transcript Display */}
       {checkin.patient_response && (
         <div className="mt-2 mb-2">
-          <p className="text-xs text-muted-foreground font-medium mb-1">Call Transcript:</p>
-          <div className="text-sm bg-muted p-2 rounded text-muted-foreground max-h-32 overflow-y-auto whitespace-pre-wrap">
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-xs text-muted-foreground font-medium">Call Transcript:</p>
+            <div className="flex gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 px-2 text-xs"
+                onClick={handleCopyTranscript}
+              >
+                <Copy className="h-3 w-3 mr-1" />
+                Copy
+              </Button>
+              {isTranscriptLong && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-2 text-xs"
+                  onClick={() => setShowFullTranscript(!showFullTranscript)}
+                >
+                  {showFullTranscript ? (
+                    <>
+                      <ChevronUp className="h-3 w-3 mr-1" />
+                      Less
+                    </>
+                  ) : (
+                    <>
+                      <ChevronDown className="h-3 w-3 mr-1" />
+                      More
+                    </>
+                  )}
+                </Button>
+              )}
+            </div>
+          </div>
+          <div 
+            className={`text-sm bg-muted p-2 rounded text-muted-foreground overflow-y-auto whitespace-pre-wrap ${
+              showFullTranscript ? 'max-h-96' : 'max-h-24'
+            }`}
+          >
             {checkin.patient_response}
           </div>
         </div>
@@ -853,8 +923,16 @@ const CheckinItem = ({ checkin }: { checkin: Checkin }) => {
           ) : (
             <Play className="h-3 w-3" />
           )}
+          <Volume2 className="h-3 w-3" />
           {isPlaying ? "Pause" : "Play Recording"}
         </Button>
+      )}
+
+      {/* Show message if no recording available but call was answered */}
+      {!checkin.recording_url && checkin.answered && checkin.method === "voice" && (
+        <p className="text-xs text-muted-foreground mt-1 italic">
+          Recording not available
+        </p>
       )}
     </div>
   );
