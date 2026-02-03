@@ -41,6 +41,10 @@ serve(async (req) => {
       user_data,
       duration,
       recording_url,
+      // Call transfer fields from Bolna
+      transfer_status,
+      transferred_to_number,
+      transfer_duration,
     } = payload;
 
     // Get patient info from user_data passed during call initiation
@@ -71,6 +75,12 @@ serve(async (req) => {
         { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    // Detect if call was transferred
+    const wasTransferred = transfer_status === "completed" || 
+                          transfer_status === "success" || 
+                          status === "transferred";
+    const transferPhoneUsed = transferred_to_number || null;
 
     const wasAnswered = status === "completed" && transcript && transcript.length > 50;
 
@@ -138,6 +148,10 @@ serve(async (req) => {
           red_flag_triggered: redFlagTriggered,
           triggered_symptoms: triggeredSymptoms,
           medicine_issue_reason: analysis.medicine_issue_reason,
+          // Transfer tracking
+          was_transferred: wasTransferred,
+          transferred_to: transferPhoneUsed,
+          transfer_duration: transfer_duration || null,
         },
         identity_verified: identityVerified,
         consent_obtained: consentObtained,
@@ -283,6 +297,34 @@ serve(async (req) => {
           console.error("Failed to schedule callback:", e);
         }
       }
+    }
+
+    // Handle call transfer events
+    if (wasTransferred) {
+      console.log(`Call was transferred to: ${transferPhoneUsed}`);
+      
+      // Create a notification/alert for the transfer event
+      await supabase.from("b2b_alerts").insert({
+        organization_id: organizationId,
+        patient_id: patientId,
+        alert_type: "call_transferred",
+        severity: "low",
+        title: `📞 Call transferred: ${patient.patient_name}`,
+        description: `AI call was transferred to ${transferPhoneUsed || "staff member"}. Duration with AI: ${duration}s. Reason: Patient requested human assistance or urgent symptoms detected.`,
+        resolved: true, // Auto-resolve transfer notifications
+        resolved_at: new Date().toISOString(),
+      });
+
+      // Update any pending scheduled callback for this patient
+      await supabase
+        .from("scheduled_callbacks")
+        .update({
+          status: "completed",
+          completed_at: new Date().toISOString(),
+          notes: `Call transferred to ${transferPhoneUsed || "staff"}`,
+        })
+        .eq("patient_id", patientId)
+        .eq("status", "in_progress");
     }
 
     // Increment calls used

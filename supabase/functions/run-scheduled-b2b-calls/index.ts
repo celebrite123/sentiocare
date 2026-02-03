@@ -51,6 +51,8 @@ serve(async (req) => {
           bolna_agent_id_hindi,
           hospital_contact_number,
           escalation_phone,
+          on_call_clinician_phone,
+          duty_nurse_phone,
           default_language,
           calls_used_this_month,
           monthly_call_limit
@@ -171,6 +173,10 @@ serve(async (req) => {
               has_registered_caregiver: !!patient.caregiver_name,
               hospital_contact: org.hospital_contact_number || "hospital helpline",
               language: language,
+              // Call transfer configuration
+              transfer_phone_red: org.on_call_clinician_phone || org.escalation_phone || null,
+              transfer_phone_yellow: org.duty_nurse_phone || org.escalation_phone || null,
+              enable_transfer: !!(org.on_call_clinician_phone || org.duty_nurse_phone || org.escalation_phone),
             },
           }),
         });

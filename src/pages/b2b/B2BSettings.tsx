@@ -23,6 +23,9 @@ const B2BSettings = () => {
     hospital_contact_number: "",
     escalation_phone: "",
     escalation_email: "",
+    on_call_clinician_phone: "",
+    duty_nurse_phone: "",
+    care_coordinator_email: "",
     default_language: "hindi",
     auto_48hr_check: true,
     auto_medicine_reminders: true,
@@ -46,6 +49,9 @@ const B2BSettings = () => {
         hospital_contact_number: organization.hospital_contact_number || "",
         escalation_phone: (organization as any).escalation_phone || "",
         escalation_email: (organization as any).escalation_email || "",
+        on_call_clinician_phone: (organization as any).on_call_clinician_phone || "",
+        duty_nurse_phone: (organization as any).duty_nurse_phone || "",
+        care_coordinator_email: (organization as any).care_coordinator_email || "",
         default_language: organization.default_language || "hindi",
         auto_48hr_check: organization.auto_48hr_check ?? true,
         auto_medicine_reminders: organization.auto_medicine_reminders ?? true,
@@ -76,6 +82,9 @@ const B2BSettings = () => {
           hospital_contact_number: settings.hospital_contact_number,
           escalation_phone: settings.escalation_phone,
           escalation_email: settings.escalation_email,
+          on_call_clinician_phone: settings.on_call_clinician_phone,
+          duty_nurse_phone: settings.duty_nurse_phone,
+          care_coordinator_email: settings.care_coordinator_email,
           default_language: settings.default_language,
           auto_48hr_check: settings.auto_48hr_check,
           auto_medicine_reminders: settings.auto_medicine_reminders,
@@ -224,7 +233,7 @@ const B2BSettings = () => {
           </CardContent>
         </Card>
 
-        {/* Escalation Settings - NEW */}
+        {/* Escalation Settings */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -266,6 +275,81 @@ const B2BSettings = () => {
                 </p>
               </div>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Call Transfer Settings - NEW */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Phone className="h-5 w-5" />
+              AI Call Transfer (Warm Handoff)
+            </CardTitle>
+            <CardDescription>
+              Configure phone numbers for live call transfers when AI detects urgent cases or patient requests human help
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="on_call_clinician_phone">
+                  On-Call Clinician (RED Alerts)
+                </Label>
+                <Input
+                  id="on_call_clinician_phone"
+                  value={settings.on_call_clinician_phone}
+                  onChange={(e) => setSettings({ ...settings, on_call_clinician_phone: e.target.value })}
+                  placeholder="+91XXXXXXXXXX"
+                  disabled={!isAdmin}
+                />
+                <p className="text-xs text-muted-foreground">
+                  For emergencies: chest pain, breathing difficulty, severe symptoms
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="duty_nurse_phone">
+                  Duty Nurse (YELLOW Alerts)
+                </Label>
+                <Input
+                  id="duty_nurse_phone"
+                  value={settings.duty_nurse_phone}
+                  onChange={(e) => setSettings({ ...settings, duty_nurse_phone: e.target.value })}
+                  placeholder="+91XXXXXXXXXX"
+                  disabled={!isAdmin}
+                />
+                <p className="text-xs text-muted-foreground">
+                  For follow-ups: patient confusion, requests to speak with a person
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="care_coordinator_email">Care Coordinator Email</Label>
+                <Input
+                  id="care_coordinator_email"
+                  type="email"
+                  value={settings.care_coordinator_email}
+                  onChange={(e) => setSettings({ ...settings, care_coordinator_email: e.target.value })}
+                  placeholder="coordinator@hospital.com"
+                  disabled={!isAdmin}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Receives summary reports of transferred calls
+                </p>
+              </div>
+            </div>
+
+            {(settings.on_call_clinician_phone || settings.duty_nurse_phone) && (
+              <div className="mt-4 p-3 bg-muted rounded-lg">
+                <p className="text-sm font-medium flex items-center gap-2">
+                  <Phone className="h-4 w-4 text-primary" />
+                  Call Transfer Enabled
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  AI will offer to transfer calls to staff when patients request human assistance or report urgent symptoms.
+                </p>
+              </div>
+            )}
           </CardContent>
         </Card>
 
