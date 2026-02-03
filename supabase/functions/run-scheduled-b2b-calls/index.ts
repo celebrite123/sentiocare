@@ -81,6 +81,10 @@ serve(async (req) => {
     let processed = 0;
     let skipped = 0;
 
+    // Get today's date for daily limit check (IST timezone)
+    const nowIST = new Date(Date.now() + 5.5 * 60 * 60 * 1000);
+    const todayIST = nowIST.toISOString().split('T')[0]; // YYYY-MM-DD in IST
+
     for (const patient of patients || []) {
       const org = patient.organizations;
 
@@ -97,9 +101,30 @@ serve(async (req) => {
         continue;
       }
 
+      // CRITICAL FIX 1: Daily call limit - max 1 call per patient per day
+      if (patient.last_call_date && !isManualTrigger) {
+        const lastCallIST = new Date(new Date(patient.last_call_date).getTime() + 5.5 * 60 * 60 * 1000);
+        const lastCallDay = lastCallIST.toISOString().split('T')[0];
+        if (lastCallDay === todayIST) {
+          console.log(`Skipping ${patient.id}: Already called today (${lastCallDay})`);
+          skipped++;
+          continue;
+        }
+      }
+
       // Determine which day we're calling for
       const schedule = patient.call_schedule || [];
-      const nextCall = schedule.find((item: any) => !item.completed);
+      
+      // CRITICAL FIX 2: Skip if there's an in-progress call (unless manual trigger)
+      const inProgressCall = schedule.find((item: any) => item.status === 'in_progress');
+      if (inProgressCall && !isManualTrigger) {
+        console.log(`Skipping ${patient.id}: Call in progress for day ${inProgressCall.day}`);
+        skipped++;
+        continue;
+      }
+
+      // Find next call that's not completed and not in-progress
+      const nextCall = schedule.find((item: any) => !item.completed && item.status !== 'in_progress');
       
       if (!nextCall) {
         console.log(`Skipping ${patient.id}: No pending calls in schedule`);
@@ -249,44 +274,33 @@ async function updatePatientCallSchedule(
   supabase: any,
   patient: any,
   org: any,
-  completedDay: number,
+  dayNumber: number,
   method: string
 ) {
   const schedule = patient.call_schedule || [];
-  const callScheduleDays = org.default_call_schedule || [1, 3, 7];
   
-  // Mark current day as completed
+  // CRITICAL FIX 3: Mark as "in_progress" instead of "completed"
+  // The webhook will mark it as completed when the call finishes
   const updatedSchedule = schedule.map((item: any) => {
-    if (item.day === completedDay) {
+    if (item.day === dayNumber) {
       return { 
         ...item, 
-        completed: true, 
+        status: 'in_progress',  // Not completed yet - webhook will set completed: true
         method: method,
-        completed_at: new Date().toISOString() 
+        initiated_at: new Date().toISOString() 
       };
     }
     return item;
   });
   
-  // Find next pending day
-  const nextPendingItem = updatedSchedule.find((item: any) => !item.completed);
-  
-  let nextCallDue = null;
-  if (nextPendingItem) {
-    // Calculate next call due date based on discharge date
-    const dischargeDate = new Date(patient.discharge_date);
-    nextCallDue = new Date(dischargeDate);
-    nextCallDue.setDate(nextCallDue.getDate() + nextPendingItem.day);
-    nextCallDue.setHours(10, 0, 0, 0); // 10:00 AM
-  }
-  
-  // Update patient record
+  // Update patient record - only update last_call_date, NOT next_call_due
+  // next_call_due will be recalculated by webhook after call completes
   await supabase
     .from("discharged_patients")
     .update({
       call_schedule: updatedSchedule,
-      next_call_due: nextCallDue?.toISOString() || null,
       last_call_date: new Date().toISOString(),
+      // DON'T update next_call_due here - wait for webhook
     })
     .eq("id", patient.id);
   

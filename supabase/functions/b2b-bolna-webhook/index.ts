@@ -310,26 +310,37 @@ serve(async (req) => {
       patientUpdates.risk_updated_at = new Date().toISOString();
     }
 
-    // Mark call schedule day as completed
+    // CRITICAL FIX: Mark call schedule day as COMPLETED and clear in_progress status
+    // This is the ONLY place where completed: true should be set
     if (patient.call_schedule && Array.isArray(patient.call_schedule)) {
       const updatedSchedule = patient.call_schedule.map((item: any) => {
         if (item.day === dayNumber) {
-          return { ...item, completed: true, completed_at: new Date().toISOString() };
+          return { 
+            ...item, 
+            completed: true,           // NOW we mark it complete
+            status: 'completed',        // Clear in_progress status
+            completed_at: new Date().toISOString(),
+            // Preserve method from scheduler or set based on current call
+            method: item.method || 'voice',
+          };
         }
         return item;
       });
       patientUpdates.call_schedule = updatedSchedule;
 
-      // Calculate next call due
+      // Calculate next call due date
       const nextDue = updatedSchedule.find((item: any) => !item.completed);
       if (nextDue) {
         const dischargeDate = new Date(patient.discharge_date);
         const nextCallDate = new Date(dischargeDate);
         nextCallDate.setDate(nextCallDate.getDate() + nextDue.day);
-        nextCallDate.setHours(10, 0, 0, 0); // 10 AM
+        // Set to 10 AM IST (4:30 AM UTC)
+        nextCallDate.setUTCHours(4, 30, 0, 0);
         patientUpdates.next_call_due = nextCallDate.toISOString();
+        console.log(`Next call scheduled for day ${nextDue.day}: ${patientUpdates.next_call_due}`);
       } else {
         patientUpdates.next_call_due = null; // All calls completed
+        console.log("All scheduled calls completed for this patient");
       }
     }
 
