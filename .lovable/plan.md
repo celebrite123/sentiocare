@@ -1,96 +1,234 @@
 
 
-# Fix: B2B Dashboard Not Updating After Calls - Missing Webhook Configuration
+# Fix Plan: B2B Dashboard Updates & Authentication Stability
 
-## Problem Identified
+## Issues Identified
 
-The edge function logs show:
-- **Calls are being initiated successfully**: `Call initiated for 9363fbb4-...: 4d074809-...`
-- **No webhook logs received**: `b2b-bolna-webhook` has zero logs
+### Issue 1: Webhook Not Processing Calls
+**Error:** `Missing patient_id or organization_id in user_data`
 
-**Root Cause:** The Bolna agent(s) do not have the webhook URL configured. When a call ends, Bolna has no URL to send the completion data to.
+The webhook is receiving data from Bolna, but the `user_data` that was passed during call initiation is NOT returned at the top level of the webhook payload. Looking at the B2C webhook (which works), it extracts data from multiple locations:
+
+```javascript
+// B2C webhook - checks multiple locations
+const elderId = 
+  context_details?.recipient_data?.elder_id ||
+  context_details?.user_data?.elder_id ||
+  user_data?.elder_id ||
+  payload.recipient_data?.elder_id ||
+  payload.metadata?.elder_id ||
+  payload.elder_id;
+```
+
+However, the B2B webhook only checks `user_data?.patient_id` directly.
+
+**Solution:** Create a `b2b_pending_calls` table to store the `execution_id` → `patient_id` + `organization_id` mapping when initiating calls. Then modify the webhook to look up patient context from this table using the `execution_id` from the webhook payload.
 
 ---
 
-## Why This Happens
+### Issue 2: Excessive Website Refreshing
+**Symptoms:** 
+- Tab switching causes page reload
+- Refresh redirects to login page
+- State loss during navigation
 
-Looking at the call flow:
+**Root Cause:** Race condition in `AuthContext.tsx` where both `onAuthStateChange` listener and `getSession()` can run simultaneously and set `loading` to `false` at unpredictable times:
 
-```text
-1. Dashboard clicks "Call Now"
-         ↓
-2. run-scheduled-b2b-calls initiates call to Bolna API ✅ (Working)
-         ↓
-3. Bolna makes the call to patient ✅ (Working - you're receiving calls)
-         ↓
-4. Call ends → Bolna sends webhook to ??? ❌ (No URL configured)
-         ↓
-5. b2b-bolna-webhook never receives data ❌
-         ↓
-6. patient_checkins table not updated ❌
-         ↓
-7. Dashboard shows no changes ❌
+```javascript
+// CURRENT (problematic)
+useEffect(() => {
+  const { data: { subscription } } = supabase.auth.onAuthStateChange(
+    (event, session) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      setLoading(false);  // ❌ Can fire before getSession completes
+    }
+  );
+
+  supabase.auth.getSession().then(({ data: { session } }) => {
+    setSession(session);
+    setUser(session?.user ?? null);
+    setLoading(false);  // ❌ Can fire before listener is ready
+  });
+  // ...
+});
+```
+
+**Solution:** Separate initial load from ongoing changes:
+1. Use `getSession()` for initial load with proper `isLoading` control
+2. Use `onAuthStateChange` only for ongoing auth events (NOT controlling `isLoading`)
+3. Add mounted flag to prevent state updates after unmount
+
+---
+
+## Technical Implementation
+
+### Step 1: Create `b2b_pending_calls` Table
+
+```sql
+CREATE TABLE b2b_pending_calls (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  execution_id TEXT NOT NULL UNIQUE,
+  patient_id UUID NOT NULL REFERENCES discharged_patients(id) ON DELETE CASCADE,
+  organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  call_type TEXT DEFAULT 'health_check',
+  day_number INTEGER DEFAULT 1,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  processed BOOLEAN DEFAULT false,
+  processed_at TIMESTAMPTZ
+);
+
+CREATE INDEX idx_pending_calls_execution ON b2b_pending_calls(execution_id);
+
+-- RLS policy
+ALTER TABLE b2b_pending_calls ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Service role only" ON b2b_pending_calls FOR ALL USING (false);
+```
+
+### Step 2: Update `run-scheduled-b2b-calls` Edge Function
+
+After successfully initiating a call, store the execution_id mapping:
+
+```javascript
+const bolnaData = await bolnaResponse.json();
+const executionId = bolnaData.execution_id || bolnaData.call_id || bolnaData.id;
+
+// Store mapping for webhook lookup
+await supabase.from("b2b_pending_calls").insert({
+  execution_id: executionId,
+  patient_id: patient.id,
+  organization_id: org.id,
+  call_type: callType,
+  day_number: dayNumber,
+});
+```
+
+### Step 3: Update `b2b-bolna-webhook` Edge Function
+
+Change how it extracts patient context:
+
+```javascript
+// Extract execution ID from webhook payload
+const executionId = payload.id || payload.execution_id || payload.call_id;
+
+// First try user_data (in case Bolna returns it)
+let patientId = payload.user_data?.patient_id || 
+                payload.context_details?.user_data?.patient_id ||
+                payload.recipient_data?.patient_id;
+let organizationId = payload.user_data?.organization_id ||
+                     payload.context_details?.user_data?.organization_id ||
+                     payload.recipient_data?.organization_id;
+
+// Fallback: look up from b2b_pending_calls table
+if ((!patientId || !organizationId) && executionId) {
+  const { data: pendingCall } = await supabase
+    .from("b2b_pending_calls")
+    .select("patient_id, organization_id, call_type, day_number")
+    .eq("execution_id", executionId)
+    .single();
+
+  if (pendingCall) {
+    patientId = pendingCall.patient_id;
+    organizationId = pendingCall.organization_id;
+    callType = pendingCall.call_type;
+    dayNumber = pendingCall.day_number;
+  }
+}
+
+// Mark as processed
+if (executionId) {
+  await supabase.from("b2b_pending_calls")
+    .update({ processed: true, processed_at: new Date().toISOString() })
+    .eq("execution_id", executionId);
+}
+```
+
+### Step 4: Fix `AuthContext.tsx` Race Condition
+
+```javascript
+export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
+  const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
+  const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    let isMounted = true;
+
+    // Listener for ONGOING auth changes (does NOT control isLoading)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        if (!isMounted) return;
+        setSession(session);
+        setUser(session?.user ?? null);
+        // DO NOT set loading here - only update state
+      }
+    );
+
+    // INITIAL load (controls isLoading)
+    const initializeAuth = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!isMounted) return;
+        setSession(session);
+        setUser(session?.user ?? null);
+      } catch (error) {
+        console.error('Error getting session:', error);
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    };
+
+    initializeAuth();
+
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  // ... rest of the component
+};
 ```
 
 ---
 
-## Required Fix (Manual Configuration in Bolna Dashboard)
+## Files to Modify
 
-### Step 1: Log in to Bolna Dashboard
-
-Go to [app.bolna.dev](https://app.bolna.dev) and sign in.
-
-### Step 2: Configure Webhook for Each Agent
-
-For the agent ID `dff579d1-2f81-4a77-b29a-7db8aad4e34e` (Orchid Hospital Hindi agent):
-
-1. Click on the agent to open settings
-2. Find the **"Webhook URL"** or **"Post-Call Webhook"** field
-3. Enter this URL:
-   ```
-   https://hcdwbpbvuvbrozttahfz.supabase.co/functions/v1/b2b-bolna-webhook
-   ```
-4. Save the agent configuration
-
-### Step 3: Test the Flow
-
-1. Go back to B2B Dashboard
-2. Click "Call Now" on a patient
-3. Answer the call and complete it
-4. Check if the dashboard updates
+| File | Change |
+|------|--------|
+| `supabase/functions/run-scheduled-b2b-calls/index.ts` | Store execution_id → patient mapping after call initiation |
+| `supabase/functions/b2b-bolna-webhook/index.ts` | Look up patient context from `b2b_pending_calls` table |
+| `src/contexts/AuthContext.tsx` | Fix race condition with proper initial load handling |
+| Database migration | Create `b2b_pending_calls` table |
 
 ---
 
-## Verification After Fix
+## Expected Results After Fix
 
-Once configured, the edge function logs should show:
-```
-INFO B2B Bolna webhook received: {"execution_id":"...", "status":"completed", ...}
-INFO B2B call processed for patient [id]: stable, red_flags: false
-```
+### Webhook Processing
+- Edge function logs will show: `Found pending call for execution_id: xxx`
+- Patient check-ins will be created with correct patient_id and organization_id
+- Dashboard will update with call results
 
-And the dashboard will update with:
-- Check-in records in `patient_checkins` table
-- Updated risk status on patient
-- Call schedule marked as completed
-
----
-
-## Alternative: Pass Webhook URL in API Call
-
-If the Bolna API supports it, I can modify `run-scheduled-b2b-calls` to include the webhook URL in each call request. However, based on the Bolna documentation, the webhook is typically configured per-agent in the dashboard, not per-call.
+### Authentication Stability
+- No more redirects to login on page refresh
+- Tab switching won't cause state loss
+- Smooth navigation without unnecessary reloads
 
 ---
 
-## Summary
+## Testing Plan
 
-| Component | Status |
-|-----------|--------|
-| API endpoint URL | ✅ Fixed (`api.bolna.ai/call`) |
-| Call initiation | ✅ Working |
-| Phone calls | ✅ Being received |
-| Webhook URL | ❌ **Not configured in Bolna Dashboard** |
-| Dashboard updates | ❌ Not working (blocked by webhook) |
+1. **Webhook Test:**
+   - Go to B2B Dashboard → Patient List
+   - Click "Call Now" on a patient
+   - Answer the call and complete it
+   - Verify dashboard updates within 30 seconds
 
-**Action Required**: Configure the webhook URL in Bolna Dashboard for your B2B agent(s).
+2. **Auth Stability Test:**
+   - Log in to B2B dashboard
+   - Switch to another tab for 1 minute
+   - Switch back - should remain logged in
+   - Press browser refresh - should stay on dashboard (not redirect to login)
 
