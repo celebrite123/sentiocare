@@ -93,3 +93,6 @@ verify_jwt = false
 
 [functions.proxy-recording]
 verify_jwt = false
+
+[functions.process-scheduled-callbacks]
+verify_jwt = false
