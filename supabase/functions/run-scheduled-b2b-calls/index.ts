@@ -145,7 +145,7 @@ serve(async (req) => {
 
       // Make Bolna API call
       try {
-        const bolnaResponse = await fetch("https://api.bolna.dev/v2/calls", {
+        const bolnaResponse = await fetch("https://api.bolna.ai/call", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
