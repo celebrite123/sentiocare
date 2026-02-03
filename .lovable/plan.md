@@ -1,195 +1,92 @@
 
 
-# Fix Plan: B2B Dashboard Updates & Authentication Stability
+# Critical Fix Plan: Favicon + B2B Webhook Deployment Issue
 
-## Issues Identified
+## Issue 1: Favicon Still Shows Lovable Logo
 
-### Issue 1: Webhook Not Processing Calls
-**Error:** `Missing patient_id or organization_id in user_data`
+**Current State:**
+- `index.html` references `/favicon.png` (which is the old Lovable favicon)
+- Your actual Sentio logo is at `src/assets/sentio-logo-new.png`
 
-The webhook is receiving data from Bolna, but the `user_data` that was passed during call initiation is NOT returned at the top level of the webhook payload. Looking at the B2C webhook (which works), it extracts data from multiple locations:
-
-```javascript
-// B2C webhook - checks multiple locations
-const elderId = 
-  context_details?.recipient_data?.elder_id ||
-  context_details?.user_data?.elder_id ||
-  user_data?.elder_id ||
-  payload.recipient_data?.elder_id ||
-  payload.metadata?.elder_id ||
-  payload.elder_id;
-```
-
-However, the B2B webhook only checks `user_data?.patient_id` directly.
-
-**Solution:** Create a `b2b_pending_calls` table to store the `execution_id` → `patient_id` + `organization_id` mapping when initiating calls. Then modify the webhook to look up patient context from this table using the `execution_id` from the webhook payload.
+**Fix:**
+1. Copy `src/assets/sentio-logo-new.png` to `public/favicon.png` (replace the existing one)
+2. Update the OG/Twitter image URLs in `index.html` to remove Lovable references
 
 ---
 
-### Issue 2: Excessive Website Refreshing
-**Symptoms:** 
-- Tab switching causes page reload
-- Refresh redirects to login page
-- State loss during navigation
+## Issue 2: B2B Webhook Not Processing Calls (CRITICAL)
 
-**Root Cause:** Race condition in `AuthContext.tsx` where both `onAuthStateChange` listener and `getSession()` can run simultaneously and set `loading` to `false` at unpredictable times:
+**Root Cause Identified:**
 
-```javascript
-// CURRENT (problematic)
-useEffect(() => {
-  const { data: { subscription } } = supabase.auth.onAuthStateChange(
-    (event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);  // ❌ Can fire before getSession completes
-    }
-  );
-
-  supabase.auth.getSession().then(({ data: { session } }) => {
-    setSession(session);
-    setUser(session?.user ?? null);
-    setLoading(false);  // ❌ Can fire before listener is ready
-  });
-  // ...
-});
+Looking at the edge function logs, the error message says:
+```
+Missing patient_id or organization_id in user_data
 ```
 
-**Solution:** Separate initial load from ongoing changes:
-1. Use `getSession()` for initial load with proper `isLoading` control
-2. Use `onAuthStateChange` only for ongoing auth events (NOT controlling `isLoading`)
-3. Add mounted flag to prevent state updates after unmount
+But the updated webhook code (line 97) should say:
+```
+Missing patient_id or organization_id - not in user_data and not found in pending_calls
+```
+
+**This proves the deployed version is OLD** - the `b2b_pending_calls` lookup code was never actually deployed!
+
+**Evidence:**
+- `b2b_pending_calls` table has record: `execution_id: 9b1abb36-8f8b-460b-b24e-b9cc3c08fc12` with `processed: false`
+- Webhook receives same `id` in payload
+- But lookup is NOT happening (the record would be marked `processed: true` if it worked)
+- Error message format confirms old code is running
+
+**Fix:**
+Force redeploy the `b2b-bolna-webhook` edge function to ensure the new code with `b2b_pending_calls` lookup is actually running.
 
 ---
 
-## Technical Implementation
+## Implementation Steps
 
-### Step 1: Create `b2b_pending_calls` Table
+### Step 1: Fix Favicon
+- Copy Sentio logo from `src/assets/sentio-logo-new.png` to `public/favicon.png`
+- Update `index.html` to remove Lovable OG image references
 
-```sql
-CREATE TABLE b2b_pending_calls (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  execution_id TEXT NOT NULL UNIQUE,
-  patient_id UUID NOT NULL REFERENCES discharged_patients(id) ON DELETE CASCADE,
-  organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  call_type TEXT DEFAULT 'health_check',
-  day_number INTEGER DEFAULT 1,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  processed BOOLEAN DEFAULT false,
-  processed_at TIMESTAMPTZ
-);
+### Step 2: Force Redeploy Webhook
+- Redeploy `b2b-bolna-webhook` edge function
+- Verify deployment by checking logs show new error message format
 
-CREATE INDEX idx_pending_calls_execution ON b2b_pending_calls(execution_id);
+### Step 3: Test the Flow
+- Click "Call Now" on a patient
+- Complete the call
+- Verify dashboard updates with risk status
 
--- RLS policy
-ALTER TABLE b2b_pending_calls ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Service role only" ON b2b_pending_calls FOR ALL USING (false);
+---
+
+## Technical Details
+
+### Favicon Changes (index.html)
+```html
+<!-- Remove these Lovable references -->
+<meta property="og:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
+<meta name="twitter:site" content="@Lovable" />
+<meta name="twitter:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
 ```
 
-### Step 2: Update `run-scheduled-b2b-calls` Edge Function
-
-After successfully initiating a call, store the execution_id mapping:
-
-```javascript
-const bolnaData = await bolnaResponse.json();
-const executionId = bolnaData.execution_id || bolnaData.call_id || bolnaData.id;
-
-// Store mapping for webhook lookup
-await supabase.from("b2b_pending_calls").insert({
-  execution_id: executionId,
-  patient_id: patient.id,
-  organization_id: org.id,
-  call_type: callType,
-  day_number: dayNumber,
-});
+### Webhook Verification
+After redeployment, logs should show:
+```
+INFO Looking up pending call for execution_id: xxx
+INFO Found pending call: patient=xxx, org=xxx
+INFO B2B call processed for patient xxx: stable, red_flags: false
 ```
 
-### Step 3: Update `b2b-bolna-webhook` Edge Function
-
-Change how it extracts patient context:
-
-```javascript
-// Extract execution ID from webhook payload
-const executionId = payload.id || payload.execution_id || payload.call_id;
-
-// First try user_data (in case Bolna returns it)
-let patientId = payload.user_data?.patient_id || 
-                payload.context_details?.user_data?.patient_id ||
-                payload.recipient_data?.patient_id;
-let organizationId = payload.user_data?.organization_id ||
-                     payload.context_details?.user_data?.organization_id ||
-                     payload.recipient_data?.organization_id;
-
-// Fallback: look up from b2b_pending_calls table
-if ((!patientId || !organizationId) && executionId) {
-  const { data: pendingCall } = await supabase
-    .from("b2b_pending_calls")
-    .select("patient_id, organization_id, call_type, day_number")
-    .eq("execution_id", executionId)
-    .single();
-
-  if (pendingCall) {
-    patientId = pendingCall.patient_id;
-    organizationId = pendingCall.organization_id;
-    callType = pendingCall.call_type;
-    dayNumber = pendingCall.day_number;
-  }
-}
-
-// Mark as processed
-if (executionId) {
-  await supabase.from("b2b_pending_calls")
-    .update({ processed: true, processed_at: new Date().toISOString() })
-    .eq("execution_id", executionId);
-}
+Instead of:
+```
+ERROR Missing patient_id or organization_id in user_data
 ```
 
-### Step 4: Fix `AuthContext.tsx` Race Condition
+---
 
-```javascript
-export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(true);
-  const navigate = useNavigate();
+## Expected Results
 
-  useEffect(() => {
-    let isMounted = true;
-
-    // Listener for ONGOING auth changes (does NOT control isLoading)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        if (!isMounted) return;
-        setSession(session);
-        setUser(session?.user ?? null);
-        // DO NOT set loading here - only update state
-      }
-    );
-
-    // INITIAL load (controls isLoading)
-    const initializeAuth = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!isMounted) return;
-        setSession(session);
-        setUser(session?.user ?? null);
-      } catch (error) {
-        console.error('Error getting session:', error);
-      } finally {
-        if (isMounted) setLoading(false);
-      }
-    };
-
-    initializeAuth();
-
-    return () => {
-      isMounted = false;
-      subscription.unsubscribe();
-    };
-  }, []);
-
-  // ... rest of the component
-};
-```
+1. **Favicon**: Browser shows Sentio heart logo instead of Lovable logo
+2. **Dashboard**: After completing a call, the patient's risk status will update within 30 seconds
 
 ---
 
@@ -197,38 +94,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
 | File | Change |
 |------|--------|
-| `supabase/functions/run-scheduled-b2b-calls/index.ts` | Store execution_id → patient mapping after call initiation |
-| `supabase/functions/b2b-bolna-webhook/index.ts` | Look up patient context from `b2b_pending_calls` table |
-| `src/contexts/AuthContext.tsx` | Fix race condition with proper initial load handling |
-| Database migration | Create `b2b_pending_calls` table |
-
----
-
-## Expected Results After Fix
-
-### Webhook Processing
-- Edge function logs will show: `Found pending call for execution_id: xxx`
-- Patient check-ins will be created with correct patient_id and organization_id
-- Dashboard will update with call results
-
-### Authentication Stability
-- No more redirects to login on page refresh
-- Tab switching won't cause state loss
-- Smooth navigation without unnecessary reloads
-
----
-
-## Testing Plan
-
-1. **Webhook Test:**
-   - Go to B2B Dashboard → Patient List
-   - Click "Call Now" on a patient
-   - Answer the call and complete it
-   - Verify dashboard updates within 30 seconds
-
-2. **Auth Stability Test:**
-   - Log in to B2B dashboard
-   - Switch to another tab for 1 minute
-   - Switch back - should remain logged in
-   - Press browser refresh - should stay on dashboard (not redirect to login)
+| `public/favicon.png` | Replace with Sentio logo from src/assets |
+| `index.html` | Remove Lovable OG/Twitter image references |
+| `b2b-bolna-webhook` | Force redeploy (no code changes - deployment issue) |
 
