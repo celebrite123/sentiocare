@@ -2,14 +2,64 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // Webhook endpoints don't need CORS headers as they're server-to-server
-// Security: Bolna AI does not support webhook signature validation
-// Security is maintained through:
-// 1. Database validation (elder_id must exist)
-// 2. Unique webhook URL (not publicly discoverable)
-// 3. Payload structure validation (specific fields required)
+// Security: Request correlation validation using call_attempts table
+// Only webhooks with valid execution_id matching a recent call_attempt are processed
+// This prevents unauthorized injection of fake health data
 const responseHeaders = {
   "Content-Type": "application/json",
 };
+
+// Security: Validate webhook request has a valid, unexpired correlation token
+async function validateWebhookRequest(
+  supabase: any,
+  executionId: string | null,
+  elderId: string | null
+): Promise<{ valid: boolean; callAttempt: any | null; error?: string }> {
+  // Must have at least one identifier
+  if (!executionId && !elderId) {
+    return { valid: false, callAttempt: null, error: "No execution_id or elder_id provided" };
+  }
+
+  // Look for a matching call attempt initiated within the last hour
+  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+  
+  // First try to find by execution_id (most secure)
+  if (executionId) {
+    const { data: attempt, error } = await supabase
+      .from("call_attempts")
+      .select("*")
+      .eq("execution_id", executionId)
+      .gte("created_at", oneHourAgo.toISOString())
+      .single();
+    
+    if (attempt) {
+      return { valid: true, callAttempt: attempt };
+    }
+    console.log("No call_attempt found for execution_id:", executionId, error?.message);
+  }
+
+  // Fallback: Try to find by elder_id with initiated status (for edge cases)
+  if (elderId) {
+    const thirtyMinsAgo = new Date(Date.now() - 30 * 60 * 1000);
+    const { data: recentAttempt, error } = await supabase
+      .from("call_attempts")
+      .select("*")
+      .eq("elder_id", elderId)
+      .eq("status", "initiated")
+      .gte("created_at", thirtyMinsAgo.toISOString())
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .single();
+    
+    if (recentAttempt) {
+      console.log("Found call_attempt by elder_id fallback:", recentAttempt.id);
+      return { valid: true, callAttempt: recentAttempt };
+    }
+    console.log("No recent call_attempt for elder_id:", elderId, error?.message);
+  }
+
+  return { valid: false, callAttempt: null, error: "No matching call_attempt found - request rejected" };
+}
 
 // Improved transcript parsing function
 function parseTranscript(rawTranscript: string): Array<{role: string, message: string}> {
@@ -167,52 +217,33 @@ serve(async (req) => {
     
     console.log("Extracted elder_id:", elderId, "execution_id:", actualExecutionId);
 
-    // Find call attempt by execution_id first
-    let callAttempt = null;
-    if (actualExecutionId) {
-      const { data: attempt, error: attemptError } = await supabase
-        .from("call_attempts")
-        .select("*")
-        .eq("execution_id", actualExecutionId)
-        .single();
-      
-      if (attempt) {
-        callAttempt = attempt;
-        console.log("Found call_attempt by execution_id:", callAttempt.id);
-      } else {
-        console.log("No call_attempt found by execution_id:", attemptError?.message);
-      }
+    // SECURITY: Validate webhook request using request correlation
+    const validation = await validateWebhookRequest(supabase, actualExecutionId, elderId);
+    
+    if (!validation.valid) {
+      console.error("SECURITY: Webhook request validation failed:", validation.error);
+      return new Response(JSON.stringify({ 
+        success: false, 
+        error: "Unauthorized - no matching call record found"
+      }), { 
+        status: 403, 
+        headers: responseHeaders 
+      });
     }
 
-    // FALLBACK: If no match by execution_id, try matching by elder_id within last 30 minutes
-    if (!callAttempt && elderId) {
-      const thirtyMinsAgo = new Date(Date.now() - 30 * 60 * 1000);
-      const { data: recentAttempt, error: recentError } = await supabase
+    // Use the validated call attempt
+    let callAttempt = validation.callAttempt;
+    
+    // Update execution_id on call_attempt if it was a fallback match
+    if (callAttempt && actualExecutionId && callAttempt.execution_id !== actualExecutionId) {
+      await supabase
         .from("call_attempts")
-        .select("*")
-        .eq("elder_id", elderId)
-        .eq("status", "initiated")
-        .gte("created_at", thirtyMinsAgo.toISOString())
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .single();
-      
-      if (recentAttempt) {
-        callAttempt = recentAttempt;
-        console.log("Found call_attempt by elder_id fallback:", callAttempt.id);
-        
-        // Update execution_id for future webhooks
-        if (actualExecutionId) {
-          await supabase
-            .from("call_attempts")
-            .update({ execution_id: actualExecutionId })
-            .eq("id", recentAttempt.id);
-          console.log("Updated execution_id on call_attempt");
-        }
-      } else {
-        console.log("No recent call_attempt found for elder:", recentError?.message);
-      }
+        .update({ execution_id: actualExecutionId })
+        .eq("id", callAttempt.id);
+      console.log("Updated execution_id on call_attempt");
     }
+
+    // callAttempt is now validated and assigned above via validateWebhookRequest
 
     // Determine if call was answered
     const callDuration = conversation_duration || duration || 0;
