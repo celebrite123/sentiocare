@@ -34,11 +34,14 @@ serve(async (req) => {
 
     // Extract call data from Bolna payload
     const {
+      id: payloadId,
       execution_id,
       call_id,
       status,
       transcript,
       user_data,
+      context_details,
+      recipient_data,
       duration,
       recording_url,
       // Call transfer fields from Bolna
@@ -47,16 +50,53 @@ serve(async (req) => {
       transfer_duration,
     } = payload;
 
-    // Get patient info from user_data passed during call initiation
-    const patientId = user_data?.patient_id;
-    const organizationId = user_data?.organization_id;
-    const callType = user_data?.call_type || "health_check";
-    const dayNumber = user_data?.day_number || 1;
+    // Extract execution ID from multiple possible locations
+    const executionId = execution_id || call_id || payloadId || payload.execution_id || payload.id;
+
+    // Try to get patient info from multiple locations in payload
+    let patientId = user_data?.patient_id || 
+                    context_details?.user_data?.patient_id ||
+                    recipient_data?.patient_id ||
+                    context_details?.recipient_data?.patient_id ||
+                    payload.metadata?.patient_id;
+    let organizationId = user_data?.organization_id ||
+                         context_details?.user_data?.organization_id ||
+                         recipient_data?.organization_id ||
+                         context_details?.recipient_data?.organization_id ||
+                         payload.metadata?.organization_id;
+    let callType = user_data?.call_type || context_details?.user_data?.call_type || "health_check";
+    let dayNumber = user_data?.day_number || context_details?.user_data?.day_number || 1;
+
+    // If patient info not found in payload, look up from b2b_pending_calls table
+    if ((!patientId || !organizationId) && executionId) {
+      console.log(`Looking up pending call for execution_id: ${executionId}`);
+      const { data: pendingCall, error: pendingError } = await supabase
+        .from("b2b_pending_calls")
+        .select("patient_id, organization_id, call_type, day_number")
+        .eq("execution_id", executionId)
+        .single();
+
+      if (pendingCall && !pendingError) {
+        console.log(`Found pending call: patient=${pendingCall.patient_id}, org=${pendingCall.organization_id}`);
+        patientId = pendingCall.patient_id;
+        organizationId = pendingCall.organization_id;
+        callType = pendingCall.call_type || callType;
+        dayNumber = pendingCall.day_number || dayNumber;
+
+        // Mark the pending call as processed
+        await supabase
+          .from("b2b_pending_calls")
+          .update({ processed: true, processed_at: new Date().toISOString() })
+          .eq("execution_id", executionId);
+      } else if (pendingError) {
+        console.log(`No pending call found for execution_id ${executionId}:`, pendingError.message);
+      }
+    }
 
     if (!patientId || !organizationId) {
-      console.error("Missing patient_id or organization_id in user_data");
+      console.error("Missing patient_id or organization_id - not in user_data and not found in pending_calls");
       return new Response(
-        JSON.stringify({ error: "Missing patient context" }),
+        JSON.stringify({ error: "Missing patient context", execution_id: executionId }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }

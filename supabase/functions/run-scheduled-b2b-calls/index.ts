@@ -192,7 +192,24 @@ serve(async (req) => {
         }
 
         const bolnaData = await bolnaResponse.json();
-        console.log(`Call initiated for ${patient.id}: ${bolnaData.execution_id || bolnaData.call_id}`);
+        const executionId = bolnaData.execution_id || bolnaData.call_id || bolnaData.id;
+        console.log(`Call initiated for ${patient.id}: ${executionId}`);
+        
+        // Store execution_id → patient mapping for webhook lookup
+        if (executionId) {
+          const { error: pendingError } = await supabase.from("b2b_pending_calls").insert({
+            execution_id: executionId,
+            patient_id: patient.id,
+            organization_id: org.id,
+            call_type: callType,
+            day_number: dayNumber,
+          });
+          if (pendingError) {
+            console.error(`Failed to store pending call mapping: ${pendingError.message}`);
+          } else {
+            console.log(`Stored pending call mapping: ${executionId} → ${patient.id}`);
+          }
+        }
         
         // Mark this day as in-progress and calculate next call date
         await updatePatientCallSchedule(supabase, patient, org, dayNumber, "voice");
