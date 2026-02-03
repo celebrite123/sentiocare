@@ -192,6 +192,57 @@ export type Database = {
         }
         Relationships: []
       }
+      b2b_pending_calls: {
+        Row: {
+          call_type: string | null
+          created_at: string | null
+          day_number: number | null
+          execution_id: string
+          id: string
+          organization_id: string
+          patient_id: string
+          processed: boolean | null
+          processed_at: string | null
+        }
+        Insert: {
+          call_type?: string | null
+          created_at?: string | null
+          day_number?: number | null
+          execution_id: string
+          id?: string
+          organization_id: string
+          patient_id: string
+          processed?: boolean | null
+          processed_at?: string | null
+        }
+        Update: {
+          call_type?: string | null
+          created_at?: string | null
+          day_number?: number | null
+          execution_id?: string
+          id?: string
+          organization_id?: string
+          patient_id?: string
+          processed?: boolean | null
+          processed_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "b2b_pending_calls_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "b2b_pending_calls_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "discharged_patients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       blog_posts: {
         Row: {
           author_id: string | null
