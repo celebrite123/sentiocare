@@ -35,32 +35,87 @@ serve(async (req) => {
       );
     }
 
-    const url = new URL(req.url);
-    const checkInId = url.searchParams.get('checkInId');
-    
-    if (!checkInId) {
+    const urlParams = new URL(req.url);
+    const checkInId = urlParams.searchParams.get('checkInId');
+    const directUrl = urlParams.searchParams.get('url');
+    const patientCheckinId = urlParams.searchParams.get('patientCheckinId');
+
+    let recordingUrl: string | null = null;
+
+    // Option 1: B2C - Get recording from check_ins table
+    if (checkInId) {
+      const { data: checkIn, error: checkInError } = await supabaseAuth
+        .from("check_ins")
+        .select("recording_url, elder_id")
+        .eq("id", checkInId)
+        .single();
+
+      if (checkInError || !checkIn) {
+        console.error("Check-in not found or access denied:", checkInError);
+        return new Response(
+          JSON.stringify({ error: 'Recording not found or access denied' }),
+          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      recordingUrl = checkIn.recording_url;
+    }
+    // Option 2: B2B - Get recording from patient_checkins table
+    else if (patientCheckinId) {
+      const { data: checkin, error: checkinError } = await supabaseAuth
+        .from("patient_checkins")
+        .select("recording_url, organization_id")
+        .eq("id", patientCheckinId)
+        .single();
+
+      if (checkinError || !checkin) {
+        console.error("Patient checkin not found or access denied:", checkinError);
+        return new Response(
+          JSON.stringify({ error: 'Recording not found or access denied' }),
+          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      recordingUrl = checkin.recording_url;
+    }
+    // Option 3: Direct URL (for backward compatibility with B2B)
+    // Security: Verify the user has access to SOME patient checkin with this URL
+    else if (directUrl) {
+      // Validate the URL is a Bolna S3 recording URL
+      if (!directUrl.includes('bolna-recordings') && !directUrl.includes('s3.') && !directUrl.includes('amazonaws.com')) {
+        console.error("Invalid recording URL domain:", directUrl);
+        return new Response(
+          JSON.stringify({ error: 'Invalid recording URL' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Verify user has access to a checkin with this recording URL
+      // This prevents URL guessing attacks
+      const { data: checkin, error: checkinError } = await supabaseAuth
+        .from("patient_checkins")
+        .select("id, organization_id")
+        .eq("recording_url", directUrl)
+        .single();
+
+      if (checkinError || !checkin) {
+        console.error("No access to this recording URL:", checkinError);
+        return new Response(
+          JSON.stringify({ error: 'Recording not found or access denied' }),
+          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      recordingUrl = directUrl;
+    }
+    else {
       return new Response(
-        JSON.stringify({ error: 'checkInId is required' }),
+        JSON.stringify({ error: 'checkInId, patientCheckinId, or url is required' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Get the recording URL from the check-in (RLS will verify access)
-    const { data: checkIn, error: checkInError } = await supabaseAuth
-      .from("check_ins")
-      .select("recording_url, elder_id")
-      .eq("id", checkInId)
-      .single();
-
-    if (checkInError || !checkIn) {
-      console.error("Check-in not found or access denied:", checkInError);
-      return new Response(
-        JSON.stringify({ error: 'Recording not found or access denied' }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    if (!checkIn.recording_url) {
+    if (!recordingUrl) {
       return new Response(
         JSON.stringify({ error: 'No recording available for this check-in' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -68,9 +123,9 @@ serve(async (req) => {
     }
 
     // Fetch the audio from S3
-    console.log("Proxying recording:", checkIn.recording_url);
+    console.log("Proxying recording:", recordingUrl);
     
-    const audioResponse = await fetch(checkIn.recording_url);
+    const audioResponse = await fetch(recordingUrl);
     
     if (!audioResponse.ok) {
       console.error("Failed to fetch recording:", audioResponse.status, audioResponse.statusText);
