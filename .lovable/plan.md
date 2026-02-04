@@ -1,123 +1,164 @@
 
+# Fix Plan: B2B Webhook - Check-in Creation & Symptom Detection Issues
 
-# Fix: Call Now Button Not Working for Completed Schedules
+## Problems Identified
 
-## Problem Identified
+### Problem 1: Check-in record not being created
+**Root Cause:** `call_duration_seconds` column expects INTEGER but webhook sends DECIMAL (87.6)
 
-The "Call Now" button fails with **"No pending calls in schedule"** because:
-
-1. Patient `9363fbb4-b88a-430c-8965-438d0aa02e20` has all 3 scheduled calls completed:
-   - Day 1: completed ✓
-   - Day 3: completed ✓  
-   - Day 7: completed ✓
-
-2. The function logic requires finding a pending call to proceed:
-   ```typescript
-   const nextCall = schedule.find((item: any) => !item.completed && item.status !== 'in_progress');
-   
-   if (!nextCall) {
-     console.log(`Skipping ${patient.id}: No pending calls in schedule`);
-     skipped++;
-     continue;  // ← This skips manual triggers too!
-   }
-   ```
-
-3. Manual triggers should allow calling even when all scheduled calls are done
-
-## Solution
-
-Update `run-scheduled-b2b-calls` to handle manual triggers differently:
-
-- For **scheduled runs**: Continue requiring a pending call in the schedule
-- For **manual triggers**: Allow calling even if schedule is complete, create an "ad-hoc" call type
-
-## Technical Changes
-
-### File: `supabase/functions/run-scheduled-b2b-calls/index.ts`
-
-#### Change 1: Handle Manual Trigger Without Pending Calls
-
-Replace lines 126-133 with logic that allows manual triggers to proceed:
-
-```typescript
-// Find next call that's not completed and not in-progress
-let nextCall = schedule.find((item: any) => !item.completed && item.status !== 'in_progress');
-
-// For manual triggers, allow ad-hoc calls even if schedule is complete
-let dayNumber: number;
-let callType: string;
-
-if (!nextCall) {
-  if (isManualTrigger) {
-    // Manual trigger with no pending calls - create ad-hoc call
-    // Use the last completed day + 1 or default to follow-up
-    const completedDays = schedule.filter((s: any) => s.completed).map((s: any) => s.day);
-    const lastCompletedDay = Math.max(...completedDays, 0);
-    dayNumber = lastCompletedDay > 0 ? lastCompletedDay : 0;
-    callType = "manual_followup";
-    console.log(`Manual trigger for ${patient.id}: ad-hoc call (last completed: day ${dayNumber})`);
-  } else {
-    console.log(`Skipping ${patient.id}: No pending calls in schedule`);
-    skipped++;
-    continue;
-  }
-} else {
-  dayNumber = nextCall.day;
-  callType = dayNumber === 1 ? "day_1_check" : dayNumber === 3 ? "day_3_check" : "day_7_check";
-}
+```
+ERROR: 'invalid input syntax for type integer: "87.6"'
 ```
 
-#### Change 2: Update Greeting for Manual Follow-ups
+The Bolna API returns `conversation_duration: 87.6` as a decimal, but the database column `patient_checkins.call_duration_seconds` is type INTEGER.
 
-For manual follow-up calls, use a different greeting that doesn't reference a specific day:
+### Problem 2: All symptoms shown as triggered (when only 1 was reported)
+**Root Cause:** AI analysis API failed (404), fallback parser has broken logic
 
-```typescript
-const greeting = language === "hindi"
-  ? callType === "manual_followup"
-    ? `नमस्ते ${patient.patient_name.split(" ")[0]} जी, मैं ${org.name} से बोल रहा हूं। आपकी तबीयत की जांच के लिए कॉल किया है।`
-    : `नमस्ते ${patient.patient_name.split(" ")[0]} जी, मैं ${org.name} से बोल रहा हूं।`
-  : callType === "manual_followup"
-    ? `Hello ${patient.patient_name.split(" ")[0]}, I'm calling from ${org.name} to check on your health.`
-    : `Hello ${patient.patient_name.split(" ")[0]}, I'm calling from ${org.name}.`;
+```
+ERROR: AI request failed: 404
 ```
 
-#### Change 3: Skip Schedule Update for Ad-hoc Calls
+The fallback `parseSafetyResponses()` function at line 498 has flawed logic:
+- It looks for symptom keywords in one segment
+- Then checks the NEXT segment for yes/no
+- This doesn't work when the assistant asks AND the user answers in the same turn or adjacent segments
 
-For manual follow-ups, don't update the call_schedule since there's no pending day to mark:
+### Problem 3: Today's call shows "not answered" 
+**Root Cause:** Since the check-in INSERT failed, no record exists for today's call. The dashboard shows older records only.
+
+---
+
+## Technical Fixes
+
+### Fix 1: Round duration to integer before insert
+**File:** `supabase/functions/b2b-bolna-webhook/index.ts`
+**Location:** Line 265
 
 ```typescript
-// After successful Bolna call:
-if (callType !== "manual_followup") {
-  await updatePatientCallSchedule(supabase, patient, org, dayNumber, "voice");
-} else {
-  // For ad-hoc calls, only update last_call_date
-  await supabase
-    .from("discharged_patients")
-    .update({ last_call_date: new Date().toISOString() })
-    .eq("id", patient.id);
+// Current (broken)
+call_duration_seconds: actualDuration,
+
+// Fixed
+call_duration_seconds: actualDuration ? Math.round(actualDuration) : null,
+```
+
+### Fix 2: Fix safety response parsing logic
+**File:** `supabase/functions/b2b-bolna-webhook/index.ts`
+**Location:** Lines 498-533
+
+The current parser splits by sentence and checks the NEXT segment for yes/no. This fails because:
+1. Hindi transcripts often have assistant question + user answer in consecutive lines
+2. The pattern matching is too naive
+
+Replace with a more robust approach:
+- Parse the transcript line by line (split by `\n`)
+- When assistant asks about a symptom, look at the user's NEXT line
+- Only mark as "yes" if the user explicitly says yes, NOT if they say "no"
+
+```typescript
+function parseSafetyResponses(transcript: string): Record<string, string> {
+  const responses: Record<string, string> = {
+    fever: "unclear",
+    uncontrolled_pain: "unclear",
+    breathing_difficulty: "unclear",
+    wound_discharge: "unclear",
+    neurological_symptoms: "unclear",
+  };
+
+  // Split by newlines to get individual turns
+  const lines = transcript.split('\n').map(l => l.trim().toLowerCase());
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
     
-  // Still increment call count
-  await supabase
-    .from("organizations")
-    .update({ calls_used_this_month: (org.calls_used_this_month || 0) + 1 })
-    .eq("id", org.id);
+    // Skip user lines - we want to find assistant questions
+    if (line.startsWith('user:')) continue;
+    
+    const assistantLine = line.replace(/^assistant:\s*/i, '');
+    
+    // Check which symptom the assistant is asking about
+    for (const [key, patterns] of Object.entries(safetyQuestionPatterns)) {
+      const isAskingAboutSymptom = patterns.some(p => assistantLine.includes(p));
+      
+      if (isAskingAboutSymptom) {
+        // Find the next user response
+        for (let j = i + 1; j < lines.length; j++) {
+          const nextLine = lines[j];
+          if (nextLine.startsWith('user:')) {
+            const userResponse = nextLine.replace(/^user:\s*/i, '');
+            
+            // Check for YES response - user confirms having symptom
+            if (yesPatterns.some(p => userResponse.includes(p)) && 
+                !noPatterns.some(p => userResponse.includes(p))) {
+              responses[key] = "yes";
+            } 
+            // Check for NO response - user denies symptom
+            else if (noPatterns.some(p => userResponse.includes(p))) {
+              responses[key] = "no";
+            }
+            break;
+          }
+          // If we hit another assistant line without user response, stop looking
+          if (nextLine.startsWith('assistant:')) break;
+        }
+        break; // Move to next symptom after processing
+      }
+    }
+  }
+
+  return responses;
 }
 ```
+
+### Fix 3: Better error handling for AI failure
+**File:** `supabase/functions/b2b-bolna-webhook/index.ts`
+**Location:** Lines 233-239
+
+When AI analysis fails, don't default to pattern matching. Instead:
+1. Log the failure clearly
+2. Set risk_level to "nurse_followup" for human review
+3. Don't auto-trigger red flag escalation based on flawed parsing
+
+```typescript
+if (wasAnswered && transcript) {
+  try {
+    analysis = await analyzeTranscript(transcript, patient, safetyCheckResponses, supabase);
+  } catch (e) {
+    console.error("AI analysis failed, marking for manual review:", e);
+    // Don't trust pattern matching - flag for nurse review
+    analysis.risk_level = "nurse_followup";
+    analysis.risk_reason = "AI analysis failed - manual review required";
+    analysis.ai_summary = "Call transcript requires manual review due to AI processing error";
+  }
+}
+```
+
+---
 
 ## Summary of Changes
 
-| File | Change |
-|------|--------|
-| `supabase/functions/run-scheduled-b2b-calls/index.ts` | Allow manual triggers to proceed with ad-hoc calls when schedule is complete |
+| File | Changes |
+|------|---------|
+| `supabase/functions/b2b-bolna-webhook/index.ts` | 1. Round call duration to integer<br>2. Fix safety response parsing logic<br>3. Improve AI failure handling |
+
+---
 
 ## Expected Behavior After Fix
 
-1. **Scheduled runs**: Only process patients with pending calls (Day 1, 3, or 7 not completed)
-2. **Manual "Call Now"**: Works regardless of schedule status - creates an ad-hoc follow-up call
-3. **Call logging**: Ad-hoc calls are tracked in `b2b_pending_calls` with type `manual_followup`
-4. **Dashboard updates**: Results appear after webhook receives completion data
+1. **Check-in records** will be created successfully with rounded duration
+2. **Safety responses** will accurately reflect what the user said (only symptoms they confirmed)
+3. **Alerts** will only trigger for symptoms the user actually reported
+4. **AI failures** will result in "nurse_followup" status for human review, not false red flags
 
-## Important Note
+---
 
-This fix still requires the Bolna webhook to be properly configured for call results to appear in the dashboard. The webhook configuration remains a separate critical requirement.
+## Verification Steps
 
+After deploying the fix:
+1. Trigger a "Call Now" for a test patient
+2. During the call, answer "No" to all symptoms except one
+3. Verify the dashboard shows:
+   - Today's call with "answered: true"
+   - Correct symptom in `danger_symptoms_reported` (only the one you said "Yes" to)
+   - Alert created only for the symptoms you confirmed
