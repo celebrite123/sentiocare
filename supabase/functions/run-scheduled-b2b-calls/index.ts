@@ -126,14 +126,27 @@ serve(async (req) => {
       // Find next call that's not completed and not in-progress
       const nextCall = schedule.find((item: any) => !item.completed && item.status !== 'in_progress');
       
-      if (!nextCall) {
-        console.log(`Skipping ${patient.id}: No pending calls in schedule`);
-        skipped++;
-        continue;
-      }
+      // For manual triggers, allow ad-hoc calls even if schedule is complete
+      let dayNumber: number;
+      let callType: string;
 
-      const dayNumber = nextCall.day;
-      const callType = dayNumber === 1 ? "day_1_check" : dayNumber === 3 ? "day_3_check" : "day_7_check";
+      if (!nextCall) {
+        if (isManualTrigger) {
+          // Manual trigger with no pending calls - create ad-hoc call
+          const completedDays = schedule.filter((s: any) => s.completed).map((s: any) => s.day);
+          const lastCompletedDay = Math.max(...completedDays, 0);
+          dayNumber = lastCompletedDay > 0 ? lastCompletedDay : 0;
+          callType = "manual_followup";
+          console.log(`Manual trigger for ${patient.id}: ad-hoc call (last completed: day ${dayNumber})`);
+        } else {
+          console.log(`Skipping ${patient.id}: No pending calls in schedule`);
+          skipped++;
+          continue;
+        }
+      } else {
+        dayNumber = nextCall.day;
+        callType = dayNumber === 1 ? "day_1_check" : dayNumber === 3 ? "day_3_check" : "day_7_check";
+      }
 
       // Determine agent to use
       const language = patient.language || org.default_language || "hindi";
@@ -165,8 +178,12 @@ serve(async (req) => {
         : patient.red_flag_symptoms || "fever, severe pain, bleeding";
 
       const greeting = language === "hindi"
-        ? `नमस्ते ${patient.patient_name.split(" ")[0]} जी, मैं ${org.name} से बोल रहा हूं।`
-        : `Hello ${patient.patient_name.split(" ")[0]}, I'm calling from ${org.name}.`;
+        ? callType === "manual_followup"
+          ? `नमस्ते ${patient.patient_name.split(" ")[0]} जी, मैं ${org.name} से बोल रहा हूं। आपकी तबीयत की जांच के लिए कॉल किया है।`
+          : `नमस्ते ${patient.patient_name.split(" ")[0]} जी, मैं ${org.name} से बोल रहा हूं।`
+        : callType === "manual_followup"
+          ? `Hello ${patient.patient_name.split(" ")[0]}, I'm calling from ${org.name} to check on your health.`
+          : `Hello ${patient.patient_name.split(" ")[0]}, I'm calling from ${org.name}.`;
 
       // Make Bolna API call
       try {
@@ -237,7 +254,21 @@ serve(async (req) => {
         }
         
         // Mark this day as in-progress and calculate next call date
-        await updatePatientCallSchedule(supabase, patient, org, dayNumber, "voice");
+        if (callType !== "manual_followup") {
+          await updatePatientCallSchedule(supabase, patient, org, dayNumber, "voice");
+        } else {
+          // For ad-hoc calls, only update last_call_date
+          await supabase
+            .from("discharged_patients")
+            .update({ last_call_date: new Date().toISOString() })
+            .eq("id", patient.id);
+            
+          // Still increment call count
+          await supabase
+            .from("organizations")
+            .update({ calls_used_this_month: (org.calls_used_this_month || 0) + 1 })
+            .eq("id", org.id);
+        }
         processed++;
 
       } catch (callError: any) {
