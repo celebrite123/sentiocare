@@ -764,7 +764,7 @@ const CheckinItem = ({ checkin }: { checkin: Checkin }) => {
       const { data: session } = await supabase.auth.getSession();
       
       const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/proxy-recording?url=${encodeURIComponent(checkin.recording_url)}`,
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/proxy-recording?patientCheckinId=${checkin.id}`,
         {
           headers: {
             "Authorization": `Bearer ${session?.session?.access_token}`,
