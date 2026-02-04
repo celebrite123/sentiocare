@@ -234,7 +234,11 @@ serve(async (req) => {
       try {
         analysis = await analyzeTranscript(transcript, patient, safetyCheckResponses, supabase);
       } catch (e) {
-        console.error("AI analysis failed:", e);
+        console.error("AI analysis failed, marking for manual review:", e);
+        // Don't trust pattern matching when AI fails - flag for nurse review
+        analysis.risk_level = "nurse_followup";
+        analysis.risk_reason = "AI analysis failed - manual review required";
+        analysis.ai_summary = "Call transcript requires manual review due to AI processing error";
       }
     }
 
@@ -262,7 +266,7 @@ serve(async (req) => {
         sentiment: analysis.sentiment,
         ai_summary: analysis.ai_summary,
         call_id: execution_id || call_id,
-        call_duration_seconds: actualDuration,
+        call_duration_seconds: actualDuration ? Math.round(actualDuration) : null,
         recording_url: actualRecordingUrl,
         patient_response: transcript || null, // Store full transcript
         // Structured fields
@@ -496,7 +500,6 @@ serve(async (req) => {
  * Parse safety check responses from transcript
  */
 function parseSafetyResponses(transcript: string): Record<string, string> {
-  const lowerTranscript = transcript.toLowerCase();
   const responses: Record<string, string> = {
     fever: "unclear",
     uncontrolled_pain: "unclear",
@@ -505,28 +508,57 @@ function parseSafetyResponses(transcript: string): Record<string, string> {
     neurological_symptoms: "unclear",
   };
 
-  // Split transcript into segments (roughly by turn)
-  const segments = lowerTranscript.split(/[.?!]/);
+  // Split by newlines to get individual turns (Assistant: / User: format)
+  const lines = transcript.split('\n').map(l => l.trim().toLowerCase());
 
-  for (const [key, patterns] of Object.entries(safetyQuestionPatterns)) {
-    // Find segment that mentions this safety question
-    for (let i = 0; i < segments.length; i++) {
-      const segment = segments[i];
-      const hasQuestion = patterns.some(p => segment.includes(p));
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    
+    // We want to find assistant questions, skip user lines when looking for questions
+    if (line.startsWith('user:')) continue;
+    
+    const assistantLine = line.replace(/^assistant:\s*/i, '');
+    
+    // Check which symptom the assistant is asking about
+    for (const [key, patterns] of Object.entries(safetyQuestionPatterns)) {
+      const isAskingAboutSymptom = patterns.some(p => assistantLine.includes(p));
       
-      if (hasQuestion && i + 1 < segments.length) {
-        // Check the next segment for yes/no answer
-        const answerSegment = segments[i + 1];
-        
-        if (yesPatterns.some(p => answerSegment.includes(p))) {
-          responses[key] = "yes";
-          break;
-        } else if (noPatterns.some(p => answerSegment.includes(p))) {
-          responses[key] = "no";
-          break;
+      if (isAskingAboutSymptom) {
+        // Find the next user response
+        for (let j = i + 1; j < lines.length; j++) {
+          const nextLine = lines[j];
+          if (nextLine.startsWith('user:')) {
+            const userResponse = nextLine.replace(/^user:\s*/i, '');
+            
+            // Check for YES response - user confirms having symptom
+            // Make sure there's no "no" pattern in the same response (e.g., "no, I don't have that")
+            const hasYes = yesPatterns.some(p => userResponse.includes(p));
+            const hasNo = noPatterns.some(p => userResponse.includes(p));
+            
+            if (hasYes && !hasNo) {
+              responses[key] = "yes";
+            } else if (hasNo) {
+              responses[key] = "no";
+            }
+            break;
+          }
+          // If we hit another assistant line without user response, stop looking
+          if (nextLine.startsWith('assistant:')) break;
         }
+        break; // Move to next symptom after processing this one
       }
     }
+  }
+
+  // Fallback: If transcript doesn't have clear turn markers, try sentence-based parsing
+  // but be much more conservative - default to "unclear" instead of triggering false positives
+  const hasMarkers = lines.some(l => l.startsWith('assistant:') || l.startsWith('user:'));
+  
+  if (!hasMarkers) {
+    console.log("No turn markers in transcript, using conservative fallback");
+    // For unmarked transcripts, only mark as "yes" if there's an extremely clear pattern
+    // Don't use the aggressive segment-based approach that caused false positives
+    // Leave as "unclear" to trigger manual review instead of false red flags
   }
 
   return responses;
