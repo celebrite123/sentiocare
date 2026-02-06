@@ -185,6 +185,24 @@ serve(async (req) => {
           ? `Hello ${patient.patient_name.split(" ")[0]}, I'm calling from ${org.name} to check on your health.`
           : `Hello ${patient.patient_name.split(" ")[0]}, I'm calling from ${org.name}.`;
 
+      // Fetch previous check-in history for call context (like B2C does)
+      const { data: lastCheckins } = await supabase
+        .from("patient_checkins")
+        .select("ai_summary, danger_symptoms_reported, medicines_taken, created_at, risk_level")
+        .eq("patient_id", patient.id)
+        .order("created_at", { ascending: false })
+        .limit(3);
+
+      const lastSummary = lastCheckins?.[0]?.ai_summary || "";
+      const previousSymptoms = lastCheckins
+        ?.flatMap((c: any) => c.danger_symptoms_reported || [])
+        .filter((v: string, i: number, a: string[]) => a.indexOf(v) === i)
+        .slice(0, 5) || [];
+      const lastMedicineAdherence = lastCheckins?.[0]?.medicines_taken;
+      const daysSinceDischarge = Math.floor(
+        (Date.now() - new Date(patient.discharge_date).getTime()) / 86400000
+      );
+
       // Make Bolna API call
       try {
         const bolnaResponse = await fetch("https://api.bolna.ai/call", {
@@ -219,6 +237,11 @@ serve(async (req) => {
               transfer_phone_red: org.on_call_clinician_phone || org.escalation_phone || null,
               transfer_phone_yellow: org.duty_nurse_phone || org.escalation_phone || null,
               enable_transfer: !!(org.on_call_clinician_phone || org.duty_nurse_phone || org.escalation_phone),
+              // Previous call context (memory)
+              last_summary: lastSummary.substring(0, 200),
+              previous_symptoms: previousSymptoms.join(", "),
+              last_medicine_adherence: lastMedicineAdherence,
+              days_since_discharge: daysSinceDischarge,
             },
           }),
         });
