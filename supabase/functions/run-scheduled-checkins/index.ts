@@ -165,6 +165,103 @@ serve(async (req) => {
         let whatsappSuccess = false;
 
         try {
+          // ============ FETCH MEDICINES & MONITORING CONFIG ============
+          let elderMedicines: any[] = [];
+          let monitoringConfig: any = { topics: [], custom_questions: [] };
+          
+          if (shouldRunVoice) {
+            // Fetch active medicines for personalized calls
+            const { data: meds } = await supabase
+              .from("medicines")
+              .select("name, dosage, timing, purpose")
+              .eq("elder_id", schedule.elder_id)
+              .eq("active", true);
+            elderMedicines = meds || [];
+            
+            // Get monitoring config from elder
+            monitoringConfig = elder?.monitoring_config || { topics: [], custom_questions: [] };
+            
+            console.log(`Fetched ${elderMedicines.length} medicines and ${(monitoringConfig.topics || []).length} monitoring topics for elder ${elder?.id}`);
+          }
+          // ============ END FETCH MEDICINES ============
+
+          // ============ CHRONIC FAILURE DETECTION ============
+          if (shouldRunVoice) {
+            const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
+            const { data: recentCalls } = await supabase
+              .from("call_attempts")
+              .select("id, status, created_at")
+              .eq("elder_id", schedule.elder_id)
+              .gte("created_at", threeDaysAgo.toISOString())
+              .order("created_at", { ascending: false });
+
+            if (recentCalls && recentCalls.length > 0) {
+              // Group by IST date and check if ALL calls failed each day
+              const callsByDate: Record<string, string[]> = {};
+              for (const call of recentCalls) {
+                const dateStr = getISTDateString(new Date(call.created_at));
+                if (!callsByDate[dateStr]) callsByDate[dateStr] = [];
+                callsByDate[dateStr].push(call.status);
+              }
+              
+              // Count consecutive days where no call was answered
+              const sortedDates = Object.keys(callsByDate).sort().reverse();
+              let consecutiveFailDays = 0;
+              for (const date of sortedDates) {
+                const statuses = callsByDate[date];
+                const hasAnswered = statuses.some(s => s === 'answered');
+                if (!hasAnswered) {
+                  consecutiveFailDays++;
+                } else {
+                  break;
+                }
+              }
+              
+              if (consecutiveFailDays >= 3) {
+                console.log(`CHRONIC FAILURE: Elder ${schedule.elder_id} unreachable for ${consecutiveFailDays} consecutive days`);
+                
+                // Check if we already created this alert recently (avoid duplicates)
+                const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+                const { data: existingAlert } = await supabase
+                  .from("alerts")
+                  .select("id")
+                  .eq("elder_id", schedule.elder_id)
+                  .eq("alert_type", "chronic_unreachable")
+                  .gte("created_at", oneDayAgo.toISOString())
+                  .limit(1);
+                
+                if (!existingAlert || existingAlert.length === 0) {
+                  await supabase.from("alerts").insert({
+                    elder_id: schedule.elder_id,
+                    title: "Chronic Unreachable - Needs Immediate Attention",
+                    description: `${elder?.full_name} has not answered calls for ${consecutiveFailDays} consecutive days. Please check on them urgently.`,
+                    severity: "high",
+                    alert_type: "chronic_unreachable",
+                  });
+                  
+                  // Notify caregiver about chronic failure
+                  await fetch(`${supabaseUrl}/functions/v1/notify-caregiver`, {
+                    method: "POST",
+                    headers: {
+                      "Content-Type": "application/json",
+                      "Authorization": `Bearer ${supabaseServiceKey}`,
+                    },
+                    body: JSON.stringify({
+                      elderId: schedule.elder_id,
+                      alertType: "chronic_unreachable",
+                      severity: "high",
+                      title: `Unable to reach ${elder?.full_name} for ${consecutiveFailDays} days`,
+                      description: `${elder?.full_name} has not answered any check-in calls for ${consecutiveFailDays} consecutive days. Please check on them or verify their phone number.`,
+                      initiateCall: false,
+                    }),
+                  });
+                  console.log(`Chronic unreachable alert created for elder ${schedule.elder_id}`);
+                }
+              }
+            }
+          }
+          // ============ END CHRONIC FAILURE DETECTION ============
+
           // Run voice call if applicable (using Bolna)
           if (shouldRunVoice) {
             console.log(`Initiating voice call for elder ${elder?.id}...`);
@@ -178,9 +275,10 @@ serve(async (req) => {
                 elderId: schedule.elder_id,
                 elderName: elder?.full_name,
                 elderPhone: elder?.phone_number,
-                medicines: [],
+                medicines: elderMedicines,
                 medicalConditions: elder?.medical_conditions || [],
                 preferredLanguage: elder?.preferred_language || "english",
+                monitoringConfig: monitoringConfig,
               }),
             });
             const voiceResult = await voiceResponse.json();

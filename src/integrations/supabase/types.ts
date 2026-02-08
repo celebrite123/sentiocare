@@ -305,6 +305,7 @@ export type Database = {
           created_at: string
           elder_id: string
           execution_id: string | null
+          failure_reason: string | null
           id: string
           initiated_at: string
           max_retries: number
@@ -322,6 +323,7 @@ export type Database = {
           created_at?: string
           elder_id: string
           execution_id?: string | null
+          failure_reason?: string | null
           id?: string
           initiated_at?: string
           max_retries?: number
@@ -339,6 +341,7 @@ export type Database = {
           created_at?: string
           elder_id?: string
           execution_id?: string | null
+          failure_reason?: string | null
           id?: string
           initiated_at?: string
           max_retries?: number

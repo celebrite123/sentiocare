@@ -177,6 +177,47 @@ serve(async (req) => {
           m.purpose?.trim() ? m.purpose : m.name
         ).join(', ') || (isHindi ? 'कोई दवाई नहीं' : 'No medicines');
 
+        // ============ FETCH FULL CONTEXT FOR RETRY CALLS ============
+        // Get monitoring config
+        const { data: elderFull } = await supabase
+          .from("elders")
+          .select("monitoring_config")
+          .eq("id", elder.id)
+          .single();
+        const monitoringConfig = elderFull?.monitoring_config || { topics: [], custom_questions: [] };
+
+        // Get last check-in summary and symptoms
+        const { data: lastCheckin } = await supabase
+          .from("check_ins")
+          .select("conversation_summary, symptoms_reported, well_being_score, created_at")
+          .eq("elder_id", elder.id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        const lastSummary = lastCheckin?.conversation_summary || '';
+        const previousSymptoms = lastCheckin?.symptoms_reported || [];
+        
+        // Calculate symptom days for continuity
+        let symptomDays: Record<string, number> = {};
+        if (previousSymptoms.length > 0) {
+          for (const symptom of previousSymptoms) {
+            const { data: firstReport } = await supabase
+              .from("check_ins")
+              .select("created_at")
+              .eq("elder_id", elder.id)
+              .contains("symptoms_reported", [symptom])
+              .order("created_at", { ascending: true })
+              .limit(1)
+              .maybeSingle();
+            if (firstReport) {
+              const daysSince = Math.floor((Date.now() - new Date(firstReport.created_at).getTime()) / (1000 * 60 * 60 * 24));
+              symptomDays[symptom] = daysSince;
+            }
+          }
+        }
+        // ============ END FULL CONTEXT ============
+
         // Call Bolna API DIRECTLY (don't go through bolna-voice-call to avoid creating new records)
         const bolnaResponse = await fetch('https://api.bolna.ai/call', {
           method: 'POST',
@@ -197,6 +238,13 @@ serve(async (req) => {
               is_retry: true,
               retry_attempt: newRetryCount,
               preferred_language: elder.preferred_language || 'english',
+              // Full context for smart retry calls
+              monitoring_topics: monitoringConfig.topics || [],
+              custom_questions: monitoringConfig.custom_questions || [],
+              last_summary: lastSummary.substring(0, 200),
+              active_symptoms: previousSymptoms.join(', '),
+              symptom_days: JSON.stringify(symptomDays),
+              medical_conditions: (elder.medical_conditions || []).join(', '),
             },
           }),
         });

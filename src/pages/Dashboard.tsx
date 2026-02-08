@@ -33,6 +33,7 @@ import AlertsPanel from "@/components/AlertsPanel";
 import { WellbeingTrendChart } from "@/components/dashboard/WellbeingTrendChart";
 import { MedicationAdherenceChart } from "@/components/dashboard/MedicationAdherenceChart";
 import CallStatusCard from "@/components/dashboard/CallStatusCard";
+import CallReliabilityCard from "@/components/dashboard/CallReliabilityCard";
 import { TrialExpiredModal } from "@/components/TrialExpiredModal";
 import RenewalReminderBanner from "@/components/RenewalReminderBanner";
 import { DashboardSkeleton } from "@/components/LoadingSkeletons";
@@ -538,7 +539,7 @@ const Dashboard = () => {
           </div>
 
           {/* Stats Cards */}
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-5 mb-8">
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-6 mb-8">
             <Card className="border-primary/20">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Today's Check-in</CardTitle>
@@ -654,6 +655,9 @@ const Dashboard = () => {
 
             {/* Call Status Card */}
             <CallStatusCard elderId={elderId} />
+            
+            {/* Call Reliability Card */}
+            <CallReliabilityCard elderId={elderId} />
           </div>
 
           {/* Metrics and Insights */}

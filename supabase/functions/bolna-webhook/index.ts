@@ -300,13 +300,17 @@ serve(async (req) => {
         const nextRetryMinutes = retryCount === 0 ? 10 : 120;
         const nextRetryAt = new Date(Date.now() + nextRetryMinutes * 60 * 1000);
 
+        // Build failure reason for diagnostics
+        const failureReason = normalizedHangup || normalizedStatus || 'unknown';
+
         await supabase
           .from("call_attempts")
           .update({
             status: 'no_answer',
             completed_at: new Date().toISOString(),
             retry_count: retryCount + 1,
-            next_retry_at: nextRetryAt.toISOString()
+            next_retry_at: nextRetryAt.toISOString(),
+            failure_reason: failureReason,
           })
           .eq("id", callAttempt.id);
 
@@ -326,13 +330,15 @@ serve(async (req) => {
 
       } else {
         // Max retries reached
+        const failureReason = normalizedHangup || normalizedStatus || 'max_retries_exhausted';
         await supabase
           .from("call_attempts")
           .update({
             status: 'failed',
             completed_at: new Date().toISOString(),
             next_retry_at: null,
-            notification_sent: true
+            notification_sent: true,
+            failure_reason: failureReason,
           })
           .eq("id", callAttempt.id);
 
