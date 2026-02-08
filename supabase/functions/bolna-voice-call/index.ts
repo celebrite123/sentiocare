@@ -8,12 +8,22 @@ const corsHeaders = {
 
 const MAX_EMERGENCY_CALLS_PER_MONTH = 5;
 
-// Helper to extract first name only
 function getFirstName(fullName: string) {
   return fullName.split(' ')[0];
 }
 
-// Helper to build a SIMPLE warm greeting - name used ONCE here only
+// Map monitoring topic IDs to natural-language questions
+const TOPIC_LABELS: Record<string, { hi: string; en: string }> = {
+  meals:          { hi: "खाना कैसा खाया आज?", en: "How were your meals today?" },
+  sleep_quality:  { hi: "रात को नींद कैसी आई?", en: "How did you sleep last night?" },
+  blood_pressure: { hi: "BP चेक किया? कितना आया?", en: "Did you check your BP? What was the reading?" },
+  blood_sugar:    { hi: "Sugar चेक किया? कितना आया?", en: "Did you check your blood sugar? What was it?" },
+  water_intake:   { hi: "पानी कितना पिया आज?", en: "How much water did you drink today?" },
+  mood:           { hi: "मन कैसा है आज? खुश हैं?", en: "How's your mood today? Feeling happy?" },
+  exercise:       { hi: "थोड़ा चले-फिरे आज?", en: "Did you get some exercise or walk today?" },
+  pain:           { hi: "कहीं दर्द तो नहीं है?", en: "Are you having any pain?" },
+};
+
 function buildGreeting(firstName: string, isHindi: boolean, daysSinceLastCall: number | null) {
   if (isHindi) {
     if (daysSinceLastCall === null || daysSinceLastCall > 7) {
@@ -38,6 +48,44 @@ function buildGreeting(firstName: string, isHindi: boolean, daysSinceLastCall: n
   }
 }
 
+// Format medicine list with both name and purpose for AI clarity
+function formatMedicines(medicines: any[], isHindi: boolean): string {
+  if (!medicines || medicines.length === 0) {
+    return isHindi ? 'कोई दवाई नहीं' : 'No medicines';
+  }
+  return medicines.map((m: any) => {
+    const name = m.name || '';
+    const purpose = m.purpose?.trim() || '';
+    if (purpose && name) {
+      return `${name} (${purpose})`;
+    }
+    return purpose || name;
+  }).filter(Boolean).join(', ');
+}
+
+// Build natural-language monitoring questions from topic IDs
+function buildMonitoringQuestions(topics: string[], customQuestions: any[], isHindi: boolean): string {
+  const questions: string[] = [];
+  
+  for (const topic of topics) {
+    const label = TOPIC_LABELS[topic];
+    if (label) {
+      questions.push(isHindi ? label.hi : label.en);
+    } else {
+      // Unknown topic - use the ID as a readable label
+      questions.push(isHindi ? `${topic} के बारे में पूछें` : `Ask about ${topic}`);
+    }
+  }
+  
+  for (const q of customQuestions) {
+    if (q.question) {
+      questions.push(q.question);
+    }
+  }
+  
+  return questions.join(' | ');
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -57,18 +105,14 @@ serve(async (req) => {
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     
-    // Check if this is a service role call (internal from run-scheduled-checkins)
     const token = authHeader.replace('Bearer ', '');
     const isServiceRoleCall = token === supabaseServiceKey;
     
     let familyMemberIdForChecks: string | null = null;
     
     if (isServiceRoleCall) {
-      // Internal call from run-scheduled-checkins - skip user auth
-      // Authorization is handled by the caller (service already verified elder ownership)
       console.log('Internal service call - bypassing user auth for scheduled check-in');
     } else {
-      // Dashboard call - require user JWT
       const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
         global: { headers: { Authorization: authHeader } }
       });
@@ -82,7 +126,6 @@ serve(async (req) => {
         );
       }
       
-      // Get user's profile to verify ownership
       const supabase = createClient(supabaseUrl, supabaseServiceKey);
       const { data: profile, error: profileError } = await supabase
         .from("profiles")
@@ -120,11 +163,9 @@ serve(async (req) => {
     
     console.log('Selected Bolna agent:', { language: preferredLanguage, isHindi, isServiceRoleCall });
 
-    // Use service role for database operations
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // ============ DAILY CALL LIMIT CHECK ============
-    // CRITICAL: Prevent call bombardment - max 3 calls per elder per day
     const todayStart = new Date();
     todayStart.setUTCHours(0, 0, 0, 0);
     
@@ -134,7 +175,7 @@ serve(async (req) => {
       .eq("elder_id", elderId)
       .gte("created_at", todayStart.toISOString());
     
-    const MAX_CALLS_PER_DAY = 3; // 1 scheduled + 2 retries max
+    const MAX_CALLS_PER_DAY = 3;
     if (todayCalls && todayCalls.length >= MAX_CALLS_PER_DAY) {
       console.log(`DAILY CALL LIMIT REACHED for elder ${elderId}: ${todayCalls.length} calls today`);
       return new Response(
@@ -151,7 +192,6 @@ serve(async (req) => {
     // ============ END DAILY CALL LIMIT CHECK ============
 
     // ============ AUTHORIZATION CHECK ============
-    // Verify elder exists and get needed data
     const { data: elder, error: elderError } = await supabase
       .from("elders")
       .select("family_member_id, last_manual_call_at, monitoring_config")
@@ -165,7 +205,6 @@ serve(async (req) => {
       );
     }
 
-    // For user calls, verify ownership or access
     if (!isServiceRoleCall && familyMemberIdForChecks) {
       const isOwner = familyMemberIdForChecks === elder.family_member_id;
       
@@ -186,7 +225,6 @@ serve(async (req) => {
       }
     }
 
-    // Get the family member's profile for subscription checks
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
       .select("id, subscription_tier, subscription_status, trial_ends_at, monthly_emergency_calls_used, emergency_calls_reset_at")
@@ -259,7 +297,7 @@ serve(async (req) => {
 
     console.log('Initiating Bolna voice call:', { elderId, isEmergency, isServiceRoleCall });
 
-  // Get last check-in for context (including conversation_summary)
+    // Get last check-ins for context
     const { data: previousCheckIns } = await supabase
       .from("check_ins")
       .select("created_at, symptoms_reported, conversation_summary, well_being_score")
@@ -267,7 +305,6 @@ serve(async (req) => {
       .order("created_at", { ascending: false })
       .limit(10);
 
-    // Calculate days since last call
     let daysSinceLastCall: number | null = null;
     let lastSummary = '';
     if (previousCheckIns && previousCheckIns.length > 0) {
@@ -278,42 +315,29 @@ serve(async (req) => {
       lastSummary = previousCheckIns[0]?.conversation_summary || '';
     }
 
-    // Get active symptoms (exclude resolved ones) - IMPROVED MATCHING
+    // Get active symptoms (exclude resolved)
     const { data: resolvedSymptomsData } = await supabase
       .from("resolved_symptoms")
       .select("symptom, resolved_at")
       .eq("elder_id", elderId);
 
-    // Normalize function for better matching
     const normalizeSymptom = (s: string) => 
-      s.toLowerCase()
-        .replace(/[^a-z0-9\s]/gi, '') // Remove punctuation
-        .replace(/\s+/g, ' ')          // Normalize spaces
-        .trim();
+      s.toLowerCase().replace(/[^a-z0-9\s]/gi, '').replace(/\s+/g, ' ').trim();
     
-    // Extract key words from symptom for matching
     const getSymptomKeywords = (s: string) => {
       const normalized = normalizeSymptom(s);
-      // Common symptom keywords
-      const keywords = normalized.split(' ').filter(word => 
+      return normalized.split(' ').filter(word => 
         word.length > 2 && !['the', 'and', 'has', 'had', 'was', 'for', 'with'].includes(word)
       );
-      return keywords;
     };
 
-    // Check if two symptoms match using keyword overlap
     const symptomsMatch = (s1: string, s2: string): boolean => {
       const n1 = normalizeSymptom(s1);
       const n2 = normalizeSymptom(s2);
-      
-      // Direct match
       if (n1 === n2 || n1.includes(n2) || n2.includes(n1)) return true;
-      
-      // Keyword matching - if 50%+ keywords overlap, consider it a match
       const k1 = getSymptomKeywords(s1);
       const k2 = getSymptomKeywords(s2);
       const overlap = k1.filter(k => k2.some(kk => kk.includes(k) || k.includes(kk)));
-      
       return overlap.length >= Math.min(k1.length, k2.length) * 0.5 && overlap.length > 0;
     };
 
@@ -327,9 +351,7 @@ serve(async (req) => {
     });
     previousSymptoms = [...new Set(previousSymptoms)];
 
-    // Filter out resolved symptoms with improved matching
     const activeSymptoms = previousSymptoms.filter(symptom => {
-      // Check if this symptom matches any resolved symptom
       const isResolved = resolvedSymptomsList.some(resolved => 
         symptomsMatch(symptom, resolved.symptom)
       );
@@ -342,10 +364,9 @@ serve(async (req) => {
       active: activeSymptoms.length 
     });
 
-    // Calculate symptom duration (days since first reported)
+    // Calculate symptom duration
     const symptomDaysMap: Record<string, number> = {};
     for (const symptom of activeSymptoms.slice(0, 3)) {
-      // Find the earliest check-in where this symptom was reported
       const earliestWithSymptom = previousCheckIns
         ?.filter(c => c.symptoms_reported?.some((s: string) => symptomsMatch(s, symptom)))
         .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())[0];
@@ -358,76 +379,47 @@ serve(async (req) => {
       }
     }
 
-    // Build SIMPLE, CLEAN user_data - no verbose instructions
+    // Build user_data with NATURAL-LANGUAGE monitoring questions
     const firstName = getFirstName(elderName);
     const greeting = buildGreeting(firstName, isHindi, daysSinceLastCall);
-    // Use medicine purpose if available (e.g., "BP medicine"), otherwise just the simple name
-    const medicineList = medicines.map((m: any) => {
-      if (m.purpose && m.purpose.trim()) {
-        return m.purpose;
-      }
-      // Just use the medicine name without complex dosage details
-      return m.name;
-    }).join(', ') || (isHindi ? 'कोई दवाई नहीं' : 'No medicines');
+    
+    // Format medicines with name + purpose (e.g. "Thyroxin (Thyroid)")
+    const medicineList = formatMedicines(medicines, isHindi);
+    
     const activeSymptomsList = activeSymptoms.length > 0 ? activeSymptoms.slice(0, 2).join(', ') : '';
 
-    // Get monitoring topics and custom questions
+    // Get monitoring config and build natural-language questions
     const monitoringConfig = (elder as any).monitoring_config || { topics: [], custom_questions: [] };
-    const monitoringTopics = (monitoringConfig.topics || []).join(', ');
-    const customQuestions = (monitoringConfig.custom_questions || []).map((q: any) => q.question).join(' | ');
+    const monitoringQuestions = buildMonitoringQuestions(
+      monitoringConfig.topics || [],
+      monitoringConfig.custom_questions || [],
+      isHindi
+    );
 
-    // Format symptom days for agent (e.g., "back pain:3, headache:1")
     const symptomDaysFormatted = Object.entries(symptomDaysMap)
       .map(([symptom, days]) => `${symptom}:${days}`)
       .join(', ');
 
-    // ENHANCED user_data with symptom tracking
     const userData = {
       elder_id: elderId,
       first_name: firstName,
-      greeting: greeting, // Use {greeting} in Bolna Dashboard Welcome Message
+      greeting: greeting,
       medicines: medicineList,
       active_symptoms: activeSymptomsList,
-      symptom_days: symptomDaysFormatted, // NEW: "back pain:3, headache:1"
-      last_summary: lastSummary.substring(0, 150), // NEW: Last call context
-      monitoring_topics: monitoringTopics,
-      custom_questions: customQuestions,
+      symptom_days: symptomDaysFormatted,
+      last_summary: lastSummary.substring(0, 150),
+      monitoring_topics: monitoringQuestions, // Now natural-language questions
       is_emergency: isEmergency,
       preferred_language: preferredLanguage,
     };
 
     console.log('Sending user_data to Bolna:', JSON.stringify(userData));
 
-    const bolnaResponse = await fetch('https://api.bolna.ai/call', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${BOLNA_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        agent_id: BOLNA_AGENT_ID,
-        recipient_phone_number: elderPhone,
-        user_data: userData,
-      }),
-    });
-
-    if (!bolnaResponse.ok) {
-      const error = await bolnaResponse.text();
-      console.error('Bolna API error:', error);
-      throw new Error(`Bolna API error: ${error}`);
-    }
-
-    const callData = await bolnaResponse.json();
-    console.log('Bolna API response:', JSON.stringify(callData));
-    
-    const callId = callData.execution_id || callData.call_id || callData.id;
-    
-    // Create call_attempts record
+    // Create call_attempts record BEFORE the API call so we can update failure_reason
     const { data: callAttempt, error: callAttemptError } = await supabase
       .from("call_attempts")
       .insert({
         elder_id: elderId,
-        execution_id: callId,
         call_type: isEmergency ? 'emergency' : 'scheduled',
         status: 'initiated',
         attempt_number: 1,
@@ -439,8 +431,75 @@ serve(async (req) => {
 
     if (callAttemptError) {
       console.error("Error creating call attempt record:", callAttemptError);
-    } else {
-      console.log("Call attempt record created:", callAttempt?.id);
+    }
+
+    // Call Bolna API
+    let bolnaResponse: Response;
+    try {
+      bolnaResponse = await fetch('https://api.bolna.ai/call', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${BOLNA_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          agent_id: BOLNA_AGENT_ID,
+          recipient_phone_number: elderPhone,
+          user_data: userData,
+        }),
+      });
+    } catch (fetchError) {
+      // Network error - capture failure reason immediately
+      const errorMsg = fetchError instanceof Error ? fetchError.message : 'Network error calling Bolna API';
+      console.error('Bolna API network error:', errorMsg);
+      
+      if (callAttempt) {
+        await supabase
+          .from("call_attempts")
+          .update({ status: 'failed', failure_reason: `Network: ${errorMsg}`, completed_at: new Date().toISOString() })
+          .eq("id", callAttempt.id);
+      }
+      
+      return new Response(
+        JSON.stringify({ success: false, error: errorMsg, callAttemptId: callAttempt?.id }),
+        { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (!bolnaResponse.ok) {
+      const errorText = await bolnaResponse.text();
+      console.error('Bolna API error:', bolnaResponse.status, errorText);
+      
+      // Capture failure reason immediately on API error
+      if (callAttempt) {
+        await supabase
+          .from("call_attempts")
+          .update({ 
+            status: 'failed', 
+            failure_reason: `Bolna API ${bolnaResponse.status}: ${errorText.substring(0, 200)}`,
+            completed_at: new Date().toISOString()
+          })
+          .eq("id", callAttempt.id);
+      }
+      
+      return new Response(
+        JSON.stringify({ success: false, error: `Bolna API error: ${errorText}`, callAttemptId: callAttempt?.id }),
+        { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const callData = await bolnaResponse.json();
+    console.log('Bolna API response:', JSON.stringify(callData));
+    
+    const callId = callData.execution_id || callData.call_id || callData.id;
+    
+    // Update call_attempts with execution_id
+    if (callAttempt) {
+      await supabase
+        .from("call_attempts")
+        .update({ execution_id: callId })
+        .eq("id", callAttempt.id);
+      console.log("Call attempt record updated with execution_id:", callId);
     }
     
     const remainingEmergencyCalls = isEmergency 
