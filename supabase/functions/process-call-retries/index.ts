@@ -6,6 +6,34 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Map monitoring topic IDs to natural-language questions
+const TOPIC_LABELS: Record<string, { hi: string; en: string }> = {
+  meals:          { hi: "खाना कैसा खाया आज?", en: "How were your meals today?" },
+  sleep_quality:  { hi: "रात को नींद कैसी आई?", en: "How did you sleep last night?" },
+  blood_pressure: { hi: "BP चेक किया? कितना आया?", en: "Did you check your BP? What was the reading?" },
+  blood_sugar:    { hi: "Sugar चेक किया? कितना आया?", en: "Did you check your blood sugar? What was it?" },
+  water_intake:   { hi: "पानी कितना पिया आज?", en: "How much water did you drink today?" },
+  mood:           { hi: "मन कैसा है आज? खुश हैं?", en: "How's your mood today? Feeling happy?" },
+  exercise:       { hi: "थोड़ा चले-फिरे आज?", en: "Did you get some exercise or walk today?" },
+  pain:           { hi: "कहीं दर्द तो नहीं है?", en: "Are you having any pain?" },
+};
+
+function buildMonitoringQuestions(topics: string[], customQuestions: any[], isHindi: boolean): string {
+  const questions: string[] = [];
+  for (const topic of topics) {
+    const label = TOPIC_LABELS[topic];
+    if (label) {
+      questions.push(isHindi ? label.hi : label.en);
+    } else {
+      questions.push(isHindi ? `${topic} के बारे में पूछें` : `Ask about ${topic}`);
+    }
+  }
+  for (const q of customQuestions) {
+    if (q.question) questions.push(q.question);
+  }
+  return questions.join(' | ');
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -173,9 +201,13 @@ serve(async (req) => {
           .eq("elder_id", elder.id)
           .eq("active", true);
 
-        const medicineList = (medicines || []).map((m: any) => 
-          m.purpose?.trim() ? m.purpose : m.name
-        ).join(', ') || (isHindi ? 'कोई दवाई नहीं' : 'No medicines');
+        // Format medicines with name + purpose for AI clarity
+        const medicineList = (medicines || []).map((m: any) => {
+          const name = m.name || '';
+          const purpose = m.purpose?.trim() || '';
+          if (purpose && name) return `${name} (${purpose})`;
+          return purpose || name;
+        }).filter(Boolean).join(', ') || (isHindi ? 'कोई दवाई नहीं' : 'No medicines');
 
         // ============ FETCH FULL CONTEXT FOR RETRY CALLS ============
         // Get monitoring config
@@ -238,9 +270,8 @@ serve(async (req) => {
               is_retry: true,
               retry_attempt: newRetryCount,
               preferred_language: elder.preferred_language || 'english',
-              // Full context for smart retry calls
-              monitoring_topics: monitoringConfig.topics || [],
-              custom_questions: monitoringConfig.custom_questions || [],
+              // Full context with natural-language monitoring questions
+              monitoring_topics: buildMonitoringQuestions(monitoringConfig.topics || [], monitoringConfig.custom_questions || [], isHindi),
               last_summary: lastSummary.substring(0, 200),
               active_symptoms: previousSymptoms.join(', '),
               symptom_days: JSON.stringify(symptomDays),
@@ -281,12 +312,13 @@ serve(async (req) => {
       } catch (callError) {
         console.error(`Error processing retry for ${elder.full_name}:`, callError);
         
-        // Mark as failed if there was an exception
+        // Mark as failed with reason
         await supabase
           .from("call_attempts")
           .update({ 
             status: 'failed',
-            next_retry_at: null
+            next_retry_at: null,
+            failure_reason: callError instanceof Error ? callError.message.substring(0, 200) : 'Unknown retry error',
           })
           .eq("id", attempt.id);
           

@@ -1,10 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-// Webhook endpoints don't need CORS headers as they're server-to-server
-// Security: Request correlation validation using call_attempts table
-// Only webhooks with valid execution_id matching a recent call_attempt are processed
-// This prevents unauthorized injection of fake health data
 const responseHeaders = {
   "Content-Type": "application/json",
 };
@@ -15,15 +11,12 @@ async function validateWebhookRequest(
   executionId: string | null,
   elderId: string | null
 ): Promise<{ valid: boolean; callAttempt: any | null; error?: string }> {
-  // Must have at least one identifier
   if (!executionId && !elderId) {
     return { valid: false, callAttempt: null, error: "No execution_id or elder_id provided" };
   }
 
-  // Look for a matching call attempt initiated within the last hour
   const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
   
-  // First try to find by execution_id (most secure)
   if (executionId) {
     const { data: attempt, error } = await supabase
       .from("call_attempts")
@@ -38,7 +31,6 @@ async function validateWebhookRequest(
     console.log("No call_attempt found for execution_id:", executionId, error?.message);
   }
 
-  // Fallback: Try to find by elder_id with initiated status (for edge cases)
   if (elderId) {
     const thirtyMinsAgo = new Date(Date.now() - 30 * 60 * 1000);
     const { data: recentAttempt, error } = await supabase
@@ -61,17 +53,10 @@ async function validateWebhookRequest(
   return { valid: false, callAttempt: null, error: "No matching call_attempt found - request rejected" };
 }
 
-// Improved transcript parsing function
 function parseTranscript(rawTranscript: string): Array<{role: string, message: string}> {
-  if (!rawTranscript || typeof rawTranscript !== 'string') {
-    return [];
-  }
+  if (!rawTranscript || typeof rawTranscript !== 'string') return [];
 
   const parsedLogs: Array<{role: string, message: string}> = [];
-  
-  // Try multiple parsing strategies
-  
-  // Strategy 1: Look for explicit role prefixes (Assistant:, User:, AI:, Agent:, Elder:)
   const prefixPattern = /^(assistant|ai|agent|user|elder|sentio):\s*/i;
   const lines = rawTranscript.split(/\n+/).filter(l => l.trim());
   
@@ -79,24 +64,18 @@ function parseTranscript(rawTranscript: string): Array<{role: string, message: s
     for (const line of lines) {
       const trimmedLine = line.trim();
       if (!trimmedLine) continue;
-      
       const match = trimmedLine.match(prefixPattern);
       if (match) {
         const rolePrefix = match[1].toLowerCase();
         const isAI = ['assistant', 'ai', 'agent', 'sentio'].includes(rolePrefix);
-        const role = isAI ? 'assistant' : 'user';
         const message = trimmedLine.replace(prefixPattern, '').trim();
-        if (message) {
-          parsedLogs.push({ role, message });
-        }
+        if (message) parsedLogs.push({ role: isAI ? 'assistant' : 'user', message });
       } else if (parsedLogs.length > 0) {
-        // Continuation of previous message
         parsedLogs[parsedLogs.length - 1].message += ' ' + trimmedLine;
       }
     }
   }
   
-  // Strategy 2: Look for JSON-like format with speaker roles
   if (parsedLogs.length === 0 && rawTranscript.includes('"speaker"')) {
     try {
       const jsonMatch = rawTranscript.match(/\[[\s\S]*\]/);
@@ -105,21 +84,15 @@ function parseTranscript(rawTranscript: string): Array<{role: string, message: s
         for (const turn of turns) {
           const isAI = ['assistant', 'ai', 'agent', 'sentio', 'bot'].includes(String(turn.speaker || turn.role || '').toLowerCase());
           const message = String(turn.text || turn.message || turn.content || '').trim();
-          if (message) {
-            parsedLogs.push({ role: isAI ? 'assistant' : 'user', message });
-          }
+          if (message) parsedLogs.push({ role: isAI ? 'assistant' : 'user', message });
         }
       }
-    } catch (e) {
-      // JSON parsing failed, continue to next strategy
-    }
+    } catch (e) { /* ignore */ }
   }
   
-  // Strategy 3: Look for turn markers like [Agent], [User], etc.
   if (parsedLogs.length === 0) {
     const bracketPattern = /\[(assistant|ai|agent|user|elder|sentio|caller|callee)\]/i;
     const parts = rawTranscript.split(bracketPattern).filter(p => p.trim());
-    
     let currentRole = 'user';
     for (const part of parts) {
       const lowerPart = part.toLowerCase().trim();
@@ -129,32 +102,90 @@ function parseTranscript(rawTranscript: string): Array<{role: string, message: s
         currentRole = 'user';
       } else {
         const message = part.trim();
-        if (message) {
-          parsedLogs.push({ role: currentRole, message });
-        }
+        if (message) parsedLogs.push({ role: currentRole, message });
       }
     }
   }
   
-  // Strategy 4: Alternating turns based on sentence patterns
   if (parsedLogs.length === 0 && lines.length > 1) {
-    // Assume first line is AI greeting, then alternate
     let isAI = true;
     for (const line of lines) {
       const message = line.trim();
-      if (message) {
-        parsedLogs.push({ role: isAI ? 'assistant' : 'user', message });
-        isAI = !isAI;
-      }
+      if (message) { parsedLogs.push({ role: isAI ? 'assistant' : 'user', message }); isAI = !isAI; }
     }
   }
   
-  // Strategy 5: If still nothing, treat entire transcript as a single block
   if (parsedLogs.length === 0 && rawTranscript.trim()) {
     parsedLogs.push({ role: 'assistant', message: rawTranscript.trim().substring(0, 5000) });
   }
   
   return parsedLogs;
+}
+
+// Send daily check-in confirmation to caregiver via WhatsApp
+async function sendCaregiverDailyConfirmation(
+  supabase: any,
+  elderId: string,
+  analysis: any,
+  elderName: string,
+  isHindi: boolean
+) {
+  try {
+    const { data: settings } = await supabase
+      .from("notification_settings")
+      .select("caregiver_name, caregiver_phone")
+      .eq("elder_id", elderId)
+      .single();
+
+    if (!settings?.caregiver_phone) return;
+
+    const TWILIO_ACCOUNT_SID = Deno.env.get("TWILIO_ACCOUNT_SID");
+    const TWILIO_AUTH_TOKEN = Deno.env.get("TWILIO_AUTH_TOKEN");
+    const TWILIO_WHATSAPP_NUMBER = Deno.env.get("TWILIO_WHATSAPP_NUMBER");
+    if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN || !TWILIO_WHATSAPP_NUMBER) return;
+
+    const firstName = elderName?.split(' ')[0] || 'Elder';
+    const caregiverName = settings.caregiver_name?.split(' ')[0] || '';
+    const score = analysis.wellBeingScore || '?';
+    const medsTaken = analysis.medicinesTaken;
+    const symptoms = (analysis.symptomsReported || []).length > 0
+      ? (analysis.symptomsReported || []).slice(0, 2).join(', ')
+      : null;
+
+    let message: string;
+    if (isHindi) {
+      const medsText = medsTaken === true ? 'दवाई ली ✅' : medsTaken === false ? 'दवाई नहीं ली ❌' : '';
+      const symptomText = symptoms ? `तकलीफ: ${symptoms}` : 'कोई तकलीफ नहीं 😊';
+      message = `✅ ${caregiverName} जी, ${firstName} जी की check-in हो गई।\n📊 Score: ${score}/10\n💊 ${medsText}\n${symptomText}`;
+    } else {
+      const medsText = medsTaken === true ? 'Medicines taken ✅' : medsTaken === false ? 'Medicines NOT taken ❌' : '';
+      const symptomText = symptoms ? `Concerns: ${symptoms}` : 'No concerns 😊';
+      message = `✅ ${caregiverName}, ${firstName}'s check-in is done.\n📊 Score: ${score}/10\n💊 ${medsText}\n${symptomText}`;
+    }
+
+    const formattedPhone = settings.caregiver_phone.startsWith("+")
+      ? settings.caregiver_phone
+      : `+91${settings.caregiver_phone.replace(/^0+/, "")}`;
+
+    await fetch(
+      `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Messages.json`,
+      {
+        method: "POST",
+        headers: {
+          "Authorization": `Basic ${btoa(`${TWILIO_ACCOUNT_SID}:${TWILIO_AUTH_TOKEN}`)}`,
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: new URLSearchParams({
+          From: `whatsapp:${TWILIO_WHATSAPP_NUMBER}`,
+          To: `whatsapp:${formattedPhone}`,
+          Body: message,
+        }),
+      }
+    );
+    console.log("Daily check-in confirmation sent to caregiver");
+  } catch (error) {
+    console.error("Error sending daily confirmation to caregiver:", error);
+  }
 }
 
 serve(async (req) => {
@@ -163,11 +194,9 @@ serve(async (req) => {
   }
 
   try {
-    // Read raw payload
     const rawPayload = await req.text();
     const payload = JSON.parse(rawPayload);
     
-    // Log payload for debugging (without PII)
     console.log("Bolna webhook received:", { 
       hasPayload: !!payload,
       status: payload.status,
@@ -178,35 +207,23 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Extract call data from Bolna webhook - handle multiple payload structures
     const { 
-      call_id,
-      execution_id,
-      status,
-      transcript,
-      duration,
-      hangup_reason,
-      call_analysis,
-      context_details,
-      telephony_data,
+      call_id, execution_id, status, transcript, duration,
+      hangup_reason, call_analysis, context_details, telephony_data,
       conversation_duration,
     } = payload;
 
     const user_data = payload.user_data;
     const actualExecutionId = execution_id || call_id || payload.id;
 
-    // Check if this is an end-of-call event - handle multiple formats
     const normalizedStatus = String(status || '').toLowerCase().replace(/_/g, '-');
     const isCallEnded = ['completed', 'ended', 'failed', 'no-answer', 'busy', 'canceled', 'cancelled'].includes(normalizedStatus);
     
     if (!isCallEnded) {
       console.log(`Call status update: ${status} for call ${actualExecutionId}`);
-      return new Response(JSON.stringify({ success: true, status }), {
-        headers: responseHeaders,
-      });
+      return new Response(JSON.stringify({ success: true, status }), { headers: responseHeaders });
     }
 
-    // Extract elder ID from multiple possible payload locations
     const elderId = 
       context_details?.recipient_data?.elder_id ||
       context_details?.user_data?.elder_id ||
@@ -217,35 +234,25 @@ serve(async (req) => {
     
     console.log("Extracted elder_id:", elderId, "execution_id:", actualExecutionId);
 
-    // SECURITY: Validate webhook request using request correlation
+    // SECURITY: Validate webhook request
     const validation = await validateWebhookRequest(supabase, actualExecutionId, elderId);
     
     if (!validation.valid) {
       console.error("SECURITY: Webhook request validation failed:", validation.error);
       return new Response(JSON.stringify({ 
-        success: false, 
-        error: "Unauthorized - no matching call record found"
-      }), { 
-        status: 403, 
-        headers: responseHeaders 
-      });
+        success: false, error: "Unauthorized - no matching call record found"
+      }), { status: 403, headers: responseHeaders });
     }
 
-    // Use the validated call attempt
     let callAttempt = validation.callAttempt;
     
-    // Update execution_id on call_attempt if it was a fallback match
     if (callAttempt && actualExecutionId && callAttempt.execution_id !== actualExecutionId) {
       await supabase
         .from("call_attempts")
         .update({ execution_id: actualExecutionId })
         .eq("id", callAttempt.id);
-      console.log("Updated execution_id on call_attempt");
     }
 
-    // callAttempt is now validated and assigned above via validateWebhookRequest
-
-    // Determine if call was answered
     const callDuration = conversation_duration || duration || 0;
     const transcriptLength = transcript?.length || 0;
     const wasAnswered = (
@@ -255,7 +262,6 @@ serve(async (req) => {
       transcriptLength > 50
     );
 
-    // Handle multiple formats for no-answer detection
     const normalizedHangup = String(hangup_reason || '').toLowerCase().replace(/_/g, '-');
     const wasNoAnswer = (
       normalizedStatus === 'no-answer' || 
@@ -269,26 +275,16 @@ serve(async (req) => {
       (callDuration < 15 && transcriptLength < 20)
     );
 
-    // SILENCE DETECTION: Flag calls that were answered but AI went silent
-    // Ratio: expect at least 5 chars per second of call for a healthy conversation
-    const expectedMinTranscript = callDuration * 3; // Lower threshold: 3 chars/sec
-    const wasSilentCall = wasAnswered && 
-                          callDuration > 30 && 
-                          transcriptLength < expectedMinTranscript && 
-                          transcriptLength < 100;
+    const expectedMinTranscript = callDuration * 3;
+    const wasSilentCall = wasAnswered && callDuration > 30 && transcriptLength < expectedMinTranscript && transcriptLength < 100;
     
     if (wasSilentCall) {
-      console.warn("SILENT CALL DETECTED:", { 
-        callDuration, 
-        transcriptLength, 
-        expectedMin: expectedMinTranscript,
-        executionId: actualExecutionId 
-      });
+      console.warn("SILENT CALL DETECTED:", { callDuration, transcriptLength, expectedMin: expectedMinTranscript, executionId: actualExecutionId });
     }
 
     console.log("Call analysis:", { wasAnswered, wasNoAnswer, wasSilentCall, status, callDuration, transcriptLength, hasAttempt: !!callAttempt });
 
-    // Handle callback retry logic if we have a call attempt record
+    // Handle retry logic for unanswered calls
     if (callAttempt && !wasAnswered && wasNoAnswer) {
       const retryCount = callAttempt.retry_count || 0;
       const maxRetries = callAttempt.max_retries || 2;
@@ -296,11 +292,9 @@ serve(async (req) => {
       console.log("Call not answered - handling retry logic:", { retryCount, maxRetries });
 
       if (retryCount < maxRetries) {
-        // Schedule retry: 10 min after first attempt, 2 hours after second
         const nextRetryMinutes = retryCount === 0 ? 10 : 120;
         const nextRetryAt = new Date(Date.now() + nextRetryMinutes * 60 * 1000);
 
-        // Build failure reason for diagnostics
         const failureReason = normalizedHangup || normalizedStatus || 'unknown';
 
         await supabase
@@ -316,20 +310,16 @@ serve(async (req) => {
 
         console.log(`Retry scheduled for ${nextRetryMinutes} minutes from now`);
 
-        // After first failed attempt, notify both elder and caregiver via WhatsApp
         if (retryCount === 0 && elderId) {
           await sendMissedCallNotifications(supabase, elderId);
         }
 
-        // Skip creating check-in for unanswered calls
         return new Response(JSON.stringify({ 
-          success: true, 
-          message: "Call not answered, retry scheduled",
+          success: true, message: "Call not answered, retry scheduled",
           nextRetryAt: nextRetryAt.toISOString()
         }), { headers: responseHeaders });
 
       } else {
-        // Max retries reached
         const failureReason = normalizedHangup || normalizedStatus || 'max_retries_exhausted';
         await supabase
           .from("call_attempts")
@@ -342,20 +332,18 @@ serve(async (req) => {
           })
           .eq("id", callAttempt.id);
 
-        // Send final failure alert
         if (elderId) {
           await sendFinalFailureAlert(supabase, elderId, supabaseUrl, supabaseKey);
         }
 
         console.log("Max retries reached, final alert sent");
         return new Response(JSON.stringify({ 
-          success: true, 
-          message: "Max retries reached, alert sent"
+          success: true, message: "Max retries reached, alert sent"
         }), { headers: responseHeaders });
       }
     }
 
-    // Mark call attempt as answered if we have one
+    // Mark call attempt as answered
     if (callAttempt && wasAnswered) {
       await supabase
         .from("call_attempts")
@@ -370,18 +358,14 @@ serve(async (req) => {
     if (!elderId) {
       console.error("No elder ID found in payload. Available keys:", Object.keys(payload));
       return new Response(JSON.stringify({ 
-        success: false, 
-        message: "No elder ID found in webhook payload",
+        success: false, message: "No elder ID found in webhook payload",
       }), { headers: responseHeaders });
     }
 
-    // Extract recording URL
     const recordingUrl = telephony_data?.recording_url || payload.recording_url || null;
-
-    // Store raw transcript for fallback display
     const rawTranscript = transcript || '';
 
-    // Use AI to analyze the conversation
+    // AI transcript analysis
     const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
     let analysis = {
       sentiment: "neutral",
@@ -398,7 +382,6 @@ serve(async (req) => {
       try {
         console.log("Analyzing transcript with AI...");
         
-        // Fetch elder's monitoring config
         const { data: elderData } = await supabase
           .from("elders")
           .select("monitoring_config")
@@ -503,20 +486,17 @@ Respond ONLY in valid JSON format:
       }
     }
 
-    // NEW: Check for prolonged symptom alert
     const prolongedSymptomAlert = (analysis as any).prolongedSymptomAlert || false;
     if (prolongedSymptomAlert && !analysis.alertTriggered) {
       analysis.alertTriggered = true;
       analysis.alertReason = "Symptom persisting for 5+ days - doctor consultation recommended";
     }
 
-    // Save resolved symptoms - with improved normalization
+    // Save resolved symptoms
     const resolvedSymptoms = (analysis as any).resolvedSymptoms || [];
     if (resolvedSymptoms.length > 0) {
       for (const symptom of resolvedSymptoms) {
-        // Normalize symptom for consistent storage
         const normalizedSymptom = symptom.toLowerCase().trim();
-        
         const { data: existing } = await supabase
           .from("resolved_symptoms")
           .select("id")
@@ -527,7 +507,7 @@ Respond ONLY in valid JSON format:
         if (!existing || existing.length === 0) {
           await supabase.from("resolved_symptoms").insert({
             elder_id: elderId,
-            symptom: normalizedSymptom, // Store normalized
+            symptom: normalizedSymptom,
             reported_at: new Date().toISOString(),
             resolved_at: new Date().toISOString(),
             resolution_note: `Confirmed resolved during voice check-in`,
@@ -537,8 +517,7 @@ Respond ONLY in valid JSON format:
       }
     }
 
-    // CRITICAL: Filter symptomsReported to exclude already-resolved symptoms
-    // This prevents re-adding symptoms that were just marked resolved
+    // Filter out resolved symptoms from new reports
     const { data: allResolvedSymptoms } = await supabase
       .from("resolved_symptoms")
       .select("symptom")
@@ -548,23 +527,18 @@ Respond ONLY in valid JSON format:
       (allResolvedSymptoms || []).map(r => r.symptom.toLowerCase().trim())
     );
     
-    // Filter out resolved symptoms from symptomsReported
     const filteredSymptoms = (analysis.symptomsReported || []).filter((s: string) => {
       const normalized = s.toLowerCase().trim();
-      // Check if this symptom matches any resolved symptom
       const isResolved = Array.from(resolvedSymptomSet).some(resolved => 
         normalized.includes(resolved) || resolved.includes(normalized)
       );
-      if (isResolved) {
-        console.log(`Filtering out resolved symptom from report: ${s}`);
-      }
+      if (isResolved) console.log(`Filtering out resolved symptom from report: ${s}`);
       return !isResolved;
     });
     
-    // Update analysis with filtered symptoms
     analysis.symptomsReported = filteredSymptoms;
 
-    // Save check-in with raw transcript and monitoring responses
+    // Save check-in
     const { data: checkIn, error: checkInError } = await supabase
       .from("check_ins")
       .insert({
@@ -576,8 +550,8 @@ Respond ONLY in valid JSON format:
         medicines_taken: analysis.medicinesTaken,
         symptoms_reported: analysis.symptomsReported,
         conversation_summary: transcript?.substring(0, 500) || hangup_reason || `Call ${status}`,
-        raw_transcript: rawTranscript, // Store full raw transcript
-        monitoring_responses: analysis.monitoringResponses || {}, // Store monitoring responses
+        raw_transcript: rawTranscript,
+        monitoring_responses: analysis.monitoringResponses || {},
         alert_triggered: analysis.alertTriggered,
         alert_reason: analysis.alertReason,
         recording_url: recordingUrl,
@@ -588,8 +562,7 @@ Respond ONLY in valid JSON format:
     if (checkInError) {
       console.error("Error saving check-in:", checkInError);
       return new Response(JSON.stringify({ success: false, error: checkInError.message }), {
-        status: 500,
-        headers: responseHeaders,
+        status: 500, headers: responseHeaders,
       });
     }
 
@@ -621,7 +594,6 @@ Respond ONLY in valid JSON format:
         alert_type: isEmergency ? "emergency" : isProlongedSymptom ? "prolonged_symptom" : "health",
       });
 
-      // Notify caregiver for serious alerts
       if (severity === "high" || severity === "critical") {
         await fetch(`${supabaseUrl}/functions/v1/notify-caregiver`, {
           method: "POST",
@@ -641,7 +613,7 @@ Respond ONLY in valid JSON format:
       }
     }
 
-    // Parse and save conversation logs using improved parser
+    // Parse and save conversation logs
     if (rawTranscript) {
       const parsedLogs = parseTranscript(rawTranscript);
       console.log(`Parsed ${parsedLogs.length} conversation turns from transcript`);
@@ -657,13 +629,30 @@ Respond ONLY in valid JSON format:
       }
     }
 
+    // ============ DAILY CAREGIVER CONFIRMATION ============
+    // Send a brief WhatsApp summary to caregiver after every successful check-in
+    if (wasAnswered && !wasSilentCall) {
+      const { data: elderInfo } = await supabase
+        .from("elders")
+        .select("full_name, preferred_language")
+        .eq("id", elderId)
+        .single();
+      
+      if (elderInfo) {
+        await sendCaregiverDailyConfirmation(
+          supabase,
+          elderId,
+          analysis,
+          elderInfo.full_name,
+          elderInfo.preferred_language === 'hindi'
+        );
+      }
+    }
+    // ============ END DAILY CAREGIVER CONFIRMATION ============
+
     return new Response(
       JSON.stringify({ 
-        success: true, 
-        checkInId: checkIn.id, 
-        analysis,
-        recordingUrl,
-        callDuration 
+        success: true, checkInId: checkIn.id, analysis, recordingUrl, callDuration 
       }),
       { headers: responseHeaders }
     );
@@ -672,15 +661,13 @@ Respond ONLY in valid JSON format:
     console.error("Webhook error:", error);
     const message = error instanceof Error ? error.message : "Unknown error";
     return new Response(JSON.stringify({ error: message }), {
-      status: 500,
-      headers: responseHeaders,
+      status: 500, headers: responseHeaders,
     });
   }
 });
 
 // Send WhatsApp notifications when elder doesn't answer
 async function sendMissedCallNotifications(supabase: any, elderId: string) {
-  // Get elder and notification settings
   const { data: elder } = await supabase
     .from("elders")
     .select("full_name, preferred_language, whatsapp_number, phone_number")
@@ -698,13 +685,11 @@ async function sendMissedCallNotifications(supabase: any, elderId: string) {
   const TWILIO_ACCOUNT_SID = Deno.env.get("TWILIO_ACCOUNT_SID");
   const TWILIO_AUTH_TOKEN = Deno.env.get("TWILIO_AUTH_TOKEN");
   const TWILIO_WHATSAPP_NUMBER = Deno.env.get("TWILIO_WHATSAPP_NUMBER");
-
   if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN || !TWILIO_WHATSAPP_NUMBER) return;
 
   const isHindi = elder.preferred_language === 'hindi';
   const firstName = elder.full_name?.split(' ')[0] || 'जी';
 
-  // Send to elder
   const elderPhone = elder.whatsapp_number || elder.phone_number;
   if (elderPhone) {
     const elderMessage = isHindi
@@ -735,7 +720,6 @@ async function sendMissedCallNotifications(supabase: any, elderId: string) {
     }
   }
 
-  // Send to caregiver
   if (settings?.caregiver_phone) {
     const caregiverName = settings.caregiver_name?.split(' ')[0] || '';
     const caregiverMessage = isHindi
@@ -769,9 +753,7 @@ async function sendMissedCallNotifications(supabase: any, elderId: string) {
   }
 }
 
-// Send final failure alert when all retries exhausted
 async function sendFinalFailureAlert(supabase: any, elderId: string, supabaseUrl: string, supabaseKey: string) {
-  // Get elder info
   const { data: elder } = await supabase
     .from("elders")
     .select("full_name")
@@ -780,7 +762,6 @@ async function sendFinalFailureAlert(supabase: any, elderId: string, supabaseUrl
 
   const elderName = elder?.full_name || 'Elder';
 
-  // Create high-priority alert
   await supabase.from("alerts").insert({
     elder_id: elderId,
     title: "Missed Check-in - Unable to Reach",
@@ -789,7 +770,6 @@ async function sendFinalFailureAlert(supabase: any, elderId: string, supabaseUrl
     alert_type: "missed_checkin",
   });
 
-  // Notify caregiver urgently
   await fetch(`${supabaseUrl}/functions/v1/notify-caregiver`, {
     method: "POST",
     headers: {
