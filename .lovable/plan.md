@@ -1,118 +1,100 @@
 
-# Make B2C the Absolute Best It Can Be
+# Add Pilot Proof Metrics to Admin Center
 
-## Real Problems Found from Actual Call Transcripts
+## Why This Matters
+The competition feedback is clear: generic stats like "62 check-ins" prove nothing. Investors and judges want to see weekly pickup rate trends, escalation accuracy, medication verification rates, and whether families actually engaged -- the metrics that prove the product works over time.
 
-After reviewing real call data, the actual transcripts reveal critical issues that the previous fix didn't fully solve:
+## What Gets Added
 
-### Problem 1: AI Still Asks Generic "दवाई ली?" Despite Having Medicine Data
-Real transcript from today (Sunita, who has Thyroxin for thyroid):
-> "आज दवाई ली?" (generic)
+### 1. New "Pilot Metrics" Tab in Admin Center
+A dedicated tab (alongside Analytics, B2B, Blog) that shows the hard evidence a pilot needs to present.
 
-Should be:
-> "Thyroxin ली आज?" or "Thyroid की दवाई ली?"
+### 2. Weekly Pickup Rate Trend Chart
+- Shows pickup rate (calls answered / calls attempted) by week
+- Data already exists in `call_attempts` table (status = 'answered' vs total)
+- Line chart showing whether rates held steady, improved, or degraded over time
+- Current data: Week 1: 37.5%, Week 2: 63.9%, Week 3: 5.4%, Week 4: 65.4%
 
-The medicines are now PASSED to Bolna, but the `user_data` format sends them as a comma-separated string. The AI agent on Bolna's side needs the data in a more actionable format, and the `monitoringConfig` field from the scheduler isn't being used properly by `bolna-voice-call`.
+### 3. Escalation Accuracy Panel
+- Total escalations triggered: 17 alerts
+- Resolved (acted upon by caregiver): 13 (76.5%)
+- Still pending: 4
+- By severity breakdown (High: 1, Medium: 16)
+- "False positive" proxy: alerts resolved within 1 hour (likely non-issues) vs alerts that took action
+- Real emergencies caught: high-severity alerts that were resolved
 
-**Fix:** The `bolna-voice-call` function receives `monitoringConfig` from the scheduler but ignores it -- it reads `monitoring_config` directly from the elder record instead. This is actually fine. The REAL issue is that `monitoring_topics` and `custom_questions` are passed as empty strings when they should contain the topic labels. Need to map topic IDs (like "meals", "sleep_quality") to human-readable labels.
+### 4. Medication Adherence Verification Card
+- Total completed check-ins where medication status was asked: 60
+- Successfully verified (yes/no answer captured): 59 (98.3%)
+- Took medicines: 42 (71.2%)
+- Missed medicines: 17 (28.8%)
+- Unknown/not captured: 1 (1.7%)
 
-### Problem 2: Monitoring Topics Never Asked, monitoring_responses Always Empty
-Every single check-in has `monitoring_responses: {}` despite elders having topics configured. The AI is told the topics exist but never asks about them in conversation. The Bolna agent prompt needs clearer instructions to weave these into conversation.
+### 5. Family Engagement Metrics
+- Notification settings configured: 7 families (100% of active elders have caregiver notifications ON)
+- Alert notifications enabled: 7/7
+- Weekly summary enabled: 7/7
+- Missed check-in notifications: 7/7
+- This proves families opted in and found value
 
-**Fix:** Transform topic IDs into clear, natural-language instructions for the AI. Instead of sending `monitoring_topics: "meals, sleep_quality, blood_pressure"`, send `monitoring_topics: "Ask about meals today, Ask about sleep quality last night, Ask about blood pressure reading"`.
+### 6. Elder-Level Pilot Summary Table
+- Per-elder breakdown: name, total calls attempted, answered, pickup rate, avg wellbeing, medicines taken rate, alerts triggered
+- Sortable by any column
+- Shows which elders are engaged vs which need attention
 
-### Problem 3: simulate-checkin Still Runs on Every Scheduled Call
-Lines 321-334 of `run-scheduled-checkins` call `simulate-checkin` for EVERY elder on every scheduled run. This creates fake check-in data alongside real data, polluting the dashboard.
-
-**Fix:** Remove the simulate-checkin call entirely. Real calls are working now.
-
-### Problem 4: Rajiv Kumar Has No failure_reason Despite Failing Daily
-All `call_attempts` for Rajiv show `failure_reason: null` even though he's been failing for 5+ consecutive days. The webhook update we made hasn't captured diagnostic data yet because the failures happen before the webhook fires (Bolna never connects).
-
-**Fix:** When `bolna-voice-call` gets an error response from the Bolna API, immediately write the failure reason to `call_attempts`. Also when the webhook receives a call with `status=failed`, ensure `failure_reason` is populated.
-
-### Problem 5: No WhatsApp Fallback When Voice Fails
-When voice calls fail for an elder (like Rajiv Kumar), the system should automatically send a WhatsApp check-in as a fallback. Currently it only does this if the elder's `check_in_method` is "both" AND the voice call initiation succeeds but the call isn't answered. If Bolna API itself errors out, no WhatsApp is sent.
-
-**Fix:** Add WhatsApp fallback in the scheduler when voice call initiation fails.
-
-### Problem 6: Caregiver Daily Summary Push Missing
-Caregivers only get notified on alerts and weekly summaries. There's no daily "check-in completed" confirmation. For a production product, caregivers need to know their elder's check-in happened and what was said.
-
-**Fix:** Send a brief WhatsApp message to the caregiver after every successful check-in with the key findings (wellbeing score, medicine status, any symptoms).
-
----
-
-## Plan
-
-### Change 1: Fix Monitoring Topic Labels and AI Instructions
-**File:** `supabase/functions/bolna-voice-call/index.ts`
-
-Map topic IDs to natural language instructions:
-- "meals" becomes "खाना कैसा खाया?" / "How were your meals?"
-- "sleep_quality" becomes "नींद कैसी आई?" / "How did you sleep?"
-- "blood_pressure" becomes "BP चेक किया?" / "Did you check your BP?"
-- "blood_sugar" becomes "Sugar चेक किया?" / "Blood sugar level?"
-- "water_intake" becomes "पानी पिया?" / "Drinking enough water?"
-- "mood" becomes "मन कैसा है?" / "How's your mood?"
-
-This ensures the Bolna agent gets clear, actionable questions instead of raw topic IDs.
-
-### Change 2: Remove simulate-checkin from Production Scheduler
-**File:** `supabase/functions/run-scheduled-checkins/index.ts`
-
-Remove the entire block (lines 321-334) that calls `simulate-checkin`. Real calls are working and this creates fake data that confuses the dashboard.
-
-### Change 3: Add WhatsApp Fallback When Voice Call Initiation Fails  
-**File:** `supabase/functions/run-scheduled-checkins/index.ts`
-
-When the voice call to Bolna API fails (HTTP error or `voiceResult.success === false`), automatically trigger a WhatsApp check-in if the elder has a WhatsApp number configured. This ensures the elder still gets checked on even when the voice platform has issues.
-
-### Change 4: Capture Failure Reason at Call Initiation
-**File:** `supabase/functions/bolna-voice-call/index.ts`
-
-When Bolna API returns an error, update the `call_attempts` record with the failure reason immediately, rather than waiting for a webhook that may never come.
-
-### Change 5: Daily Check-in Confirmation to Caregiver
-**File:** `supabase/functions/bolna-webhook/index.ts`
-
-After a successful call is analyzed and the check-in is saved, send a brief WhatsApp summary to the caregiver:
-- "Sunita ji ki check-in ho gayi. Score: 7/10. Davaai li. Koi taklif nahi."
-- Only sent for successful calls, not failed ones (failed calls already have their own notification)
-
-### Change 6: Fix Medicine Display in user_data
-**File:** `supabase/functions/bolna-voice-call/index.ts`
-
-Instead of just sending medicine purpose/name as a flat string, format medicines more clearly for the AI:
-- Current: `medicines: "Thyroid control, Sugar"`
-- New: `medicines: "Thyroxin (Thyroid), Sugar medicine (Sugar)"`
-
-This gives the AI both the name and purpose to reference naturally.
+### 7. Wellbeing Score Trend (Weekly Average)
+- Weekly average wellbeing score trend to show if the system maintains or improves elder wellbeing over time
 
 ---
 
 ## Technical Details
 
-### Files Modified
+### Backend: Update `admin-analytics` Edge Function
+**File:** `supabase/functions/admin-analytics/index.ts`
+
+Add new queries to compute:
+- Weekly pickup rates from `call_attempts` (group by week, status = 'answered' / total)
+- Per-elder stats: join `elders` with `check_ins` and `call_attempts` for individual breakdowns
+- Medication verification rate from `check_ins` (medicines_taken IS NOT NULL / total completed)
+- Alert resolution timing: compare `created_at` to when `resolved = true` was set (use `updated_at` if available on alerts table or fallback to current data)
+- Family engagement: count notification_settings records with flags enabled
+- Weekly wellbeing averages from `check_ins`
+
+New response fields added to the analytics object:
+```
+pilotMetrics: {
+  weeklyPickupRates: [{ week, totalAttempts, answered, pickupRate }],
+  medicationVerification: { total, verified, tookMeds, missedMeds, unknown, verificationRate, adherenceRate },
+  escalationAccuracy: { total, resolved, pending, resolvedQuickly, highSeverity, resolutionRate },
+  familyEngagement: { totalFamilies, alertsEnabled, weeklySummaryEnabled, missedCheckinEnabled, engagementRate },
+  elderBreakdown: [{ name, callsAttempted, callsAnswered, pickupRate, avgWellbeing, medsTakenRate, alertsTriggered }],
+  weeklyWellbeing: [{ week, avgScore, count }]
+}
+```
+
+### Frontend: New Component + Tab
+
+**New file:** `src/components/admin/PilotMetrics.tsx`
+- Receives the `pilotMetrics` data from the analytics response
+- Weekly Pickup Rate: Line chart (Recharts) with percentage on Y-axis, weeks on X-axis
+- Escalation Accuracy: Card with donut chart (resolved vs pending) + severity breakdown
+- Medication Verification: Card with progress bars showing verification rate and adherence rate
+- Family Engagement: Simple stat cards showing opt-in rates
+- Elder Breakdown: Sortable table with per-elder metrics
+- Weekly Wellbeing Trend: Line chart showing average scores over time
+
+**Modified file:** `src/pages/AdminCenter.tsx`
+- Add "Pilot Metrics" tab with a beaker/target icon
+- Import and render `PilotMetrics` component
+- Update `AnalyticsData` interface to include `pilotMetrics`
+
+### Files Changed
 
 | File | Change |
 |------|--------|
-| `supabase/functions/bolna-voice-call/index.ts` | Map monitoring topics to natural language, fix medicine format, capture failure reason |
-| `supabase/functions/run-scheduled-checkins/index.ts` | Remove simulate-checkin, add WhatsApp fallback on voice failure |
-| `supabase/functions/bolna-webhook/index.ts` | Send daily check-in confirmation WhatsApp to caregiver |
+| `supabase/functions/admin-analytics/index.ts` | Add pilot metric queries (call_attempts weekly, per-elder stats, medication rates, family engagement) |
+| `src/components/admin/PilotMetrics.tsx` | New component with 6 metric sections |
+| `src/pages/AdminCenter.tsx` | Add Pilot Metrics tab, update interface |
 
 ### No Database Changes Required
-
-All changes are in edge function logic. No schema modifications needed.
-
-### Expected Impact
-
-| Area | Before | After |
-|------|--------|-------|
-| Medicine questions | Generic "दवाई ली?" | "Thyroxin ली?" / "Sugar medicine ली?" |
-| Monitoring topics | Never asked (monitoring_responses always empty) | "नींद कैसी आई?" / "खाना खाया?" woven into conversation |
-| Fake data pollution | simulate-checkin creates fake check-ins daily | Only real call data in database |
-| Voice failure handling | Elder gets no check-in if Bolna API errors | Automatic WhatsApp fallback |
-| Caregiver awareness | Only notified on alerts/weekly | Daily "check-in done" WhatsApp confirmation |
-| Failure diagnostics | failure_reason always null | Specific error captured (e.g., "Bolna API 500", "busy", "no-answer") |
-| Rajiv Kumar situation | Fails silently for 5+ days | WhatsApp fallback + caregiver notified daily + failure reason logged |
+All data already exists in `call_attempts`, `check_ins`, `alerts`, `notification_settings`, and `elders` tables.
