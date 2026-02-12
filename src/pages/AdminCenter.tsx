@@ -11,7 +11,8 @@ import UsersList from "@/components/admin/UsersList";
 import LanguageDistribution from "@/components/admin/LanguageDistribution";
 import BlogManager from "@/components/admin/BlogManager";
 import B2BAdminDashboard from "@/components/admin/B2BAdminDashboard";
-import { Loader2, RefreshCw, Shield, BarChart3, FileText, Building2 } from "lucide-react";
+import PilotMetrics from "@/components/admin/PilotMetrics";
+import { Loader2, RefreshCw, Shield, BarChart3, FileText, Building2, FlaskConical } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
@@ -81,6 +82,26 @@ interface AnalyticsData {
     createdAt: string;
     elderCount: number;
   }>;
+  pilotMetrics?: {
+    weeklyPickupRates: Array<{ week: string; totalAttempts: number; answered: number; pickupRate: number }>;
+    medicationVerification: {
+      total: number; verified: number; tookMeds: number; missedMeds: number; unknown: number;
+      verificationRate: number; adherenceRate: number;
+    };
+    escalationAccuracy: {
+      total: number; resolved: number; pending: number; highSeverity: number;
+      highSeverityResolved: number; mediumSeverity: number; lowSeverity: number; resolutionRate: number;
+    };
+    familyEngagement: {
+      totalFamilies: number; alertsEnabled: number; weeklySummaryEnabled: number;
+      missedCheckinEnabled: number; smsEnabled: number; emailEnabled: number; engagementRate: number;
+    };
+    elderBreakdown: Array<{
+      name: string; callsAttempted: number; callsAnswered: number; pickupRate: number;
+      avgWellbeing: number; totalCheckIns: number; medsTakenRate: number; alertsTriggered: number; alertsResolved: number;
+    }>;
+    weeklyWellbeing: Array<{ week: string; avgScore: number; count: number }>;
+  };
 }
 
 const AdminCenter = () => {
@@ -88,7 +109,7 @@ const AdminCenter = () => {
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [activeTab, setActiveTab] = useState("analytics");
+  const [activeTab, setActiveTab] = useState("pilot");
 
   const fetchAnalytics = async () => {
     try {
@@ -166,20 +187,22 @@ const AdminCenter = () => {
               <p className="text-muted-foreground">Platform management and insights</p>
             </div>
           </div>
-          {activeTab === "analytics" && (
-            <Button 
-              variant="outline" 
-              onClick={handleRefresh}
-              disabled={refreshing}
-            >
-              <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-              Refresh
-            </Button>
-          )}
+          <Button 
+            variant="outline" 
+            onClick={handleRefresh}
+            disabled={refreshing}
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="mb-6">
+            <TabsTrigger value="pilot" className="gap-2">
+              <FlaskConical className="h-4 w-4" />
+              Pilot Metrics
+            </TabsTrigger>
             <TabsTrigger value="analytics" className="gap-2">
               <BarChart3 className="h-4 w-4" />
               Analytics
@@ -194,50 +217,38 @@ const AdminCenter = () => {
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="analytics">
-            {!analytics ? (
-              <div className="text-center py-12">
-                <Shield className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                <h2 className="text-xl font-semibold">Unable to load analytics</h2>
-                <p className="text-muted-foreground mt-2">Please try again later</p>
-                <Button onClick={handleRefresh} className="mt-4">
-                  Retry
-                </Button>
-              </div>
+          <TabsContent value="pilot">
+            {analytics.pilotMetrics ? (
+              <PilotMetrics data={analytics.pilotMetrics} />
             ) : (
-              <div className="space-y-6">
-                {/* Overview Cards */}
-                <AdminOverviewCards 
-                  overview={analytics.overview}
-                  checkInStats={analytics.checkInStats}
-                  alertStats={analytics.alertStats}
-                />
-
-                {/* Check-in Analytics */}
-                <CheckInAnalytics 
-                  checkInStats={analytics.checkInStats}
-                  dailyCheckIns={analytics.trends.dailyCheckIns}
-                />
-
-                {/* Sentiment and Language */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                  <SentimentChart sentimentBreakdown={analytics.sentimentBreakdown} />
-                  <LanguageDistribution languageDistribution={analytics.languageDistribution} />
-                </div>
-
-                {/* Alerts */}
-                <AlertsOverview 
-                  alertStats={analytics.alertStats}
-                  unresolvedAlerts={analytics.unresolvedAlerts}
-                />
-
-                {/* Recent Activity and Users */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                  <RecentActivity recentCheckIns={analytics.recentCheckIns} />
-                  <UsersList users={analytics.users} />
-                </div>
-              </div>
+              <div className="text-center py-12 text-muted-foreground">No pilot metrics data available yet</div>
             )}
+          </TabsContent>
+
+          <TabsContent value="analytics">
+            <div className="space-y-6">
+              <AdminOverviewCards 
+                overview={analytics.overview}
+                checkInStats={analytics.checkInStats}
+                alertStats={analytics.alertStats}
+              />
+              <CheckInAnalytics 
+                checkInStats={analytics.checkInStats}
+                dailyCheckIns={analytics.trends.dailyCheckIns}
+              />
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <SentimentChart sentimentBreakdown={analytics.sentimentBreakdown} />
+                <LanguageDistribution languageDistribution={analytics.languageDistribution} />
+              </div>
+              <AlertsOverview 
+                alertStats={analytics.alertStats}
+                unresolvedAlerts={analytics.unresolvedAlerts}
+              />
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <RecentActivity recentCheckIns={analytics.recentCheckIns} />
+                <UsersList users={analytics.users} />
+              </div>
+            </div>
           </TabsContent>
 
           <TabsContent value="b2b">
