@@ -6,6 +6,15 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+function getWeekLabel(dateStr: string): string {
+  const date = new Date(dateStr);
+  const startOfYear = new Date(date.getFullYear(), 0, 1);
+  const weekNum = Math.ceil(((date.getTime() - startOfYear.getTime()) / 86400000 + startOfYear.getDay() + 1) / 7);
+  const monday = new Date(date);
+  monday.setDate(date.getDate() - ((date.getDay() + 6) % 7));
+  return `${monday.toISOString().split('T')[0]}`;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -14,11 +23,8 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    
-    // Create admin client with service role
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
     
-    // Get authorization header to verify user is admin
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
@@ -27,7 +33,6 @@ serve(async (req) => {
       });
     }
 
-    // Create user client to verify the token
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
     const supabaseUser = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader } }
@@ -35,14 +40,12 @@ serve(async (req) => {
     
     const { data: { user }, error: userError } = await supabaseUser.auth.getUser();
     if (userError || !user) {
-      console.error('Auth error:', userError);
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
 
-    // Check if user is admin using service role
     const { data: roleData, error: roleError } = await supabaseAdmin
       .from('user_roles')
       .select('role')
@@ -51,7 +54,6 @@ serve(async (req) => {
       .single();
 
     if (roleError || !roleData) {
-      console.error('Role check error:', roleError);
       return new Response(JSON.stringify({ error: 'Forbidden - Admin access required' }), {
         status: 403,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -60,7 +62,7 @@ serve(async (req) => {
 
     console.log('Admin verified:', user.id);
 
-    // Fetch all analytics data using service role
+    // Fetch all data including call_attempts and notification_settings
     const [
       profilesResult,
       eldersResult,
@@ -71,7 +73,9 @@ serve(async (req) => {
       orgMembersResult,
       dischargedPatientsResult,
       b2bAlertsResult,
-      b2bLeadsResult
+      b2bLeadsResult,
+      callAttemptsResult,
+      notificationSettingsResult
     ] = await Promise.all([
       supabaseAdmin.from('profiles').select('*'),
       supabaseAdmin.from('elders').select('*'),
@@ -82,7 +86,9 @@ serve(async (req) => {
       supabaseAdmin.from('organization_members').select('*'),
       supabaseAdmin.from('discharged_patients').select('id, organization_id'),
       supabaseAdmin.from('b2b_alerts').select('id, organization_id, resolved'),
-      supabaseAdmin.from('b2b_leads').select('*').order('created_at', { ascending: false }).limit(20)
+      supabaseAdmin.from('b2b_leads').select('*').order('created_at', { ascending: false }).limit(20),
+      supabaseAdmin.from('call_attempts').select('*'),
+      supabaseAdmin.from('notification_settings').select('*')
     ]);
 
     const profiles = profilesResult.data || [];
@@ -95,8 +101,10 @@ serve(async (req) => {
     const dischargedPatients = dischargedPatientsResult.data || [];
     const b2bAlerts = b2bAlertsResult.data || [];
     const b2bLeads = b2bLeadsResult.data || [];
+    const callAttempts = callAttemptsResult.data || [];
+    const notificationSettings = notificationSettingsResult.data || [];
 
-    // Calculate overview stats
+    // ===== EXISTING ANALYTICS =====
     const totalUsers = profiles.length;
     const totalElders = elders.length;
     const activeTrials = profiles.filter(p => p.subscription_status === 'trial').length;
@@ -104,7 +112,6 @@ serve(async (req) => {
     const proUsers = profiles.filter(p => p.subscription_tier === 'pro').length;
     const basicUsers = profiles.filter(p => p.subscription_tier === 'basic').length;
 
-    // Check-in stats
     const totalCheckIns = checkIns.length;
     const completedCheckIns = checkIns.filter(c => c.status === 'completed').length;
     const voiceCheckIns = checkIns.filter(c => c.check_in_type === 'voice').length;
@@ -117,33 +124,28 @@ serve(async (req) => {
       ? wellbeingScores.reduce((a, b) => a + b, 0) / wellbeingScores.length 
       : 0;
 
-    // Alert stats
     const totalAlerts = alerts.length;
     const resolvedAlerts = alerts.filter(a => a.resolved).length;
     const unresolvedAlerts = alerts.filter(a => !a.resolved);
 
-    // Sentiment breakdown
     const sentimentCounts = {
       positive: checkIns.filter(c => c.sentiment === 'positive').length,
       neutral: checkIns.filter(c => c.sentiment === 'neutral').length,
       negative: checkIns.filter(c => c.sentiment === 'negative').length,
     };
 
-    // Language distribution
     const languageCounts: Record<string, number> = {};
     elders.forEach(e => {
       const lang = e.preferred_language || 'english';
       languageCounts[lang] = (languageCounts[lang] || 0) + 1;
     });
 
-    // Check-in method distribution
     const methodCounts: Record<string, number> = {};
     elders.forEach(e => {
       const method = e.check_in_method || 'voice';
       methodCounts[method] = (methodCounts[method] || 0) + 1;
     });
 
-    // Daily check-ins for last 30 days
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     
@@ -155,7 +157,6 @@ serve(async (req) => {
       }
     });
 
-    // Daily signups for last 30 days
     const dailySignups: Record<string, number> = {};
     profiles.forEach(p => {
       const date = new Date(p.created_at).toISOString().split('T')[0];
@@ -164,7 +165,6 @@ serve(async (req) => {
       }
     });
 
-    // Recent check-ins
     const recentCheckIns = checkIns
       .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
       .slice(0, 10)
@@ -181,13 +181,138 @@ serve(async (req) => {
         };
       });
 
-    // Alert severity breakdown
     const alertsBySeverity = {
       high: alerts.filter(a => a.severity === 'high').length,
       medium: alerts.filter(a => a.severity === 'medium').length,
       low: alerts.filter(a => a.severity === 'low').length,
     };
 
+    // ===== PILOT METRICS =====
+
+    // 1. Weekly Pickup Rates from call_attempts
+    const weeklyPickupMap: Record<string, { total: number; answered: number }> = {};
+    callAttempts.forEach(ca => {
+      const week = getWeekLabel(ca.initiated_at || ca.created_at);
+      if (!weeklyPickupMap[week]) weeklyPickupMap[week] = { total: 0, answered: 0 };
+      weeklyPickupMap[week].total++;
+      if (ca.status === 'completed' || ca.status === 'answered') {
+        weeklyPickupMap[week].answered++;
+      }
+    });
+    const weeklyPickupRates = Object.entries(weeklyPickupMap)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([week, data]) => ({
+        week,
+        totalAttempts: data.total,
+        answered: data.answered,
+        pickupRate: data.total > 0 ? Math.round((data.answered / data.total) * 1000) / 10 : 0
+      }));
+
+    // 2. Medication Verification from completed check-ins
+    const completedCheckins = checkIns.filter(c => c.status === 'completed');
+    const medsVerified = completedCheckins.filter(c => c.medicines_taken !== null);
+    const medsTaken = completedCheckins.filter(c => c.medicines_taken === true);
+    const medsMissed = completedCheckins.filter(c => c.medicines_taken === false);
+    const medsUnknown = completedCheckins.filter(c => c.medicines_taken === null);
+
+    const medicationVerification = {
+      total: completedCheckins.length,
+      verified: medsVerified.length,
+      tookMeds: medsTaken.length,
+      missedMeds: medsMissed.length,
+      unknown: medsUnknown.length,
+      verificationRate: completedCheckins.length > 0 ? Math.round((medsVerified.length / completedCheckins.length) * 1000) / 10 : 0,
+      adherenceRate: medsVerified.length > 0 ? Math.round((medsTaken.length / medsVerified.length) * 1000) / 10 : 0
+    };
+
+    // 3. Escalation Accuracy
+    const resolvedAlertsList = alerts.filter(a => a.resolved);
+    const highSeverityAlerts = alerts.filter(a => a.severity === 'high');
+    const highSeverityResolved = highSeverityAlerts.filter(a => a.resolved);
+    // "Resolved quickly" proxy: alerts where created_at and the fact they're resolved suggests quick action
+    // Since alerts table doesn't have updated_at, we count resolved high-severity as real emergencies caught
+    const escalationAccuracy = {
+      total: totalAlerts,
+      resolved: resolvedAlerts,
+      pending: totalAlerts - resolvedAlerts,
+      highSeverity: highSeverityAlerts.length,
+      highSeverityResolved: highSeverityResolved.length,
+      mediumSeverity: alertsBySeverity.medium,
+      lowSeverity: alertsBySeverity.low,
+      resolutionRate: totalAlerts > 0 ? Math.round((resolvedAlerts / totalAlerts) * 1000) / 10 : 0
+    };
+
+    // 4. Family Engagement from notification_settings
+    const totalFamilies = notificationSettings.length;
+    const alertsEnabled = notificationSettings.filter(ns => ns.notify_on_alert).length;
+    const weeklySummaryEnabled = notificationSettings.filter(ns => ns.weekly_summary_enabled).length;
+    const missedCheckinEnabled = notificationSettings.filter(ns => ns.notify_on_missed_checkin).length;
+    const smsEnabled = notificationSettings.filter(ns => ns.notify_sms).length;
+    const emailEnabled = notificationSettings.filter(ns => ns.notify_email).length;
+
+    const familyEngagement = {
+      totalFamilies,
+      alertsEnabled,
+      weeklySummaryEnabled,
+      missedCheckinEnabled,
+      smsEnabled,
+      emailEnabled,
+      engagementRate: totalFamilies > 0 ? Math.round((alertsEnabled / totalFamilies) * 1000) / 10 : 0
+    };
+
+    // 5. Elder-level Breakdown
+    const elderBreakdown = elders.map(elder => {
+      const elderCalls = callAttempts.filter(ca => ca.elder_id === elder.id);
+      const elderAnswered = elderCalls.filter(ca => ca.status === 'completed' || ca.status === 'answered');
+      const elderCheckIns = checkIns.filter(c => c.elder_id === elder.id && c.status === 'completed');
+      const elderWellbeing = elderCheckIns
+        .filter(c => c.well_being_score !== null)
+        .map(c => c.well_being_score as number);
+      const elderMedsTaken = elderCheckIns.filter(c => c.medicines_taken === true).length;
+      const elderMedsVerified = elderCheckIns.filter(c => c.medicines_taken !== null).length;
+      const elderAlerts = alerts.filter(a => a.elder_id === elder.id);
+
+      return {
+        name: elder.full_name,
+        callsAttempted: elderCalls.length,
+        callsAnswered: elderAnswered.length,
+        pickupRate: elderCalls.length > 0 ? Math.round((elderAnswered.length / elderCalls.length) * 1000) / 10 : 0,
+        avgWellbeing: elderWellbeing.length > 0 ? Math.round((elderWellbeing.reduce((a, b) => a + b, 0) / elderWellbeing.length) * 10) / 10 : 0,
+        totalCheckIns: elderCheckIns.length,
+        medsTakenRate: elderMedsVerified > 0 ? Math.round((elderMedsTaken / elderMedsVerified) * 1000) / 10 : 0,
+        alertsTriggered: elderAlerts.length,
+        alertsResolved: elderAlerts.filter(a => a.resolved).length
+      };
+    });
+
+    // 6. Weekly Wellbeing Trend
+    const weeklyWellbeingMap: Record<string, { total: number; sum: number }> = {};
+    checkIns.forEach(c => {
+      if (c.well_being_score !== null && c.status === 'completed') {
+        const week = getWeekLabel(c.created_at);
+        if (!weeklyWellbeingMap[week]) weeklyWellbeingMap[week] = { total: 0, sum: 0 };
+        weeklyWellbeingMap[week].total++;
+        weeklyWellbeingMap[week].sum += c.well_being_score as number;
+      }
+    });
+    const weeklyWellbeing = Object.entries(weeklyWellbeingMap)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([week, data]) => ({
+        week,
+        avgScore: Math.round((data.sum / data.total) * 10) / 10,
+        count: data.total
+      }));
+
+    const pilotMetrics = {
+      weeklyPickupRates,
+      medicationVerification,
+      escalationAccuracy,
+      familyEngagement,
+      elderBreakdown,
+      weeklyWellbeing
+    };
+
+    // ===== BUILD RESPONSE =====
     const analytics = {
       overview: {
         totalUsers,
@@ -244,7 +369,6 @@ serve(async (req) => {
         createdAt: p.created_at,
         elderCount: elders.filter(e => e.family_member_id === p.id).length,
       })),
-      // B2B data for admin dashboard
       b2b: {
         organizations: organizations.map(org => ({
           id: org.id,
@@ -298,7 +422,8 @@ serve(async (req) => {
             converted: b2bLeads.filter(l => l.status === 'converted').length,
           }
         }
-      }
+      },
+      pilotMetrics
     };
 
     console.log('Analytics computed successfully');
