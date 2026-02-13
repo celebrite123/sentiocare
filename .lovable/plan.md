@@ -1,100 +1,144 @@
 
-# Add Pilot Proof Metrics to Admin Center
 
-## Why This Matters
-The competition feedback is clear: generic stats like "62 check-ins" prove nothing. Investors and judges want to see weekly pickup rate trends, escalation accuracy, medication verification rates, and whether families actually engaged -- the metrics that prove the product works over time.
+# Fix the Broken Voice Agent -- Every Problem, Root Cause, and Fix
 
-## What Gets Added
+## What the Transcripts Actually Show
 
-### 1. New "Pilot Metrics" Tab in Admin Center
-A dedicated tab (alongside Analytics, B2B, Blog) that shows the hard evidence a pilot needs to present.
+### Problem 1: Emergency Call Has ZERO Emergency Behavior
+The call log from today shows `is_emergency: true` but the user_data sent to Bolna was:
+```
+greeting: "Aditya जी, 3 दिन हो गए। सब ठीक है ना?"
+```
+That's a casual greeting for an EMERGENCY call. The Bolna prompt expects `{emergency_intro}`, `{has_caregiver}`, `{caregiver_name}`, `{caregiver_relation}` -- but **none of these are in the user_data object** (lines 403-414 of `bolna-voice-call`). They simply don't exist. So the Bolna agent sees empty strings for all emergency variables and acts like a normal call.
 
-### 2. Weekly Pickup Rate Trend Chart
-- Shows pickup rate (calls answered / calls attempted) by week
-- Data already exists in `call_attempts` table (status = 'answered' vs total)
-- Line chart showing whether rates held steady, improved, or degraded over time
-- Current data: Week 1: 37.5%, Week 2: 63.9%, Week 3: 5.4%, Week 4: 65.4%
+**Root cause:** The user_data object is missing 4 critical fields. The `buildGreeting` function also has no emergency path.
 
-### 3. Escalation Accuracy Panel
-- Total escalations triggered: 17 alerts
-- Resolved (acted upon by caregiver): 13 (76.5%)
-- Still pending: 4
-- By severity breakdown (High: 1, Medium: 16)
-- "False positive" proxy: alerts resolved within 1 hour (likely non-issues) vs alerts that took action
-- Real emergencies caught: high-severity alerts that were resolved
+### Problem 2: AI Says "काफी दिन हो गए" for BRAND NEW Symptoms
+Today's transcript:
+> User: "आज मैं सुबह जिम कर रहा था थोड़ा पीठ में दर्द है" (back pain from gym TODAY)
+> AI: "काफी दिन हो गए, डॉक्टर को दिखाना चाहिए"
 
-### 4. Medication Adherence Verification Card
-- Total completed check-ins where medication status was asked: 60
-- Successfully verified (yes/no answer captured): 59 (98.3%)
-- Took medicines: 42 (71.2%)
-- Missed medicines: 17 (28.8%)
-- Unknown/not captured: 1 (1.7%)
+Feb 2 transcript:
+> User: "there is a bit of a headache"
+> AI: "सरदर्द 3 दिन से ज़्यादा हो गया है"
+> User: "Where has it been more than three days, like?"
 
-### 5. Family Engagement Metrics
-- Notification settings configured: 7 families (100% of active elders have caregiver notifications ON)
-- Alert notifications enabled: 7/7
-- Weekly summary enabled: 7/7
-- Missed check-in notifications: 7/7
-- This proves families opted in and found value
+The AI cannot distinguish between a FOLLOW-UP symptom (from `{active_symptoms}`) and a NEWLY REPORTED symptom. The Bolna prompt lumps them together, so the "3+ days" rule gets applied to everything.
 
-### 6. Elder-Level Pilot Summary Table
-- Per-elder breakdown: name, total calls attempted, answered, pickup rate, avg wellbeing, medicines taken rate, alerts triggered
-- Sortable by any column
-- Shows which elders are engaged vs which need attention
+**Root cause:** The Bolna dashboard prompt doesn't clearly separate "follow-up on existing symptoms" from "new symptom reported during this call."
 
-### 7. Wellbeing Score Trend (Weekly Average)
-- Weekly average wellbeing score trend to show if the system maintains or improves elder wellbeing over time
+### Problem 3: Greetings Are Robotic and Repetitive
+Every call: "Aditya जी, कल बात हुई थी। आज कैसी तबीयत है?" or "3 दिन हो गए। सब ठीक है ना?" -- repeated verbatim across days.
+
+**Root cause:** `buildGreeting` has only 4 templates with no variety.
+
+### Problem 4: Goodbye Is Always the Same Line
+Every single call ends with: "ठीक है, अपना ख्याल रखिए।" -- word for word, every time.
+
+**Root cause:** The Bolna prompt gives exactly ONE goodbye line.
+
+### Problem 5: Medicine Question Is Still Generic
+Despite having medicine data, the AI says "आज दवाई ली?" instead of "Thyroxin ली?" because the Bolna dashboard prompt hardcodes: `"आज दवाई ली?" / "Did you take your medicine today?"` as the instruction. Even though we send specific medicine names, the prompt tells the AI to use the generic phrasing.
+
+**Root cause:** The Bolna prompt instruction overrides the medicine data we pass.
+
+---
+
+## The Fix (Two Parts)
+
+### Part 1: Fix the Edge Function (bolna-voice-call/index.ts)
+
+**A. Add missing emergency + caregiver fields to user_data:**
+Currently (lines 403-414), these fields are completely absent:
+- `emergency_intro`
+- `has_caregiver`
+- `caregiver_name`
+- `caregiver_relation`
+
+Add a query for `notification_settings` (caregiver info) and build `emergency_intro` message. Include all 4 fields in user_data.
+
+**B. Fix buildGreeting for emergency calls:**
+Add an `isEmergency` parameter. When true, the greeting should be:
+- Hindi: "Aditya जी, ये Sentio की तरफ़ से emergency call है। मुझे बताइए, क्या हुआ?"
+- English: "Aditya, this is an emergency call from Sentio. Please tell me what happened."
+
+**C. Add greeting variety:**
+Instead of 4 rigid templates, use 8-10 warm variations that rotate based on a hash of the date, so the elder doesn't hear the exact same greeting every day.
+
+### Part 2: Rewrite the Bolna Agent Prompt (SENTIO_VOICE_AGENT_GUARDRAILS.md)
+
+This is the prompt configured on the Bolna Dashboard. The document needs to be updated so it can be copy-pasted to Bolna. Key changes:
+
+**A. Fix medicine question to use actual names:**
+Change from:
+> "आज दवाई ली?" / "Did you take your medicine today?"
+
+To:
+> "Use the medicine names from {medicines}. Say 'आज [medicine name] ली?' If multiple, ask about the first one by name."
+
+**B. Separate NEW symptoms from FOLLOW-UP symptoms clearly:**
+Add explicit rules:
+- FOLLOW-UP: If the symptom is in `{active_symptoms}` AND `{symptom_days}` shows 3+ days, THEN say "काफी दिन हो गए"
+- NEW symptom (reported for the first time during THIS call, NOT in `{active_symptoms}`): Ask "1 se 10 mein kitna?", acknowledge empathetically, note it. Do NOT say "काफी दिन hue" for new symptoms.
+
+**C. Fix emergency flow:**
+The emergency section needs to be at the TOP of the call structure, not buried in rules. When `{is_emergency}` is "true":
+- Use the `{greeting}` (which will now be emergency-specific)
+- Ask "Kya hua? Bataiye" immediately
+- If caregiver exists, mention them by name
+- Skip medicine check and monitoring topics -- focus on the emergency
+
+**D. Add goodbye variety:**
+Instead of one line, provide 5-6 warm closings:
+- "ठीक है, अपना ध्यान रखिए। कल फिर बात करेंगे।"
+- "बहुत अच्छा, ख्याल रखिए अपना।"
+- "चलिए, आराम कीजिए। ध्यान रखिए।"
+- Tell the AI to rotate and not repeat the same one.
+
+**E. Add monitoring topic instructions:**
+Currently the prompt doesn't mention monitoring_topics at all. Add:
+> "If {monitoring_topics} is not empty, weave ONE topic question naturally into the conversation after the medicine check."
 
 ---
 
 ## Technical Details
 
-### Backend: Update `admin-analytics` Edge Function
-**File:** `supabase/functions/admin-analytics/index.ts`
-
-Add new queries to compute:
-- Weekly pickup rates from `call_attempts` (group by week, status = 'answered' / total)
-- Per-elder stats: join `elders` with `check_ins` and `call_attempts` for individual breakdowns
-- Medication verification rate from `check_ins` (medicines_taken IS NOT NULL / total completed)
-- Alert resolution timing: compare `created_at` to when `resolved = true` was set (use `updated_at` if available on alerts table or fallback to current data)
-- Family engagement: count notification_settings records with flags enabled
-- Weekly wellbeing averages from `check_ins`
-
-New response fields added to the analytics object:
-```
-pilotMetrics: {
-  weeklyPickupRates: [{ week, totalAttempts, answered, pickupRate }],
-  medicationVerification: { total, verified, tookMeds, missedMeds, unknown, verificationRate, adherenceRate },
-  escalationAccuracy: { total, resolved, pending, resolvedQuickly, highSeverity, resolutionRate },
-  familyEngagement: { totalFamilies, alertsEnabled, weeklySummaryEnabled, missedCheckinEnabled, engagementRate },
-  elderBreakdown: [{ name, callsAttempted, callsAnswered, pickupRate, avgWellbeing, medsTakenRate, alertsTriggered }],
-  weeklyWellbeing: [{ week, avgScore, count }]
-}
-```
-
-### Frontend: New Component + Tab
-
-**New file:** `src/components/admin/PilotMetrics.tsx`
-- Receives the `pilotMetrics` data from the analytics response
-- Weekly Pickup Rate: Line chart (Recharts) with percentage on Y-axis, weeks on X-axis
-- Escalation Accuracy: Card with donut chart (resolved vs pending) + severity breakdown
-- Medication Verification: Card with progress bars showing verification rate and adherence rate
-- Family Engagement: Simple stat cards showing opt-in rates
-- Elder Breakdown: Sortable table with per-elder metrics
-- Weekly Wellbeing Trend: Line chart showing average scores over time
-
-**Modified file:** `src/pages/AdminCenter.tsx`
-- Add "Pilot Metrics" tab with a beaker/target icon
-- Import and render `PilotMetrics` component
-- Update `AnalyticsData` interface to include `pilotMetrics`
-
-### Files Changed
+### Files Modified
 
 | File | Change |
 |------|--------|
-| `supabase/functions/admin-analytics/index.ts` | Add pilot metric queries (call_attempts weekly, per-elder stats, medication rates, family engagement) |
-| `src/components/admin/PilotMetrics.tsx` | New component with 6 metric sections |
-| `src/pages/AdminCenter.tsx` | Add Pilot Metrics tab, update interface |
+| `supabase/functions/bolna-voice-call/index.ts` | Add caregiver query, emergency fields to user_data, fix buildGreeting for emergencies, add greeting variety |
+| `SENTIO_VOICE_AGENT_GUARDRAILS.md` | Rewrite prompt: fix medicine naming, separate new vs follow-up symptoms, fix emergency flow, add goodbye variety, add monitoring topics |
 
-### No Database Changes Required
-All data already exists in `call_attempts`, `check_ins`, `alerts`, `notification_settings`, and `elders` tables.
+### Specific Code Changes in bolna-voice-call/index.ts
+
+1. **Add caregiver fetch** (after line 306): Query `notification_settings` for `caregiver_name`, `caregiver_phone`, `caregiver_relation`
+
+2. **Fix buildGreeting** (lines 27-49): Add `isEmergency` parameter with dedicated emergency greetings
+
+3. **Add greeting variety** (lines 27-49): Add 3-4 more greeting templates per bucket (same day, 1 day, 2+ days, 7+ days) and pick based on `Date.now()` hash
+
+4. **Extend user_data** (lines 403-414): Add these fields:
+```
+emergency_intro: (built from emergency context + caregiver info)
+has_caregiver: "true"/"false"
+caregiver_name: "Priya" or ""
+caregiver_relation: "daughter" or ""
+```
+
+### Expected Behavior After Fix
+
+| Scenario | Before | After |
+|----------|--------|-------|
+| Emergency call greeting | "3 दिन हो गए। सब ठीक है ना?" | "ये emergency call है। मुझे बताइए, क्या हुआ?" |
+| Emergency caregiver mention | Never mentioned | "Priya (daughter) को भी call कर सकते हैं" |
+| New symptom (back pain from gym) | "काफी दिन हो गए, डॉक्टर को दिखाना चाहिए" | "1 से 10 में कितना? ठीक है, ध्यान रखिए।" |
+| Old symptom persisting 5 days | Same as new symptom | "काफी दिन हो गए, डॉक्टर को दिखाना चाहिए" (correctly applied) |
+| Medicine question | "आज दवाई ली?" | "Thyroxin ली आज?" |
+| Goodbye | Always "ठीक है, अपना ख्याल रखिए।" | Rotates between 5-6 warm variations |
+| Daily greeting | Same line every time | Varies naturally day to day |
+| Monitoring topics | Never asked | "नींद कैसी आई?" woven into conversation |
+
+### Important Note
+The `SENTIO_VOICE_AGENT_GUARDRAILS.md` file is a reference document. After updating it, you will need to manually copy-paste the updated prompt into the Bolna Dashboard. The edge function changes will deploy automatically.
+
