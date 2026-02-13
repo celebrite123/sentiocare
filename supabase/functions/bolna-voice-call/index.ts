@@ -24,26 +24,78 @@ const TOPIC_LABELS: Record<string, { hi: string; en: string }> = {
   pain:           { hi: "कहीं दर्द तो नहीं है?", en: "Are you having any pain?" },
 };
 
-function buildGreeting(firstName: string, isHindi: boolean, daysSinceLastCall: number | null) {
+function buildGreeting(firstName: string, isHindi: boolean, daysSinceLastCall: number | null, isEmergency: boolean = false) {
+  // Emergency greetings - direct and urgent
+  if (isEmergency) {
+    if (isHindi) {
+      return `${firstName} जी, ये Sentio की तरफ़ से emergency call है। मुझे बताइए, क्या हुआ?`;
+    } else {
+      return `${firstName}, this is an emergency call from Sentio. Please tell me what happened.`;
+    }
+  }
+
+  // Use date-based hash for variety so the same elder hears different greetings each day
+  const dayHash = new Date().getDate() % 3; // 0, 1, or 2
+
   if (isHindi) {
     if (daysSinceLastCall === null || daysSinceLastCall > 7) {
-      return `नमस्ते ${firstName} जी! कैसी तबीयत है आज?`;
+      const options = [
+        `नमस्ते ${firstName} जी! कैसी तबीयत है आज?`,
+        `${firstName} जी, नमस्ते! आज कैसा महसूस कर रहे हैं?`,
+        `नमस्ते ${firstName} जी! सब ठीक है? बताइए कैसे हैं।`,
+      ];
+      return options[dayHash];
     } else if (daysSinceLastCall === 0) {
-      return `${firstName} जी, आज फिर बात हो रही है। कैसे हैं?`;
+      const options = [
+        `${firstName} जी, आज फिर बात हो रही है। कैसे हैं?`,
+        `${firstName} जी, आज दोबारा बात कर रहे हैं। तबीयत कैसी है?`,
+        `${firstName} जी, चलिए बताइए आज कैसा लग रहा है?`,
+      ];
+      return options[dayHash];
     } else if (daysSinceLastCall === 1) {
-      return `${firstName} जी, कल बात हुई थी। आज कैसी तबीयत है?`;
+      const options = [
+        `${firstName} जी, कल बात हुई थी। आज कैसी तबीयत है?`,
+        `${firstName} जी, नमस्ते! कल के बाद आज कैसा है?`,
+        `${firstName} जी, कैसे हैं आज? कल से कोई बदलाव?`,
+      ];
+      return options[dayHash];
     } else {
-      return `${firstName} जी, ${daysSinceLastCall} दिन हो गए। सब ठीक है ना?`;
+      const options = [
+        `${firstName} जी, ${daysSinceLastCall} दिन हो गए बात किए। कैसी तबीयत है?`,
+        `नमस्ते ${firstName} जी! कुछ दिन हो गए, बताइए कैसे हैं?`,
+        `${firstName} जी, कई दिन हो गए। सब ठीक है ना? बताइए।`,
+      ];
+      return options[dayHash];
     }
   } else {
     if (daysSinceLastCall === null || daysSinceLastCall > 7) {
-      return `Hello ${firstName}! How are you feeling today?`;
+      const options = [
+        `Hello ${firstName}! How are you feeling today?`,
+        `Hi ${firstName}! Good to connect with you. How are you doing?`,
+        `Hello ${firstName}! How have you been? Tell me how you're feeling.`,
+      ];
+      return options[dayHash];
     } else if (daysSinceLastCall === 0) {
-      return `${firstName}, good to talk again today. How are you?`;
+      const options = [
+        `${firstName}, good to talk again today. How are you?`,
+        `Hi ${firstName}, checking in again. How's everything going?`,
+        `${firstName}, let's catch up. How are you feeling now?`,
+      ];
+      return options[dayHash];
     } else if (daysSinceLastCall === 1) {
-      return `${firstName}, we spoke yesterday. How are you feeling?`;
+      const options = [
+        `${firstName}, we spoke yesterday. How are you feeling today?`,
+        `Hi ${firstName}! How's today going compared to yesterday?`,
+        `${firstName}, good to hear from you again. How are things today?`,
+      ];
+      return options[dayHash];
     } else {
-      return `${firstName}, it's been ${daysSinceLastCall} days. How have you been?`;
+      const options = [
+        `${firstName}, it's been ${daysSinceLastCall} days. How have you been?`,
+        `Hi ${firstName}! It's been a few days. How are you doing?`,
+        `Hello ${firstName}! Been a little while. Tell me how you're feeling.`,
+      ];
+      return options[dayHash];
     }
   }
 }
@@ -379,9 +431,34 @@ serve(async (req) => {
       }
     }
 
+    // Fetch caregiver info from notification_settings
+    const { data: notifSettings } = await supabase
+      .from("notification_settings")
+      .select("caregiver_name, caregiver_phone, caregiver_relation")
+      .eq("elder_id", elderId)
+      .single();
+
+    const hasCaregiverFlag = !!(notifSettings?.caregiver_name && notifSettings?.caregiver_phone);
+    const caregiverName = notifSettings?.caregiver_name || '';
+    const caregiverRelation = notifSettings?.caregiver_relation || '';
+
+    // Build emergency intro
+    let emergencyIntro = '';
+    if (isEmergency) {
+      if (isHindi) {
+        emergencyIntro = hasCaregiverFlag
+          ? `ये एक emergency call है। अगर ज़रूरत हो तो ${caregiverName} (${caregiverRelation}) को भी call कर सकते हैं।`
+          : `ये एक emergency call है। तुरंत doctor से संपर्क करें।`;
+      } else {
+        emergencyIntro = hasCaregiverFlag
+          ? `This is an emergency call. You can also reach ${caregiverName} (${caregiverRelation}) if needed.`
+          : `This is an emergency call. Please contact a doctor immediately.`;
+      }
+    }
+
     // Build user_data with NATURAL-LANGUAGE monitoring questions
     const firstName = getFirstName(elderName);
-    const greeting = buildGreeting(firstName, isHindi, daysSinceLastCall);
+    const greeting = buildGreeting(firstName, isHindi, daysSinceLastCall, isEmergency);
     
     // Format medicines with name + purpose (e.g. "Thyroxin (Thyroid)")
     const medicineList = formatMedicines(medicines, isHindi);
@@ -408,8 +485,12 @@ serve(async (req) => {
       active_symptoms: activeSymptomsList,
       symptom_days: symptomDaysFormatted,
       last_summary: lastSummary.substring(0, 150),
-      monitoring_topics: monitoringQuestions, // Now natural-language questions
-      is_emergency: isEmergency,
+      monitoring_topics: monitoringQuestions,
+      is_emergency: isEmergency ? "true" : "false",
+      emergency_intro: emergencyIntro,
+      has_caregiver: hasCaregiverFlag ? "true" : "false",
+      caregiver_name: caregiverName,
+      caregiver_relation: caregiverRelation,
       preferred_language: preferredLanguage,
     };
 
