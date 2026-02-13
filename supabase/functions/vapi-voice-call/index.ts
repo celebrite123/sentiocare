@@ -6,7 +6,125 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const CALL_COOLDOWN_HOURS = 4;
+const MAX_EMERGENCY_CALLS_PER_MONTH = 5;
+
+function getFirstName(fullName: string) {
+  return fullName.split(' ')[0];
+}
+
+// Map monitoring topic IDs to natural-language questions
+const TOPIC_LABELS: Record<string, { hi: string; en: string }> = {
+  meals:          { hi: "खाना कैसा खाया आज?", en: "How were your meals today?" },
+  sleep_quality:  { hi: "रात को नींद कैसी आई?", en: "How did you sleep last night?" },
+  blood_pressure: { hi: "BP चेक किया? कितना आया?", en: "Did you check your BP? What was the reading?" },
+  blood_sugar:    { hi: "Sugar चेक किया? कितना आया?", en: "Did you check your blood sugar? What was it?" },
+  water_intake:   { hi: "पानी कितना पिया आज?", en: "How much water did you drink today?" },
+  mood:           { hi: "मन कैसा है आज? खुश हैं?", en: "How's your mood today? Feeling happy?" },
+  exercise:       { hi: "थोड़ा चले-फिरे आज?", en: "Did you get some exercise or walk today?" },
+  pain:           { hi: "कहीं दर्द तो नहीं है?", en: "Are you having any pain?" },
+};
+
+function buildGreeting(firstName: string, isHindi: boolean, daysSinceLastCall: number | null, isEmergency: boolean = false) {
+  if (isEmergency) {
+    if (isHindi) {
+      return `${firstName} जी, ये Sentio की तरफ़ से emergency call है। मुझे बताइए, क्या हुआ?`;
+    } else {
+      return `${firstName}, this is an emergency call from Sentio. Please tell me what happened.`;
+    }
+  }
+
+  const dayHash = new Date().getDate() % 3;
+
+  if (isHindi) {
+    if (daysSinceLastCall === null || daysSinceLastCall > 7) {
+      const options = [
+        `नमस्ते ${firstName} जी! कैसी तबीयत है आज?`,
+        `${firstName} जी, नमस्ते! आज कैसा महसूस कर रहे हैं?`,
+        `नमस्ते ${firstName} जी! सब ठीक है? बताइए कैसे हैं।`,
+      ];
+      return options[dayHash];
+    } else if (daysSinceLastCall === 0) {
+      const options = [
+        `${firstName} जी, आज फिर बात हो रही है। कैसे हैं?`,
+        `${firstName} जी, आज दोबारा बात कर रहे हैं। तबीयत कैसी है?`,
+        `${firstName} जी, चलिए बताइए आज कैसा लग रहा है?`,
+      ];
+      return options[dayHash];
+    } else if (daysSinceLastCall === 1) {
+      const options = [
+        `${firstName} जी, कल बात हुई थी। आज कैसी तबीयत है?`,
+        `${firstName} जी, नमस्ते! कल के बाद आज कैसा है?`,
+        `${firstName} जी, कैसे हैं आज? कल से कोई बदलाव?`,
+      ];
+      return options[dayHash];
+    } else {
+      const options = [
+        `${firstName} जी, ${daysSinceLastCall} दिन हो गए बात किए। कैसी तबीयत है?`,
+        `नमस्ते ${firstName} जी! कुछ दिन हो गए, बताइए कैसे हैं?`,
+        `${firstName} जी, कई दिन हो गए। सब ठीक है ना? बताइए।`,
+      ];
+      return options[dayHash];
+    }
+  } else {
+    if (daysSinceLastCall === null || daysSinceLastCall > 7) {
+      const options = [
+        `Hello ${firstName}! How are you feeling today?`,
+        `Hi ${firstName}! Good to connect with you. How are you doing?`,
+        `Hello ${firstName}! How have you been? Tell me how you're feeling.`,
+      ];
+      return options[dayHash];
+    } else if (daysSinceLastCall === 0) {
+      const options = [
+        `${firstName}, good to talk again today. How are you?`,
+        `Hi ${firstName}, checking in again. How's everything going?`,
+        `${firstName}, let's catch up. How are you feeling now?`,
+      ];
+      return options[dayHash];
+    } else if (daysSinceLastCall === 1) {
+      const options = [
+        `${firstName}, we spoke yesterday. How are you feeling today?`,
+        `Hi ${firstName}! How's today going compared to yesterday?`,
+        `${firstName}, good to hear from you again. How are things today?`,
+      ];
+      return options[dayHash];
+    } else {
+      const options = [
+        `${firstName}, it's been ${daysSinceLastCall} days. How have you been?`,
+        `Hi ${firstName}! It's been a few days. How are you doing?`,
+        `Hello ${firstName}! Been a little while. Tell me how you're feeling.`,
+      ];
+      return options[dayHash];
+    }
+  }
+}
+
+function formatMedicines(medicines: any[], isHindi: boolean): string {
+  if (!medicines || medicines.length === 0) {
+    return isHindi ? 'कोई दवाई नहीं' : 'No medicines';
+  }
+  return medicines.map((m: any) => {
+    const name = m.name || '';
+    const purpose = m.purpose?.trim() || '';
+    if (purpose && name) return `${name} (${purpose})`;
+    return purpose || name;
+  }).filter(Boolean).join(', ');
+}
+
+function buildMonitoringQuestions(topics: string[], customQuestions: any[], isHindi: boolean): string {
+  const questions: string[] = [];
+  for (const topic of topics) {
+    const label = TOPIC_LABELS[topic];
+    if (label) {
+      questions.push(isHindi ? label.hi : label.en);
+    } else {
+      questions.push(isHindi ? `${topic} के बारे में पूछें` : `Ask about ${topic}`);
+    }
+  }
+  for (const q of customQuestions) {
+    if (q.question) questions.push(q.question);
+  }
+  return questions.join(' | ');
+}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -27,17 +145,14 @@ serve(async (req) => {
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     
-    // Check if this is a service role call (internal from run-scheduled-checkins)
     const token = authHeader.replace('Bearer ', '');
     const isServiceRoleCall = token === supabaseServiceKey;
     
-    let userIdForChecks: string | null = null;
+    let familyMemberIdForChecks: string | null = null;
     
     if (isServiceRoleCall) {
-      // Internal call from run-scheduled-checkins - skip user auth
       console.log('Internal service call - bypassing user auth for scheduled check-in');
     } else {
-      // Dashboard call - require user JWT
       const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
         global: { headers: { Authorization: authHeader } }
       });
@@ -50,7 +165,22 @@ serve(async (req) => {
           { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-      userIdForChecks = user.id;
+      
+      const supabase = createClient(supabaseUrl, supabaseServiceKey);
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("user_id", user.id)
+        .single();
+      
+      if (profileError || !profile) {
+        return new Response(
+          JSON.stringify({ error: 'Profile not found' }),
+          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      familyMemberIdForChecks = profile.id;
     }
     // ============ END AUTHENTICATION CHECK ============
 
@@ -60,26 +190,37 @@ serve(async (req) => {
     const VAPI_ASSISTANT_ID = Deno.env.get('VAPI_ASSISTANT_ID');
     const VAPI_PHONE_NUMBER_ID = Deno.env.get('VAPI_PHONE_NUMBER_ID');
     
-    if (!VAPI_API_KEY) {
-      throw new Error('VAPI_API_KEY not configured');
-    }
-    
-    if (!VAPI_ASSISTANT_ID) {
-      throw new Error('VAPI_ASSISTANT_ID not configured');
-    }
+    if (!VAPI_API_KEY) throw new Error('VAPI_API_KEY not configured');
+    if (!VAPI_ASSISTANT_ID) throw new Error('VAPI_ASSISTANT_ID not configured');
+    if (!VAPI_PHONE_NUMBER_ID) throw new Error('VAPI_PHONE_NUMBER_ID not configured');
 
-    if (!VAPI_PHONE_NUMBER_ID) {
-      throw new Error('VAPI_PHONE_NUMBER_ID not configured');
-    }
-
-    // Use service role for database operations
+    const isHindi = preferredLanguage === 'hindi';
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    // ============ DAILY CALL LIMIT CHECK ============
+    const todayStart = new Date();
+    todayStart.setUTCHours(0, 0, 0, 0);
+    
+    const { data: todayCalls } = await supabase
+      .from("call_attempts")
+      .select("id, status")
+      .eq("elder_id", elderId)
+      .gte("created_at", todayStart.toISOString());
+    
+    const MAX_CALLS_PER_DAY = 3;
+    if (todayCalls && todayCalls.length >= MAX_CALLS_PER_DAY) {
+      console.log(`DAILY CALL LIMIT REACHED for elder ${elderId}: ${todayCalls.length} calls today`);
+      return new Response(
+        JSON.stringify({ error: "Daily call limit reached for this elder", code: "DAILY_LIMIT_REACHED", callsToday: todayCalls.length }),
+        { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    // ============ END DAILY CALL LIMIT CHECK ============
+
     // ============ AUTHORIZATION CHECK ============
-    // Verify elder exists
     const { data: elder, error: elderError } = await supabase
       .from("elders")
-      .select("family_member_id, last_manual_call_at")
+      .select("family_member_id, last_manual_call_at, monitoring_config")
       .eq("id", elderId)
       .single();
 
@@ -90,31 +231,15 @@ serve(async (req) => {
       );
     }
 
-    // For user calls, verify ownership or access
-    if (!isServiceRoleCall && userIdForChecks) {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("id")
-        .eq("user_id", userIdForChecks)
-        .single();
-
-      if (!profile) {
-        return new Response(
-          JSON.stringify({ error: 'Profile not found' }),
-          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-
-      const isOwner = profile.id === elder.family_member_id;
-      
+    if (!isServiceRoleCall && familyMemberIdForChecks) {
+      const isOwner = familyMemberIdForChecks === elder.family_member_id;
       if (!isOwner) {
         const { data: accessRecord } = await supabase
           .from("elder_access")
           .select("id")
           .eq("elder_id", elderId)
-          .eq("user_id", userIdForChecks)
+          .eq("user_id", familyMemberIdForChecks)
           .single();
-        
         if (!accessRecord) {
           return new Response(
             JSON.stringify({ error: 'Forbidden - Not authorized for this elder' }),
@@ -124,48 +249,20 @@ serve(async (req) => {
       }
     }
 
-    // Get family member's profile for subscription checks
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
-      .select("id, subscription_tier, subscription_status, trial_ends_at")
+      .select("id, subscription_tier, subscription_status, trial_ends_at, monthly_emergency_calls_used, emergency_calls_reset_at")
       .eq("id", elder.family_member_id)
       .single();
 
     if (profileError || !profile) {
       return new Response(
-        JSON.stringify({ error: 'Profile not found' }),
+        JSON.stringify({ error: 'Family member profile not found' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
     // ============ END AUTHORIZATION CHECK ============
 
-    // Check cooldown (unless emergency)
-    if (!isEmergency && elder.last_manual_call_at) {
-      const lastCallTime = new Date(elder.last_manual_call_at);
-      const now = new Date();
-      const hoursSinceCall = (now.getTime() - lastCallTime.getTime()) / (1000 * 60 * 60);
-      
-      if (hoursSinceCall < CALL_COOLDOWN_HOURS) {
-        const remainingMinutes = Math.ceil((CALL_COOLDOWN_HOURS * 60) - (hoursSinceCall * 60));
-        const hours = Math.floor(remainingMinutes / 60);
-        const mins = remainingMinutes % 60;
-        
-        console.log("Call blocked - cooldown active", { hoursSinceCall, remainingMinutes });
-        return new Response(
-          JSON.stringify({ 
-            error: `Please wait ${hours}h ${mins}m before calling again. Use Emergency Call for urgent situations.`,
-            code: "COOLDOWN_ACTIVE",
-            remainingMinutes
-          }),
-          {
-            status: 429,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          }
-        );
-      }
-    }
-
-    // Check if user can use voice
     const tier = profile?.subscription_tier || "basic";
     const status = profile?.subscription_status || "trial";
     const trialEndsAt = profile?.trial_ends_at ? new Date(profile.trial_ends_at) : null;
@@ -174,211 +271,298 @@ serve(async (req) => {
     const canUseVoice = tier === "premium" || isTrialActive;
 
     if (!canUseVoice) {
-      console.log("Voice call blocked - Basic tier without active trial");
       return new Response(
-        JSON.stringify({ 
-          error: "Voice calls require a Premium subscription. Please upgrade your plan.",
-          code: "SUBSCRIPTION_REQUIRED"
-        }),
-        {
-          status: 403,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
+        JSON.stringify({ error: "Voice calls require a Premium subscription.", code: "SUBSCRIPTION_REQUIRED" }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log('Initiating Vapi voice call:', {
-      elderId,
-      elderName,
-      phone: elderPhone,
-      language: preferredLanguage,
-      tier,
-      isTrialActive,
-      isEmergency,
-      isServiceRoleCall
-    });
+    // Check emergency call limits
+    if (isEmergency) {
+      let emergencyCallsUsed = profile?.monthly_emergency_calls_used || 0;
+      const resetAt = profile?.emergency_calls_reset_at ? new Date(profile.emergency_calls_reset_at) : null;
+      
+      if (resetAt) {
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        if (resetAt < monthStart) {
+          emergencyCallsUsed = 0;
+          await supabase
+            .from("profiles")
+            .update({ monthly_emergency_calls_used: 0, emergency_calls_reset_at: now.toISOString() })
+            .eq("id", elder.family_member_id);
+        }
+      }
 
-    // Fetch last 5 check-ins for context
-    const { data: previousCheckIns, error: checkInsError } = await supabase
+      if (emergencyCallsUsed >= MAX_EMERGENCY_CALLS_PER_MONTH) {
+        const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+        const daysUntilReset = Math.ceil((nextMonth.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+        return new Response(
+          JSON.stringify({ error: `You've used all ${MAX_EMERGENCY_CALLS_PER_MONTH} emergency calls this month. Resets in ${daysUntilReset} days.`, code: "EMERGENCY_LIMIT_REACHED" }),
+          { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      await supabase
+        .from("profiles")
+        .update({ 
+          monthly_emergency_calls_used: emergencyCallsUsed + 1,
+          emergency_calls_reset_at: profile?.emergency_calls_reset_at || now.toISOString()
+        })
+        .eq("id", elder.family_member_id);
+    }
+
+    console.log('Initiating Vapi voice call:', { elderId, isEmergency, isServiceRoleCall });
+
+    // Get last check-ins for context
+    const { data: previousCheckIns } = await supabase
       .from("check_ins")
-      .select("created_at, sentiment, well_being_score, medicines_taken, symptoms_reported, conversation_summary")
+      .select("created_at, symptoms_reported, conversation_summary, well_being_score")
       .eq("elder_id", elderId)
       .order("created_at", { ascending: false })
-      .limit(5);
+      .limit(10);
 
-    if (checkInsError) {
-      console.error("Error fetching previous check-ins:", checkInsError);
-    }
-
-    // Build context from previous check-ins
-    let previousSymptoms: string[] = [];
-    let recentConcerns = "";
-    let averageWellbeing = 0;
-    let checkInCount = 0;
-    
+    let daysSinceLastCall: number | null = null;
+    let lastSummary = '';
     if (previousCheckIns && previousCheckIns.length > 0) {
-      previousCheckIns.forEach(checkIn => {
-        if (checkIn.symptoms_reported && checkIn.symptoms_reported.length > 0) {
-          previousSymptoms = [...previousSymptoms, ...checkIn.symptoms_reported];
-        }
-        if (checkIn.well_being_score) {
-          averageWellbeing += checkIn.well_being_score;
-          checkInCount++;
-        }
-      });
-      
-      previousSymptoms = [...new Set(previousSymptoms)];
-      
-      if (checkInCount > 0) {
-        averageWellbeing = Math.round(averageWellbeing / checkInCount);
+      const lastCheckInDate = previousCheckIns[0]?.created_at;
+      if (lastCheckInDate) {
+        daysSinceLastCall = Math.floor((now.getTime() - new Date(lastCheckInDate).getTime()) / (1000 * 60 * 60 * 24));
       }
-
-      const lastCheckIn = previousCheckIns[0];
-      if (lastCheckIn.conversation_summary) {
-        recentConcerns = lastCheckIn.conversation_summary.substring(0, 200);
-      }
-      
-      console.log("Previous context loaded:", {
-        symptomsCount: previousSymptoms.length,
-        averageWellbeing,
-        hasRecentConcerns: !!recentConcerns
-      });
+      lastSummary = previousCheckIns[0]?.conversation_summary || '';
     }
 
-    // Fetch caregiver info from notification_settings
-    const { data: notificationSettings } = await supabase
+    // Get active symptoms (exclude resolved)
+    const { data: resolvedSymptomsData } = await supabase
+      .from("resolved_symptoms")
+      .select("symptom, resolved_at")
+      .eq("elder_id", elderId);
+
+    const normalizeSymptom = (s: string) => 
+      s.toLowerCase().replace(/[^a-z0-9\s]/gi, '').replace(/\s+/g, ' ').trim();
+    
+    const getSymptomKeywords = (s: string) => {
+      const normalized = normalizeSymptom(s);
+      return normalized.split(' ').filter(word => 
+        word.length > 2 && !['the', 'and', 'has', 'had', 'was', 'for', 'with'].includes(word)
+      );
+    };
+
+    const symptomsMatch = (s1: string, s2: string): boolean => {
+      const n1 = normalizeSymptom(s1);
+      const n2 = normalizeSymptom(s2);
+      if (n1 === n2 || n1.includes(n2) || n2.includes(n1)) return true;
+      const k1 = getSymptomKeywords(s1);
+      const k2 = getSymptomKeywords(s2);
+      const overlap = k1.filter(k => k2.some(kk => kk.includes(k) || k.includes(kk)));
+      return overlap.length >= Math.min(k1.length, k2.length) * 0.5 && overlap.length > 0;
+    };
+
+    const resolvedSymptomsList = resolvedSymptomsData || [];
+
+    let previousSymptoms: string[] = [];
+    previousCheckIns?.forEach(checkIn => {
+      if (checkIn.symptoms_reported && checkIn.symptoms_reported.length > 0) {
+        previousSymptoms = [...previousSymptoms, ...checkIn.symptoms_reported];
+      }
+    });
+    previousSymptoms = [...new Set(previousSymptoms)];
+
+    const activeSymptoms = previousSymptoms.filter(symptom => {
+      return !resolvedSymptomsList.some(resolved => symptomsMatch(symptom, resolved.symptom));
+    });
+
+    console.log('Symptom filtering:', { previous: previousSymptoms.length, resolved: resolvedSymptomsList.length, active: activeSymptoms.length });
+
+    // Calculate symptom duration
+    const symptomDaysMap: Record<string, number> = {};
+    for (const symptom of activeSymptoms.slice(0, 3)) {
+      const earliestWithSymptom = previousCheckIns
+        ?.filter(c => c.symptoms_reported?.some((s: string) => symptomsMatch(s, symptom)))
+        .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())[0];
+      
+      if (earliestWithSymptom) {
+        symptomDaysMap[symptom] = Math.floor(
+          (now.getTime() - new Date(earliestWithSymptom.created_at).getTime()) / (1000 * 60 * 60 * 24)
+        );
+      }
+    }
+
+    // Fetch caregiver info
+    const { data: notifSettings } = await supabase
       .from("notification_settings")
       .select("caregiver_name, caregiver_phone, caregiver_relation")
       .eq("elder_id", elderId)
       .single();
 
-    const hasCaregiver = !!(notificationSettings?.caregiver_name && notificationSettings?.caregiver_phone);
+    const hasCaregiverFlag = !!(notifSettings?.caregiver_name && notifSettings?.caregiver_phone);
+    const caregiverName = notifSettings?.caregiver_name || '';
+    const caregiverRelation = notifSettings?.caregiver_relation || '';
+
+    // Build emergency intro
+    let emergencyIntro = '';
+    if (isEmergency) {
+      if (isHindi) {
+        emergencyIntro = hasCaregiverFlag
+          ? `ये एक emergency call है। अगर ज़रूरत हो तो ${caregiverName} (${caregiverRelation}) को भी call कर सकते हैं।`
+          : `ये एक emergency call है। तुरंत doctor से संपर्क करें।`;
+      } else {
+        emergencyIntro = hasCaregiverFlag
+          ? `This is an emergency call. You can also reach ${caregiverName} (${caregiverRelation}) if needed.`
+          : `This is an emergency call. Please contact a doctor immediately.`;
+      }
+    }
 
     // Build variable values for Vapi assistant
-    const isHindi = preferredLanguage === 'hindi';
-    
-    const medicineList = medicines.map((m: any) => m.name).join(', ');
-    const medicineDetails = medicines.map((m: any) => 
-      `${m.name} - ${m.dosage} (${m.timing})`
-    ).join('; ');
-    
-    const conditionsList = (medicalConditions || []).join(', ') || 'None reported';
-    const symptomsList = previousSymptoms.length > 0 
-      ? previousSymptoms.join(', ') 
-      : 'No symptoms reported recently';
+    const firstName = getFirstName(elderName);
+    const greeting = buildGreeting(firstName, isHindi, daysSinceLastCall, isEmergency);
+    const medicineList = formatMedicines(medicines, isHindi);
+    const activeSymptomsList = activeSymptoms.length > 0 ? activeSymptoms.slice(0, 2).join(', ') : '';
+    const monitoringConfig = (elder as any).monitoring_config || { topics: [], custom_questions: [] };
+    const monitoringQuestions = buildMonitoringQuestions(
+      monitoringConfig.topics || [],
+      monitoringConfig.custom_questions || [],
+      isHindi
+    );
+    const symptomDaysFormatted = Object.entries(symptomDaysMap)
+      .map(([symptom, days]) => `${symptom}:${days}`)
+      .join(', ');
 
-    // Create greeting based on language
-    const greeting = isHindi 
-      ? `नमस्ते ${elderName} जी, मैं Sentio हूं। आज आपकी तबीयत कैसी है?`
-      : `Hello ${elderName}, this is Sentio, your health check-in assistant. How are you feeling today?`;
-
-    // Variable values to pass to Vapi assistant
     const variableValues = {
-      // Core identification
       elder_id: elderId,
-      elder_name: elderName,
-      preferred_language: preferredLanguage,
-      
-      // Greeting
+      first_name: firstName,
       greeting: greeting,
-      
-      // Medicine context
-      medicines: medicineList || 'No medicines prescribed',
-      medicine_details: medicineDetails || 'No medicine details',
+      medicines: medicineList,
+      active_symptoms: activeSymptomsList,
+      symptom_days: symptomDaysFormatted,
+      last_summary: lastSummary.substring(0, 150),
+      monitoring_topics: monitoringQuestions,
+      is_emergency: isEmergency ? "true" : "false",
+      emergency_intro: emergencyIntro,
+      has_caregiver: hasCaregiverFlag ? "true" : "false",
+      caregiver_name: caregiverName,
+      caregiver_relation: caregiverRelation,
+      preferred_language: preferredLanguage,
       medicine_count: String(medicines?.length || 0),
-      
-      // Health context
-      medical_conditions: conditionsList,
-      previous_symptoms: symptomsList,
-      recent_concerns: recentConcerns || 'None',
-      average_wellbeing: String(averageWellbeing || 'No data'),
-      
-      // Call metadata
-      is_emergency: String(isEmergency),
-      check_in_type: isEmergency ? 'emergency_voice' : 'scheduled_voice',
-      
-      // Caregiver context for emergencies
-      has_caregiver: String(hasCaregiver),
-      caregiver_name: notificationSettings?.caregiver_name || '',
-      caregiver_relation: notificationSettings?.caregiver_relation || '',
-      caregiver_phone: notificationSettings?.caregiver_phone || '',
-      
-      // Emergency intro message
-      emergency_intro: isEmergency && hasCaregiver 
-        ? `This is an emergency check-in call. If you need help, you can contact ${notificationSettings?.caregiver_name} (${notificationSettings?.caregiver_relation}).`
-        : isEmergency 
-        ? `This is an emergency check-in call. Please let us know if you need immediate help.`
-        : '',
+      medical_conditions: (medicalConditions || []).join(', ') || 'None reported',
     };
 
-    console.log('Sending variableValues to Vapi:', JSON.stringify(variableValues, null, 2));
+    console.log('Sending variableValues to Vapi:', JSON.stringify(variableValues));
 
-    // Make Vapi API call
-    const vapiResponse = await fetch('https://api.vapi.ai/call/phone', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${VAPI_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        assistantId: VAPI_ASSISTANT_ID,
-        phoneNumberId: VAPI_PHONE_NUMBER_ID,
-        customer: {
-          number: elderPhone,
+    // Create call_attempts record BEFORE the API call
+    const { data: callAttempt, error: callAttemptError } = await supabase
+      .from("call_attempts")
+      .insert({
+        elder_id: elderId,
+        call_type: isEmergency ? 'emergency' : 'scheduled',
+        status: 'initiated',
+        attempt_number: 1,
+        retry_count: 0,
+        max_retries: 2,
+      })
+      .select()
+      .single();
+
+    if (callAttemptError) {
+      console.error("Error creating call attempt record:", callAttemptError);
+    }
+
+    // Call Vapi API
+    let vapiResponse: Response;
+    try {
+      vapiResponse = await fetch('https://api.vapi.ai/call/phone', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${VAPI_API_KEY}`,
+          'Content-Type': 'application/json',
         },
-        assistantOverrides: {
-          variableValues: variableValues,
-        },
-      }),
-    });
+        body: JSON.stringify({
+          assistantId: VAPI_ASSISTANT_ID,
+          phoneNumberId: VAPI_PHONE_NUMBER_ID,
+          customer: {
+            number: elderPhone,
+          },
+          assistantOverrides: {
+            variableValues: variableValues,
+          },
+        }),
+      });
+    } catch (fetchError) {
+      const errorMsg = fetchError instanceof Error ? fetchError.message : 'Network error calling Vapi API';
+      console.error('Vapi API network error:', errorMsg);
+      
+      if (callAttempt) {
+        await supabase
+          .from("call_attempts")
+          .update({ status: 'failed', failure_reason: `Network: ${errorMsg}`, completed_at: new Date().toISOString() })
+          .eq("id", callAttempt.id);
+      }
+      
+      return new Response(
+        JSON.stringify({ success: false, error: errorMsg, callAttemptId: callAttempt?.id }),
+        { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     if (!vapiResponse.ok) {
-      const error = await vapiResponse.text();
-      console.error('Vapi API error:', error);
-      throw new Error(`Vapi API error: ${error}`);
+      const errorText = await vapiResponse.text();
+      console.error('Vapi API error:', vapiResponse.status, errorText);
+      
+      if (callAttempt) {
+        await supabase
+          .from("call_attempts")
+          .update({ 
+            status: 'failed', 
+            failure_reason: `Vapi API ${vapiResponse.status}: ${errorText.substring(0, 200)}`,
+            completed_at: new Date().toISOString()
+          })
+          .eq("id", callAttempt.id);
+      }
+      
+      return new Response(
+        JSON.stringify({ success: false, error: `Vapi API error: ${errorText}`, callAttemptId: callAttempt?.id }),
+        { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     const callData = await vapiResponse.json();
+    console.log('Vapi API response:', JSON.stringify(callData));
     
-    console.log('Voice call initiated successfully:', { 
-      callId: callData.id,
-      language: preferredLanguage,
-      medicinesCount: medicines.length,
-      previousCheckInsLoaded: previousCheckIns?.length || 0,
-      isEmergency
-    });
-
-    // Update last_manual_call_at for cooldown tracking
-    await supabase
-      .from("elders")
-      .update({ last_manual_call_at: new Date().toISOString() })
-      .eq("id", elderId);
-
+    const callId = callData.id;
+    
+    // Update call_attempts with execution_id (Vapi call ID)
+    if (callAttempt) {
+      await supabase
+        .from("call_attempts")
+        .update({ execution_id: callId })
+        .eq("id", callAttempt.id);
+      console.log("Call attempt record updated with execution_id:", callId);
+    }
+    
+    const remainingEmergencyCalls = isEmergency 
+      ? MAX_EMERGENCY_CALLS_PER_MONTH - ((profile?.monthly_emergency_calls_used || 0) + 1)
+      : MAX_EMERGENCY_CALLS_PER_MONTH - (profile?.monthly_emergency_calls_used || 0);
+    
+    console.log('Voice call initiated:', { callId, isEmergency, remainingEmergencyCalls });
+    
     return new Response(
       JSON.stringify({ 
         success: true, 
-        callId: callData.id,
-        message: isEmergency ? 'Emergency voice call initiated' : 'Voice call initiated successfully',
-        language: preferredLanguage,
-        isEmergency,
-        contextLoaded: {
-          medicines: medicines.length,
-          previousCheckIns: previousCheckIns?.length || 0,
-          previousSymptoms: previousSymptoms.length
-        }
+        execution_id: callId,
+        callAttemptId: callAttempt?.id,
+        remainingEmergencyCalls,
+        message: isEmergency ? 'Emergency call initiated' : 'Check-in call initiated'
       }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
-  } catch (error: any) {
+
+  } catch (error) {
     console.error('Error initiating voice call:', error);
     return new Response(
-      JSON.stringify({ error: error.message }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
+      JSON.stringify({ 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Failed to initiate call'
+      }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });
