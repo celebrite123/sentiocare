@@ -292,7 +292,7 @@ const Dashboard = () => {
 
     setCalling(true);
     try {
-      const { data, error } = await supabase.functions.invoke("bolna-voice-call", {
+      const { data, error } = await supabase.functions.invoke("vapi-voice-call", {
         body: {
           elderId: elder.id,
           elderName: elder.full_name,
