@@ -48,6 +48,11 @@ serve(async (req) => {
 
     const now = new Date();
 
+    // Find call attempts that need to be retried
+    // CRITICAL: Only get records where:
+    // 1. status is 'no_answer' (not 'initiated', 'retried', or anything else)
+    // 2. next_retry_at is in the past
+    // 3. retry_count < max_retries
     const { data: pendingRetries, error: fetchError } = await supabase
       .from("call_attempts")
       .select(`
@@ -57,7 +62,7 @@ serve(async (req) => {
       .eq("status", "no_answer")
       .not("next_retry_at", "is", null)
       .lte("next_retry_at", now.toISOString())
-      .lt("retry_count", 2)
+      .lt("retry_count", 2) // Only retry if we haven't hit max
       .order("next_retry_at", { ascending: true })
       .limit(10);
 
@@ -79,6 +84,7 @@ serve(async (req) => {
       }
 
       // ============ DAILY LIMIT CHECK ============
+      // CRITICAL: Check if elder already received max calls today
       const todayStart = new Date();
       todayStart.setUTCHours(0, 0, 0, 0);
       
@@ -94,17 +100,25 @@ serve(async (req) => {
         
         await supabase
           .from("call_attempts")
-          .update({ status: 'daily_limit_reached', next_retry_at: null })
+          .update({ 
+            status: 'daily_limit_reached',
+            next_retry_at: null
+          })
           .eq("id", attempt.id);
         
-        results.push({ elderId: elder.id, elderName: elder.full_name, status: 'daily_limit_reached', callsToday: todayCalls.length });
+        results.push({
+          elderId: elder.id,
+          elderName: elder.full_name,
+          status: 'daily_limit_reached',
+          callsToday: todayCalls.length
+        });
         continue;
       }
       // ============ END DAILY LIMIT CHECK ============
 
-      // DEBOUNCE CHECK
+      // DEBOUNCE CHECK: Skip if this elder has a recent call in the last 15 minutes
       const fifteenMinsAgo = new Date(Date.now() - 15 * 60 * 1000);
-      const { data: recentCalls } = await supabase
+      const { data: recentCalls, error: recentError } = await supabase
         .from("call_attempts")
         .select("id, status, created_at")
         .eq("elder_id", elder.id)
@@ -113,25 +127,42 @@ serve(async (req) => {
         .limit(1);
 
       if (recentCalls && recentCalls.length > 0) {
-        console.log(`Skipping retry for elder ${elder.id} - recent call exists`);
+        console.log(`Skipping retry for elder ${elder.id} - recent call exists:`, recentCalls[0]);
+        
+        // Clear the retry since there's a recent successful/pending call
         await supabase
           .from("call_attempts")
-          .update({ next_retry_at: null, status: 'superseded' })
+          .update({ 
+            next_retry_at: null,
+            status: 'superseded'
+          })
           .eq("id", attempt.id);
+        
         continue;
       }
 
       // ============ RETRY COUNT VALIDATION ============
+      // Use the SAME record's retry_count, don't create new records
       const currentRetryCount = attempt.retry_count || 0;
       const maxRetries = attempt.max_retries || 2;
       
       if (currentRetryCount >= maxRetries) {
         console.log(`Max retries reached for attempt ${attempt.id}: ${currentRetryCount}/${maxRetries}`);
+        
         await supabase
           .from("call_attempts")
-          .update({ status: 'max_retries_reached', next_retry_at: null })
+          .update({ 
+            status: 'max_retries_reached',
+            next_retry_at: null
+          })
           .eq("id", attempt.id);
-        results.push({ elderId: elder.id, elderName: elder.full_name, status: 'max_retries_reached', retryCount: currentRetryCount });
+        
+        results.push({
+          elderId: elder.id,
+          elderName: elder.full_name,
+          status: 'max_retries_reached',
+          retryCount: currentRetryCount
+        });
         continue;
       }
       // ============ END RETRY COUNT VALIDATION ============
@@ -139,30 +170,38 @@ serve(async (req) => {
       console.log(`Retrying call for elder ${elder.id} (attempt #${currentRetryCount + 1}/${maxRetries})`);
 
       try {
+        // CRITICAL: Update the EXISTING call_attempt record first
+        // Mark as 'retrying' to prevent duplicates
         const newRetryCount = currentRetryCount + 1;
         
         await supabase
           .from("call_attempts")
-          .update({ status: 'retrying', retry_count: newRetryCount, next_retry_at: null })
+          .update({ 
+            status: 'retrying',
+            retry_count: newRetryCount,
+            next_retry_at: null // Clear to prevent re-pickup
+          })
           .eq("id", attempt.id);
 
-        // Get Vapi credentials
-        const VAPI_API_KEY = Deno.env.get('VAPI_API_KEY');
-        const VAPI_ASSISTANT_ID = Deno.env.get('VAPI_ASSISTANT_ID');
-        const VAPI_PHONE_NUMBER_ID = Deno.env.get('VAPI_PHONE_NUMBER_ID');
+        // Get Bolna credentials
+        const BOLNA_API_KEY = Deno.env.get('BOLNA_API_KEY');
         const isHindi = elder.preferred_language === 'hindi';
+        const BOLNA_AGENT_ID = isHindi 
+          ? Deno.env.get('BOLNA_AGENT_ID_HINDI') 
+          : Deno.env.get('BOLNA_AGENT_ID');
 
-        if (!VAPI_API_KEY || !VAPI_ASSISTANT_ID || !VAPI_PHONE_NUMBER_ID) {
-          throw new Error('Vapi API credentials not configured');
+        if (!BOLNA_API_KEY || !BOLNA_AGENT_ID) {
+          throw new Error('Bolna API credentials not configured');
         }
 
-        // Fetch medicines
+        // Fetch medicines for the call
         const { data: medicines } = await supabase
           .from("medicines")
           .select("name, dosage, timing, purpose")
           .eq("elder_id", elder.id)
           .eq("active", true);
 
+        // Format medicines with name + purpose for AI clarity
         const medicineList = (medicines || []).map((m: any) => {
           const name = m.name || '';
           const purpose = m.purpose?.trim() || '';
@@ -170,6 +209,7 @@ serve(async (req) => {
           return purpose || name;
         }).filter(Boolean).join(', ') || (isHindi ? 'कोई दवाई नहीं' : 'No medicines');
 
+        // ============ FETCH FULL CONTEXT FOR RETRY CALLS ============
         // Get monitoring config
         const { data: elderFull } = await supabase
           .from("elders")
@@ -178,7 +218,7 @@ serve(async (req) => {
           .single();
         const monitoringConfig = elderFull?.monitoring_config || { topics: [], custom_questions: [] };
 
-        // Get last check-in context
+        // Get last check-in summary and symptoms
         const { data: lastCheckin } = await supabase
           .from("check_ins")
           .select("conversation_summary, symptoms_reported, well_being_score, created_at")
@@ -190,7 +230,7 @@ serve(async (req) => {
         const lastSummary = lastCheckin?.conversation_summary || '';
         const previousSymptoms = lastCheckin?.symptoms_reported || [];
         
-        // Calculate symptom days
+        // Calculate symptom days for continuity
         let symptomDays: Record<string, number> = {};
         if (previousSymptoms.length > 0) {
           for (const symptom of previousSymptoms) {
@@ -203,76 +243,76 @@ serve(async (req) => {
               .limit(1)
               .maybeSingle();
             if (firstReport) {
-              symptomDays[symptom] = Math.floor((Date.now() - new Date(firstReport.created_at).getTime()) / (1000 * 60 * 60 * 24));
+              const daysSince = Math.floor((Date.now() - new Date(firstReport.created_at).getTime()) / (1000 * 60 * 60 * 24));
+              symptomDays[symptom] = daysSince;
             }
           }
         }
+        // ============ END FULL CONTEXT ============
 
-        const firstName = elder.full_name.split(' ')[0];
-        const retryGreeting = isHindi 
-          ? `${firstName} जी, हमने पहले फोन किया था। कैसे हैं आप?`
-          : `${firstName}, we called earlier. How are you doing?`;
-
-        // Call Vapi API directly
-        const vapiResponse = await fetch('https://api.vapi.ai/call/phone', {
+        // Call Bolna API DIRECTLY (don't go through bolna-voice-call to avoid creating new records)
+        const bolnaResponse = await fetch('https://api.bolna.ai/call', {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${VAPI_API_KEY}`,
+            'Authorization': `Bearer ${BOLNA_API_KEY}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            assistantId: VAPI_ASSISTANT_ID,
-            phoneNumberId: VAPI_PHONE_NUMBER_ID,
-            customer: {
-              number: elder.phone_number,
-            },
-            assistantOverrides: {
-              variableValues: {
-                elder_id: elder.id,
-                first_name: firstName,
-                greeting: retryGreeting,
-                medicines: medicineList,
-                is_retry: "true",
-                retry_attempt: String(newRetryCount),
-                preferred_language: elder.preferred_language || 'english',
-                monitoring_topics: buildMonitoringQuestions(monitoringConfig.topics || [], monitoringConfig.custom_questions || [], isHindi),
-                last_summary: lastSummary.substring(0, 200),
-                active_symptoms: previousSymptoms.join(', '),
-                symptom_days: JSON.stringify(symptomDays),
-                medical_conditions: (elder.medical_conditions || []).join(', '),
-              },
+            agent_id: BOLNA_AGENT_ID,
+            recipient_phone_number: elder.phone_number,
+            user_data: {
+              elder_id: elder.id,
+              first_name: elder.full_name.split(' ')[0],
+              greeting: isHindi 
+                ? `${elder.full_name.split(' ')[0]} जी, हमने पहले फोन किया था। कैसे हैं आप?`
+                : `${elder.full_name.split(' ')[0]}, we called earlier. How are you doing?`,
+              medicines: medicineList,
+              is_retry: true,
+              retry_attempt: newRetryCount,
+              preferred_language: elder.preferred_language || 'english',
+              // Full context with natural-language monitoring questions
+              monitoring_topics: buildMonitoringQuestions(monitoringConfig.topics || [], monitoringConfig.custom_questions || [], isHindi),
+              last_summary: lastSummary.substring(0, 200),
+              active_symptoms: previousSymptoms.join(', '),
+              symptom_days: JSON.stringify(symptomDays),
+              medical_conditions: (elder.medical_conditions || []).join(', '),
             },
           }),
         });
 
-        if (!vapiResponse.ok) {
-          const error = await vapiResponse.text();
-          throw new Error(`Vapi API error: ${error}`);
+        if (!bolnaResponse.ok) {
+          const error = await bolnaResponse.text();
+          throw new Error(`Bolna API error: ${error}`);
         }
 
-        const callData = await vapiResponse.json();
-        const newCallId = callData.id;
+        const callData = await bolnaResponse.json();
+        const newExecutionId = callData.execution_id || callData.call_id || callData.id;
         
         // Update the SAME record with new execution ID
         await supabase
           .from("call_attempts")
-          .update({ status: 'initiated', execution_id: newCallId, initiated_at: new Date().toISOString() })
+          .update({ 
+            status: 'initiated',
+            execution_id: newExecutionId,
+            initiated_at: new Date().toISOString()
+          })
           .eq("id", attempt.id);
 
-        console.log(`Retry call initiated for elder ${elder.id}, call_id: ${newCallId}`);
+        console.log(`Retry call initiated for elder ${elder.id}, execution_id: ${newExecutionId}, using SAME record ${attempt.id}`);
 
         results.push({
           elderId: elder.id,
           elderName: elder.full_name,
           attemptNumber: newRetryCount,
           status: 'call_initiated',
-          callId: newCallId,
+          executionId: newExecutionId,
           callAttemptId: attempt.id
         });
 
       } catch (callError) {
         console.error(`Error processing retry for ${elder.full_name}:`, callError);
         
+        // Mark as failed with reason
         await supabase
           .from("call_attempts")
           .update({ 
@@ -294,8 +334,15 @@ serve(async (req) => {
     console.log(`Processed ${results.length} retries`);
 
     return new Response(
-      JSON.stringify({ success: true, processed: results.length, results }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      JSON.stringify({
+        success: true,
+        processed: results.length,
+        results
+      }),
+      {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      }
     );
 
   } catch (error) {
@@ -303,7 +350,10 @@ serve(async (req) => {
     const message = error instanceof Error ? error.message : "Unknown error";
     return new Response(
       JSON.stringify({ error: message }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      }
     );
   }
 });

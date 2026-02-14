@@ -249,7 +249,7 @@ serve(async (req) => {
           // Run voice call if applicable
           if (shouldRunVoice) {
             console.log(`Initiating voice call for elder ${elder?.id}...`);
-            const voiceResponse = await fetch(`${supabaseUrl}/functions/v1/vapi-voice-call`, {
+            const voiceResponse = await fetch(`${supabaseUrl}/functions/v1/bolna-voice-call`, {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
