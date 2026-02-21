@@ -1,105 +1,76 @@
 
 
-# Fix the Broken Voice Agent -- Every Problem, Root Cause, and Fix
+# Make Voice Calls Feel Human
 
-## What the Transcripts Actually Show
+## The Core Problem
 
-### Problem 1: Emergency Call Has ZERO Emergency Behavior
-The call log from today shows `is_emergency: true` but the user_data sent to Bolna was:
+Looking at the last 7 days of call transcripts, every single call follows this pattern:
+
 ```
-greeting: "Aditya जी, 3 दिन हो गए। सब ठीक है ना?"
+AI: "Aditya ji, [greeting]"
+Elder: "Theek hai"
+AI: "Theek hai, note kar raha hoon. Dhyan rakhiye."
 ```
-That's a casual greeting for an EMERGENCY call. The Bolna prompt expects `{emergency_intro}`, `{has_caregiver}`, `{caregiver_name}`, `{caregiver_relation}` -- but **none of these are in the user_data object** (lines 403-414 of `bolna-voice-call`). They simply don't exist. So the Bolna agent sees empty strings for all emergency variables and acts like a normal call.
 
-**Root cause:** The user_data object is missing 4 critical fields. The `buildGreeting` function also has no emergency path.
+No medicine questions. No follow-ups. No conversation. The AI sees structured data fields like `medicines: "Thyroxin (Thyroid)"` and `monitoring_topics: "neend kaisi aayi?"` but ignores them entirely. It greets, hears "theek hai", and ends the call in 15 seconds.
 
-### Problem 2: AI Says "काफी दिन हो गए" for BRAND NEW Symptoms
-Today's transcript:
-> User: "आज मैं सुबह जिम कर रहा था थोड़ा पीठ में दर्द है" (back pain from gym TODAY)
-> AI: "काफी दिन हो गए, डॉक्टर को दिखाना चाहिए"
+## The Solution: AI-Generated Conversational Briefing
 
-Feb 2 transcript:
-> User: "there is a bit of a headache"
-> AI: "सरदर्द 3 दिन से ज़्यादा हो गया है"
-> User: "Where has it been more than three days, like?"
+Instead of passing 12 separate data fields that the voice AI ignores, we build ONE rich, natural-language briefing using Gemini BEFORE the call. This briefing reads like notes a doctor reviews before walking into a patient's room.
 
-The AI cannot distinguish between a FOLLOW-UP symptom (from `{active_symptoms}`) and a NEWLY REPORTED symptom. The Bolna prompt lumps them together, so the "3+ days" rule gets applied to everything.
+Example of what gets passed to the voice agent:
 
-**Root cause:** The Bolna dashboard prompt doesn't clearly separate "follow-up on existing symptoms" from "new symptom reported during this call."
+> "You're calling Aditya. You spoke yesterday -- he said he was fine but didn't take his Thyroxin. He's been on Thyroxin for thyroid for a while now. No active symptoms. Last 3 calls he's just said 'theek hai' quickly -- try to get him to open up a bit today. Ask about his Thyroxin, then ask how he slept (his caregiver wants sleep tracked). If everything's fine, wrap up warmly."
 
-### Problem 3: Greetings Are Robotic and Repetitive
-Every call: "Aditya जी, कल बात हुई थी। आज कैसी तबीयत है?" or "3 दिन हो गए। सब ठीक है ना?" -- repeated verbatim across days.
+This is radically different from passing `medicines: "Thyroxin (Thyroid)"` and hoping the AI figures it out.
 
-**Root cause:** `buildGreeting` has only 4 templates with no variety.
+## What Changes
 
-### Problem 4: Goodbye Is Always the Same Line
-Every single call ends with: "ठीक है, अपना ख्याल रखिए।" -- word for word, every time.
+### 1. Edge Function: `bolna-voice-call/index.ts`
 
-**Root cause:** The Bolna prompt gives exactly ONE goodbye line.
+**Add an AI briefing step** before the Bolna API call:
 
-### Problem 5: Medicine Question Is Still Generic
-Despite having medicine data, the AI says "आज दवाई ली?" instead of "Thyroxin ली?" because the Bolna dashboard prompt hardcodes: `"आज दवाई ली?" / "Did you take your medicine today?"` as the instruction. Even though we send specific medicine names, the prompt tells the AI to use the generic phrasing.
+- Fetch last 7 check-ins (not 10) with full conversation summaries
+- Fetch medicines, monitoring config, symptoms, caregiver info (already done)
+- Send ALL of this to Gemini with a meta-prompt:
+  - "You're briefing a voice agent about to call an elder. Write a short, natural paragraph telling the agent everything they need to know: what happened in recent calls, what to ask today, what medicines to check, any symptoms to follow up on, and one monitoring topic to weave in. Write it like notes a doctor reads before seeing a patient. Keep it under 200 words. Language: [hindi/english]."
+- Pass the resulting briefing as a single `briefing` variable to Bolna/Vapi
 
-**Root cause:** The Bolna prompt instruction overrides the medicine data we pass.
+**Also pass**: `recent_call_summaries` -- the last 3 conversation summaries concatenated, so the AI has raw transcript memory too.
 
----
+### 2. Prompt Rewrite: `SENTIO_VOICE_AGENT_GUARDRAILS.md`
 
-## The Fix (Two Parts)
+Complete rewrite of the prompt philosophy. Instead of a rigid 6-step checklist, the new prompt:
 
-### Part 1: Fix the Edge Function (bolna-voice-call/index.ts)
+**Identity**: "You are Sentio. You call elders every day. You REMEMBER previous conversations. You're like a caring neighbor who checks in -- not a survey bot, not a doctor."
 
-**A. Add missing emergency + caregiver fields to user_data:**
-Currently (lines 403-414), these fields are completely absent:
-- `emergency_intro`
-- `has_caregiver`
-- `caregiver_name`
-- `caregiver_relation`
+**Context**: Instead of 12 separate variables, the prompt references:
+- `{briefing}` -- the AI-generated conversational plan (primary guide)
+- `{medicines}` -- medicine names (for specific reference)  
+- `{active_symptoms}` / `{symptom_days}` -- kept for safety rules
+- `{recent_calls}` -- last 3 call summaries for raw memory
 
-Add a query for `notification_settings` (caregiver info) and build `emergency_intro` message. Include all 4 fields in user_data.
+**Conversation style**:
+- After greeting, if elder says "theek hai" -- do NOT immediately end. Say something like "accha, aur batao, aaj kya kiya?" or "din kaisa gaya?"
+- Ask about medicines by name naturally, not as a checklist item
+- If they mentioned something last call, reference it: "kal aapne kaha tha ki..."
+- Keep it to 2-3 minutes max (not 60-90 seconds -- that's too short for a human conversation)
+- End naturally based on conversation mood
 
-**B. Fix buildGreeting for emergency calls:**
-Add an `isEmergency` parameter. When true, the greeting should be:
-- Hindi: "Aditya जी, ये Sentio की तरफ़ से emergency call है। मुझे बताइए, क्या हुआ?"
-- English: "Aditya, this is an emergency call from Sentio. Please tell me what happened."
+**Hard rules preserved**:
+- Symptom new vs follow-up distinction (critical safety)
+- Emergency flow unchanged
+- Never give medical advice
+- Medicine names, not generic "dawai"
 
-**C. Add greeting variety:**
-Instead of 4 rigid templates, use 8-10 warm variations that rotate based on a hash of the date, so the elder doesn't hear the exact same greeting every day.
+### 3. Webhook Update: `vapi-webhook/index.ts`
 
-### Part 2: Rewrite the Bolna Agent Prompt (SENTIO_VOICE_AGENT_GUARDRAILS.md)
+Update the AI analysis prompt to also extract:
+- A 2-sentence natural summary of what was discussed (not just transcript dump)
+- Key topics mentioned (for next call's context)
+- Elder's mood/energy level in one word
 
-This is the prompt configured on the Bolna Dashboard. The document needs to be updated so it can be copy-pasted to Bolna. Key changes:
-
-**A. Fix medicine question to use actual names:**
-Change from:
-> "आज दवाई ली?" / "Did you take your medicine today?"
-
-To:
-> "Use the medicine names from {medicines}. Say 'आज [medicine name] ली?' If multiple, ask about the first one by name."
-
-**B. Separate NEW symptoms from FOLLOW-UP symptoms clearly:**
-Add explicit rules:
-- FOLLOW-UP: If the symptom is in `{active_symptoms}` AND `{symptom_days}` shows 3+ days, THEN say "काफी दिन हो गए"
-- NEW symptom (reported for the first time during THIS call, NOT in `{active_symptoms}`): Ask "1 se 10 mein kitna?", acknowledge empathetically, note it. Do NOT say "काफी दिन hue" for new symptoms.
-
-**C. Fix emergency flow:**
-The emergency section needs to be at the TOP of the call structure, not buried in rules. When `{is_emergency}` is "true":
-- Use the `{greeting}` (which will now be emergency-specific)
-- Ask "Kya hua? Bataiye" immediately
-- If caregiver exists, mention them by name
-- Skip medicine check and monitoring topics -- focus on the emergency
-
-**D. Add goodbye variety:**
-Instead of one line, provide 5-6 warm closings:
-- "ठीक है, अपना ध्यान रखिए। कल फिर बात करेंगे।"
-- "बहुत अच्छा, ख्याल रखिए अपना।"
-- "चलिए, आराम कीजिए। ध्यान रखिए।"
-- Tell the AI to rotate and not repeat the same one.
-
-**E. Add monitoring topic instructions:**
-Currently the prompt doesn't mention monitoring_topics at all. Add:
-> "If {monitoring_topics} is not empty, weave ONE topic question naturally into the conversation after the medicine check."
-
----
+This ensures the NEXT call has rich context to build the briefing from.
 
 ## Technical Details
 
@@ -107,38 +78,41 @@ Currently the prompt doesn't mention monitoring_topics at all. Add:
 
 | File | Change |
 |------|--------|
-| `supabase/functions/bolna-voice-call/index.ts` | Add caregiver query, emergency fields to user_data, fix buildGreeting for emergencies, add greeting variety |
-| `SENTIO_VOICE_AGENT_GUARDRAILS.md` | Rewrite prompt: fix medicine naming, separate new vs follow-up symptoms, fix emergency flow, add goodbye variety, add monitoring topics |
+| `supabase/functions/bolna-voice-call/index.ts` | Add Gemini briefing generation step before API call; add `recent_calls` to userData; pass `briefing` variable |
+| `SENTIO_VOICE_AGENT_GUARDRAILS.md` | Full prompt rewrite -- briefing-based, conversational, human-like |
+| `supabase/functions/vapi-webhook/index.ts` | Enhance AI analysis to extract richer summaries for future calls |
 
-### Specific Code Changes in bolna-voice-call/index.ts
+### New Variable: `briefing`
 
-1. **Add caregiver fetch** (after line 306): Query `notification_settings` for `caregiver_name`, `caregiver_phone`, `caregiver_relation`
+Generated by Gemini before each call. Example outputs:
 
-2. **Fix buildGreeting** (lines 27-49): Add `isEmergency` parameter with dedicated emergency greetings
+**Day 1 (first call ever):**
+> "First time calling Aditya. He takes Thyroxin for thyroid. No previous call history. Introduce yourself warmly, ask how he's feeling, check if he took his Thyroxin, ask about his sleep. Keep it light and friendly."
 
-3. **Add greeting variety** (lines 27-49): Add 3-4 more greeting templates per bucket (same day, 1 day, 2+ days, 7+ days) and pick based on `Date.now()` hash
+**Day 5 (pattern of short calls):**
+> "Calling Aditya again. Last 4 calls he's just said 'theek hai' and nothing else. He hasn't confirmed taking Thyroxin in any recent call. No symptoms reported. Today, try to engage him more -- ask about his day, what he did. Then naturally check on Thyroxin. His caregiver wants sleep monitored."
 
-4. **Extend user_data** (lines 403-414): Add these fields:
-```
-emergency_intro: (built from emergency context + caregiver info)
-has_caregiver: "true"/"false"
-caregiver_name: "Priya" or ""
-caregiver_relation: "daughter" or ""
-```
+**Day with active symptom:**
+> "Calling Aditya. Yesterday he mentioned back pain (severity 5). He's been on Thyroxin but hasn't confirmed taking it recently. Today: ask how the back pain is -- it's been 2 days now. Check Thyroxin. If the pain is getting worse, suggest seeing a doctor."
 
-### Expected Behavior After Fix
+### Gemini API Call Cost
 
-| Scenario | Before | After |
-|----------|--------|-------|
-| Emergency call greeting | "3 दिन हो गए। सब ठीक है ना?" | "ये emergency call है। मुझे बताइए, क्या हुआ?" |
-| Emergency caregiver mention | Never mentioned | "Priya (daughter) को भी call कर सकते हैं" |
-| New symptom (back pain from gym) | "काफी दिन हो गए, डॉक्टर को दिखाना चाहिए" | "1 से 10 में कितना? ठीक है, ध्यान रखिए।" |
-| Old symptom persisting 5 days | Same as new symptom | "काफी दिन हो गए, डॉक्टर को दिखाना चाहिए" (correctly applied) |
-| Medicine question | "आज दवाई ली?" | "Thyroxin ली आज?" |
-| Goodbye | Always "ठीक है, अपना ख्याल रखिए।" | Rotates between 5-6 warm variations |
-| Daily greeting | Same line every time | Varies naturally day to day |
-| Monitoring topics | Never asked | "नींद कैसी आई?" woven into conversation |
+One extra Gemini Flash call per voice call (~200 input tokens, ~150 output tokens). Cost: negligible (less than $0.001 per call). The `LOVABLE_API_KEY` secret is already configured.
 
-### Important Note
-The `SENTIO_VOICE_AGENT_GUARDRAILS.md` file is a reference document. After updating it, you will need to manually copy-paste the updated prompt into the Bolna Dashboard. The edge function changes will deploy automatically.
+### Prompt Core Philosophy Change
+
+**Before**: "Be warm but direct. No excessive pleasantries. Maximum 4 questions. Keep call under 90 seconds."
+
+**After**: "Be like a caring person who calls every day and remembers everything. If they say 'theek hai', don't just end -- gently ask about their day. Let the conversation breathe. 2-3 minutes is fine. Your job is to make them feel someone cares, while also checking on their health."
+
+### Safety Guardrails Preserved
+
+- Emergency detection and escalation: unchanged
+- Symptom new vs follow-up: unchanged (prevents "kaafi din ho gaye" hallucination)
+- No medical advice: unchanged
+- Caregiver notification: unchanged
+
+### After Deployment
+
+You will need to copy the updated prompt from `SENTIO_VOICE_AGENT_GUARDRAILS.md` into the Bolna Dashboard for the changes to take effect. The edge function changes deploy automatically.
 
