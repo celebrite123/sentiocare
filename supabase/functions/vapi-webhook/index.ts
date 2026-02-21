@@ -168,6 +168,9 @@ ANALYSIS REQUIRED - Extract ALL of the following:
 5. alertTriggered: true if concerning conditions
 6. alertSeverity: "low" | "medium" | "high" | "critical"
 7. alertReason: Clear explanation if alert triggered, null otherwise
+8. conversationSummary: A natural 2-sentence summary of what was discussed — NOT a transcript dump. Write it like you're telling a colleague what happened. Example: "Aditya said he's feeling fine but didn't take his Thyroxin today. He mentioned mild back pain but seemed in good spirits overall."
+9. keyTopics: Array of key topics discussed (e.g. ["medicine adherence", "back pain", "sleep quality"])
+10. elderMood: One word describing the elder's mood/energy (e.g. "cheerful", "tired", "irritable", "quiet", "anxious", "calm")
 
 Respond ONLY in valid JSON format:
 {
@@ -177,7 +180,10 @@ Respond ONLY in valid JSON format:
   "symptomsReported": ["symptom1", "symptom2"],
   "alertTriggered": true|false,
   "alertSeverity": "low|medium|high|critical",
-  "alertReason": "reason or null"
+  "alertReason": "reason or null",
+  "conversationSummary": "2-sentence natural summary",
+  "keyTopics": ["topic1", "topic2"],
+  "elderMood": "one-word mood"
 }`;
 
         const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -245,7 +251,7 @@ Respond ONLY in valid JSON format:
         well_being_score: analysis.wellBeingScore,
         medicines_taken: analysis.medicinesTaken,
         symptoms_reported: analysis.symptomsReported,
-        conversation_summary: transcript?.substring(0, 500) || `Call ended: ${endedReason}`,
+        conversation_summary: (analysis as any).conversationSummary || transcript?.substring(0, 500) || `Call ended: ${endedReason}`,
         alert_triggered: analysis.alertTriggered,
         alert_reason: analysis.alertReason,
         recording_url: recordingUrl,
