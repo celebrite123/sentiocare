@@ -349,13 +349,13 @@ serve(async (req) => {
 
     console.log('Initiating Bolna voice call:', { elderId, isEmergency, isServiceRoleCall });
 
-    // Get last check-ins for context
+    // Get last 7 check-ins for context (prioritize recent)
     const { data: previousCheckIns } = await supabase
       .from("check_ins")
-      .select("created_at, symptoms_reported, conversation_summary, well_being_score")
+      .select("created_at, symptoms_reported, conversation_summary, well_being_score, medicines_taken, sentiment")
       .eq("elder_id", elderId)
       .order("created_at", { ascending: false })
-      .limit(10);
+      .limit(7);
 
     let daysSinceLastCall: number | null = null;
     let lastSummary = '';
@@ -366,6 +366,15 @@ serve(async (req) => {
       }
       lastSummary = previousCheckIns[0]?.conversation_summary || '';
     }
+
+    // Build recent call summaries (last 3) for raw memory
+    const recentCallSummaries = (previousCheckIns || [])
+      .slice(0, 3)
+      .map((c, i) => {
+        const date = new Date(c.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+        return `[${date}] ${c.conversation_summary || 'No summary'}`;
+      })
+      .join('\n');
 
     // Get active symptoms (exclude resolved)
     const { data: resolvedSymptomsData } = await supabase
@@ -477,14 +486,83 @@ serve(async (req) => {
       .map(([symptom, days]) => `${symptom}:${days}`)
       .join(', ');
 
+    // ============ GENERATE AI BRIEFING ============
+    let briefing = '';
+    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+    
+    if (LOVABLE_API_KEY && !isEmergency) {
+      try {
+        console.log('Generating AI briefing for call...');
+        
+        const callHistory = (previousCheckIns || []).map(c => {
+          const date = new Date(c.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+          return `- ${date}: Score ${c.well_being_score}/10, Sentiment: ${c.sentiment || 'unknown'}, Meds taken: ${c.medicines_taken ?? 'unknown'}, Summary: ${c.conversation_summary || 'No details'}`;
+        }).join('\n');
+
+        const briefingLang = isHindi ? 'Hindi (Hinglish is fine)' : 'English';
+        
+        const metaPrompt = `You're briefing a voice agent about to call an elder named ${firstName}. Write a short, natural paragraph telling the agent everything they need to know for TODAY's call.
+
+ELDER CONTEXT:
+- Name: ${firstName}
+- Medicines: ${medicineList}
+- Active symptoms: ${activeSymptomsList || 'None'}
+- Symptom days: ${symptomDaysFormatted || 'None'}
+- Caregiver: ${hasCaregiverFlag ? `${caregiverName} (${caregiverRelation})` : 'None'}
+- Monitoring topics to weave in: ${monitoringQuestions || 'None'}
+- Days since last call: ${daysSinceLastCall ?? 'First call ever'}
+
+LAST 7 CALLS:
+${callHistory || 'No previous calls.'}
+
+INSTRUCTIONS:
+- Write like notes a doctor reads before seeing a patient
+- If they've been giving short "theek hai" answers repeatedly, tell the agent to try engaging them more - ask about their day, what they did
+- Mention specific medicines BY NAME to check
+- If there are active symptoms, tell the agent to follow up on them specifically
+- Include ONE monitoring topic to naturally weave into conversation
+- If this is the first call, tell the agent to introduce warmly and keep it light
+- Keep it under 200 words
+- Language: ${briefingLang}`;
+
+        const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${LOVABLE_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "google/gemini-2.5-flash",
+            messages: [
+              { role: "user", content: metaPrompt },
+            ],
+          }),
+        });
+
+        if (aiResponse.ok) {
+          const aiData = await aiResponse.json();
+          briefing = aiData.choices?.[0]?.message?.content?.trim() || '';
+          console.log('AI briefing generated:', briefing.substring(0, 100) + '...');
+        } else {
+          console.error('AI briefing generation failed:', aiResponse.status);
+        }
+      } catch (briefingError) {
+        console.error('Error generating briefing:', briefingError);
+        // Non-fatal - continue without briefing
+      }
+    }
+    // ============ END AI BRIEFING ============
+
     const userData = {
       elder_id: elderId,
       first_name: firstName,
       greeting: greeting,
+      briefing: briefing,
       medicines: medicineList,
       active_symptoms: activeSymptomsList,
       symptom_days: symptomDaysFormatted,
       last_summary: lastSummary.substring(0, 150),
+      recent_calls: recentCallSummaries.substring(0, 500),
       monitoring_topics: monitoringQuestions,
       is_emergency: isEmergency ? "true" : "false",
       emergency_intro: emergencyIntro,
