@@ -1,118 +1,68 @@
 
 
-# Make Voice Calls Feel Human
+# Fix Voice Call Hallucinations -- Tight, Crystal-Clear 90-Second Calls
 
-## The Core Problem
+## Root Cause
 
-Looking at the last 7 days of call transcripts, every single call follows this pattern:
+The current prompt tells the AI to "let the conversation breathe" and aim for "2-3 minutes." This causes:
+- **Hallucinations**: The AI invents things to say to fill time
+- **Repetition**: It asks the same thing twice because it's trying to extend the call
+- **Blurred lines**: The long `{briefing}` paragraph gives too much unstructured context, and the AI mixes up what's real vs what it imagined
 
-```
-AI: "Aditya ji, [greeting]"
-Elder: "Theek hai"
-AI: "Theek hai, note kar raha hoon. Dhyan rakhiye."
-```
+The briefing system is a good idea but the prompt around it is too loose.
 
-No medicine questions. No follow-ups. No conversation. The AI sees structured data fields like `medicines: "Thyroxin (Thyroid)"` and `monitoring_topics: "neend kaisi aayi?"` but ignores them entirely. It greets, hears "theek hai", and ends the call in 15 seconds.
+## The Fix
 
-## The Solution: AI-Generated Conversational Briefing
+### 1. Rewrite `SENTIO_VOICE_AGENT_GUARDRAILS.md` -- Structured, Short, Clear
 
-Instead of passing 12 separate data fields that the voice AI ignores, we build ONE rich, natural-language briefing using Gemini BEFORE the call. This briefing reads like notes a doctor reviews before walking into a patient's room.
+Key changes to the prompt philosophy:
 
-Example of what gets passed to the voice agent:
+- **Target: 90 seconds (1.5 minutes)**, not 2-3 minutes
+- **Exactly 3 steps** after greeting -- no more, no less:
+  1. Greeting + one follow-up if they say "theek hai" (ask about their day)
+  2. Medicine check BY NAME (one question, not a conversation about it)
+  3. One symptom follow-up OR one monitoring topic (not both)
+- **End after step 3** -- don't fish for more conversation
+- **Short sentences only** -- max 15 words per sentence spoken by the AI
+- **Never repeat a question** -- if you asked it, move on regardless of the answer
+- **Never invent information** -- only reference what's in the variables, nothing else
 
-> "You're calling Aditya. You spoke yesterday -- he said he was fine but didn't take his Thyroxin. He's been on Thyroxin for thyroid for a while now. No active symptoms. Last 3 calls he's just said 'theek hai' quickly -- try to get him to open up a bit today. Ask about his Thyroxin, then ask how he slept (his caregiver wants sleep tracked). If everything's fine, wrap up warmly."
+Remove the vague instructions like "make them feel heard", "let the conversation breathe", "try harder to engage." These cause the AI to improvise and hallucinate.
 
-This is radically different from passing `medicines: "Thyroxin (Thyroid)"` and hoping the AI figures it out.
+### 2. Simplify the Briefing Prompt in `bolna-voice-call/index.ts`
 
-## What Changes
+The current briefing meta-prompt asks for a 200-word paragraph. That's too much unstructured text for a voice AI to process cleanly.
 
-### 1. Edge Function: `bolna-voice-call/index.ts`
+Changes:
+- **Cut briefing to 3 bullet points max, 50 words total**
+- New meta-prompt: "Write exactly 3 short bullet points for a voice agent. Bullet 1: What happened last call (one sentence). Bullet 2: What to ask today (medicine name OR symptom). Bullet 3: One conversation starter if they're brief. Max 50 words total."
+- This gives the AI clear, actionable instructions instead of a rambling paragraph
 
-**Add an AI briefing step** before the Bolna API call:
+### 3. Update Example Call Flows
 
-- Fetch last 7 check-ins (not 10) with full conversation summaries
-- Fetch medicines, monitoring config, symptoms, caregiver info (already done)
-- Send ALL of this to Gemini with a meta-prompt:
-  - "You're briefing a voice agent about to call an elder. Write a short, natural paragraph telling the agent everything they need to know: what happened in recent calls, what to ask today, what medicines to check, any symptoms to follow up on, and one monitoring topic to weave in. Write it like notes a doctor reads before seeing a patient. Keep it under 200 words. Language: [hindi/english]."
-- Pass the resulting briefing as a single `briefing` variable to Bolna/Vapi
+Replace the 2-minute examples with tight 90-second examples that match the new structure.
 
-**Also pass**: `recent_call_summaries` -- the last 3 conversation summaries concatenated, so the AI has raw transcript memory too.
-
-### 2. Prompt Rewrite: `SENTIO_VOICE_AGENT_GUARDRAILS.md`
-
-Complete rewrite of the prompt philosophy. Instead of a rigid 6-step checklist, the new prompt:
-
-**Identity**: "You are Sentio. You call elders every day. You REMEMBER previous conversations. You're like a caring neighbor who checks in -- not a survey bot, not a doctor."
-
-**Context**: Instead of 12 separate variables, the prompt references:
-- `{briefing}` -- the AI-generated conversational plan (primary guide)
-- `{medicines}` -- medicine names (for specific reference)  
-- `{active_symptoms}` / `{symptom_days}` -- kept for safety rules
-- `{recent_calls}` -- last 3 call summaries for raw memory
-
-**Conversation style**:
-- After greeting, if elder says "theek hai" -- do NOT immediately end. Say something like "accha, aur batao, aaj kya kiya?" or "din kaisa gaya?"
-- Ask about medicines by name naturally, not as a checklist item
-- If they mentioned something last call, reference it: "kal aapne kaha tha ki..."
-- Keep it to 2-3 minutes max (not 60-90 seconds -- that's too short for a human conversation)
-- End naturally based on conversation mood
-
-**Hard rules preserved**:
-- Symptom new vs follow-up distinction (critical safety)
-- Emergency flow unchanged
-- Never give medical advice
-- Medicine names, not generic "dawai"
-
-### 3. Webhook Update: `vapi-webhook/index.ts`
-
-Update the AI analysis prompt to also extract:
-- A 2-sentence natural summary of what was discussed (not just transcript dump)
-- Key topics mentioned (for next call's context)
-- Elder's mood/energy level in one word
-
-This ensures the NEXT call has rich context to build the briefing from.
-
-## Technical Details
-
-### Files Modified
+## What Gets Modified
 
 | File | Change |
 |------|--------|
-| `supabase/functions/bolna-voice-call/index.ts` | Add Gemini briefing generation step before API call; add `recent_calls` to userData; pass `briefing` variable |
-| `SENTIO_VOICE_AGENT_GUARDRAILS.md` | Full prompt rewrite -- briefing-based, conversational, human-like |
-| `supabase/functions/vapi-webhook/index.ts` | Enhance AI analysis to extract richer summaries for future calls |
+| `SENTIO_VOICE_AGENT_GUARDRAILS.md` | Full rewrite -- 3-step structure, 90-second target, no improvisation |
+| `supabase/functions/bolna-voice-call/index.ts` | Simplify briefing meta-prompt to 3 bullets / 50 words max |
 
-### New Variable: `briefing`
+## New Prompt Structure (Summary)
 
-Generated by Gemini before each call. Example outputs:
+```text
+STEP 1: Use {greeting}. If they say "theek hai", ask ONE follow-up about their day. Then move to Step 2.
+STEP 2: Ask about ONE medicine by name from {medicines}. Then move to Step 3.
+STEP 3: IF {active_symptoms} exists -- ask about the FIRST one only. ELSE ask ONE {monitoring_topics} question. Then END.
+END: Say goodbye. Do not ask "aur kuch?" -- just end warmly.
+```
 
-**Day 1 (first call ever):**
-> "First time calling Aditya. He takes Thyroxin for thyroid. No previous call history. Introduce yourself warmly, ask how he's feeling, check if he took his Thyroxin, ask about his sleep. Keep it light and friendly."
+## Safety Rules (Unchanged)
+- Emergency flow stays exactly the same
+- Symptom new vs follow-up distinction stays
+- No medical advice
+- No hallucinating symptom duration
 
-**Day 5 (pattern of short calls):**
-> "Calling Aditya again. Last 4 calls he's just said 'theek hai' and nothing else. He hasn't confirmed taking Thyroxin in any recent call. No symptoms reported. Today, try to engage him more -- ask about his day, what he did. Then naturally check on Thyroxin. His caregiver wants sleep monitored."
-
-**Day with active symptom:**
-> "Calling Aditya. Yesterday he mentioned back pain (severity 5). He's been on Thyroxin but hasn't confirmed taking it recently. Today: ask how the back pain is -- it's been 2 days now. Check Thyroxin. If the pain is getting worse, suggest seeing a doctor."
-
-### Gemini API Call Cost
-
-One extra Gemini Flash call per voice call (~200 input tokens, ~150 output tokens). Cost: negligible (less than $0.001 per call). The `LOVABLE_API_KEY` secret is already configured.
-
-### Prompt Core Philosophy Change
-
-**Before**: "Be warm but direct. No excessive pleasantries. Maximum 4 questions. Keep call under 90 seconds."
-
-**After**: "Be like a caring person who calls every day and remembers everything. If they say 'theek hai', don't just end -- gently ask about their day. Let the conversation breathe. 2-3 minutes is fine. Your job is to make them feel someone cares, while also checking on their health."
-
-### Safety Guardrails Preserved
-
-- Emergency detection and escalation: unchanged
-- Symptom new vs follow-up: unchanged (prevents "kaafi din ho gaye" hallucination)
-- No medical advice: unchanged
-- Caregiver notification: unchanged
-
-### After Deployment
-
-You will need to copy the updated prompt from `SENTIO_VOICE_AGENT_GUARDRAILS.md` into the Bolna Dashboard for the changes to take effect. The edge function changes deploy automatically.
-
+## After Deployment
+Copy the updated prompt from `SENTIO_VOICE_AGENT_GUARDRAILS.md` into the Bolna Dashboard.
