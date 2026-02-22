@@ -1,68 +1,137 @@
 
 
-# Fix Voice Call Hallucinations -- Tight, Crystal-Clear 90-Second Calls
+# Emotion Detection from Call Transcripts + Dashboard Display
 
-## Root Cause
+## Current State
 
-The current prompt tells the AI to "let the conversation breathe" and aim for "2-3 minutes." This causes:
-- **Hallucinations**: The AI invents things to say to fill time
-- **Repetition**: It asks the same thing twice because it's trying to extend the call
-- **Blurred lines**: The long `{briefing}` paragraph gives too much unstructured context, and the AI mixes up what's real vs what it imagined
+- The AI analyzes transcripts for `sentiment` (positive/neutral/negative) and `elderMood` (one word like "cheerful")
+- But these are **not stored in a queryable column** -- `elderMood` is only inside `conversation_summary` text, and `sentiment` is a simple 3-value field
+- The dashboard shows sentiment trends but does NOT show mood/emotional state anywhere
+- There is NO "says fine but seems sad" detection -- the AI just takes words at face value
 
-The briefing system is a good idea but the prompt around it is too loose.
+## Important Reality
 
-## The Fix
+Bolna/Vapi webhooks only send text transcripts, not raw audio. True voice pitch/tone analysis isn't possible with the current providers. However, we can do **deep linguistic emotion analysis** that catches:
+- Contradictions: saying "theek hai" but mentioning pain/tiredness later
+- Brevity patterns: consistently one-word answers = possible withdrawal/depression
+- Hedging language: "thoda sa...", "kuch nahi bas..." = minimizing problems
+- Energy markers: short vs long responses compared to their usual pattern
 
-### 1. Rewrite `SENTIO_VOICE_AGENT_GUARDRAILS.md` -- Structured, Short, Clear
+This is surprisingly accurate for elder care because elders who are struggling tend to give shorter, more dismissive answers over time.
 
-Key changes to the prompt philosophy:
+## Changes
 
-- **Target: 90 seconds (1.5 minutes)**, not 2-3 minutes
-- **Exactly 3 steps** after greeting -- no more, no less:
-  1. Greeting + one follow-up if they say "theek hai" (ask about their day)
-  2. Medicine check BY NAME (one question, not a conversation about it)
-  3. One symptom follow-up OR one monitoring topic (not both)
-- **End after step 3** -- don't fish for more conversation
-- **Short sentences only** -- max 15 words per sentence spoken by the AI
-- **Never repeat a question** -- if you asked it, move on regardless of the answer
-- **Never invent information** -- only reference what's in the variables, nothing else
+### 1. Database: Add `emotional_tone` column to `check_ins`
 
-Remove the vague instructions like "make them feel heard", "let the conversation breathe", "try harder to engage." These cause the AI to improvise and hallucinate.
+Add a new `jsonb` column `emotional_tone` to store structured emotion data:
+```json
+{
+  "detected_emotion": "masking_distress",
+  "confidence": "medium",
+  "verbal_mood": "fine",
+  "underlying_mood": "withdrawn",
+  "indicators": ["very short responses", "said fine but didn't elaborate when asked about day"],
+  "emotional_trend": "declining"
+}
+```
 
-### 2. Simplify the Briefing Prompt in `bolna-voice-call/index.ts`
+This is much richer than the current single-word `sentiment` field.
 
-The current briefing meta-prompt asks for a 200-word paragraph. That's too much unstructured text for a voice AI to process cleanly.
+### 2. Webhook Enhancement: Deep Emotion Analysis
 
-Changes:
-- **Cut briefing to 3 bullet points max, 50 words total**
-- New meta-prompt: "Write exactly 3 short bullet points for a voice agent. Bullet 1: What happened last call (one sentence). Bullet 2: What to ask today (medicine name OR symptom). Bullet 3: One conversation starter if they're brief. Max 50 words total."
-- This gives the AI clear, actionable instructions instead of a rambling paragraph
+Update the AI analysis prompt in both `vapi-webhook/index.ts` and `bolna-webhook/index.ts` to add a dedicated emotion analysis section. The prompt will instruct the AI to:
 
-### 3. Update Example Call Flows
+- Compare what the elder SAYS vs HOW they say it (response length, engagement level, hedging)
+- Look for contradiction patterns: "theek hai" + no elaboration + short call = possible masking
+- Compare against recent call patterns (using the transcript itself): if someone who usually talks a lot is suddenly giving one-word answers, flag it
+- Output a structured `emotionalTone` object with `detected_emotion`, `confidence`, `verbal_mood`, `underlying_mood`, and `indicators`
 
-Replace the 2-minute examples with tight 90-second examples that match the new structure.
+Key detected emotions:
+- `genuinely_positive` -- sounds fine AND is fine
+- `masking_distress` -- says fine but indicators suggest otherwise
+- `withdrawn` -- minimal engagement, short responses
+- `anxious` -- repetitive concerns, seeking reassurance
+- `lonely` -- trying to extend the call, asking personal questions
+- `irritable` -- curt responses, annoyance at questions
+- `neutral` -- baseline, nothing notable
 
-## What Gets Modified
+### 3. Alert Enhancement
+
+If `detected_emotion` is `masking_distress` or `withdrawn` for 2+ consecutive calls, auto-trigger a medium-severity alert: "Elder may be hiding distress -- verbal responses don't match engagement pattern." This catches cases where an elder always says "theek hai" but is actually declining.
+
+### 4. Dashboard: New Emotional Wellness Card
+
+Add a new component `EmotionalWellnessCard` to the elder dashboard showing:
+
+- **Current emotional state** with an icon and label (e.g., a small emoji-style indicator + "Seems withdrawn today")
+- **Last 7 days emotion timeline** -- simple colored dots showing detected emotions over time (green = genuinely positive, yellow = neutral, orange = masking/anxious, red = withdrawn/distressed)
+- **Contradiction flag** -- if the latest call detected masking, show a gentle alert: "Said everything is fine, but responses were unusually brief"
+
+This card sits alongside the existing AI Insights card.
+
+### 5. Update AIInsights to Show Mood Trends
+
+The existing AIInsights component currently shows sentiment trends. Update it to also pull `emotional_tone` data and show a "Emotional Pattern" section that summarizes the last 7 days (e.g., "3 out of 7 calls showed withdrawn pattern -- consider checking in personally").
+
+## Files Modified
 
 | File | Change |
 |------|--------|
-| `SENTIO_VOICE_AGENT_GUARDRAILS.md` | Full rewrite -- 3-step structure, 90-second target, no improvisation |
-| `supabase/functions/bolna-voice-call/index.ts` | Simplify briefing meta-prompt to 3 bullets / 50 words max |
+| New migration | Add `emotional_tone jsonb` column to `check_ins` table |
+| `supabase/functions/vapi-webhook/index.ts` | Add emotion analysis to AI prompt, save to new column |
+| `supabase/functions/bolna-webhook/index.ts` | Same emotion analysis addition |
+| `src/components/dashboard/EmotionalWellnessCard.tsx` | New component -- emotion display + 7-day timeline |
+| `src/components/dashboard/AIInsights.tsx` | Add emotional pattern section |
+| `src/pages/Dashboard.tsx` | Add EmotionalWellnessCard to dashboard layout |
 
-## New Prompt Structure (Summary)
+## Technical Details
 
-```text
-STEP 1: Use {greeting}. If they say "theek hai", ask ONE follow-up about their day. Then move to Step 2.
-STEP 2: Ask about ONE medicine by name from {medicines}. Then move to Step 3.
-STEP 3: IF {active_symptoms} exists -- ask about the FIRST one only. ELSE ask ONE {monitoring_topics} question. Then END.
-END: Say goodbye. Do not ask "aur kuch?" -- just end warmly.
+### New AI Analysis Fields (added to webhook prompts)
+
+```json
+{
+  "emotionalTone": {
+    "detected_emotion": "genuinely_positive | masking_distress | withdrawn | anxious | lonely | irritable | neutral",
+    "confidence": "high | medium | low",
+    "verbal_mood": "what they said they feel",
+    "underlying_mood": "what their response patterns suggest",
+    "indicators": ["array of specific evidence from transcript"]
+  }
+}
 ```
 
-## Safety Rules (Unchanged)
-- Emergency flow stays exactly the same
-- Symptom new vs follow-up distinction stays
-- No medical advice
-- No hallucinating symptom duration
+### Emotion Detection Prompt Addition
 
-## After Deployment
-Copy the updated prompt from `SENTIO_VOICE_AGENT_GUARDRAILS.md` into the Bolna Dashboard.
+The key prompt section that makes this work:
+
+```
+EMOTIONAL ANALYSIS (CRITICAL -- look beyond words):
+Analyze the elder's EMOTIONAL STATE by examining:
+1. Response length: Are they giving one-word answers or elaborating?
+2. Contradictions: Do they say "fine" but mention problems when probed?
+3. Engagement: Did they ask questions back, or just answer minimally?
+4. Hedging: "thoda sa", "kuch nahi bas", "theek hai theek hai" = minimizing
+5. Energy: Compare response verbosity to what's typical for a phone call
+
+If they say "theek hai" and nothing else despite follow-up questions, 
+mark as "withdrawn" not "genuinely_positive".
+If they say "theek hai" but then mention tiredness/pain later, 
+mark as "masking_distress".
+Only mark "genuinely_positive" if they actively engage and elaborate.
+```
+
+### Alert Logic
+
+In the webhook, after emotion analysis:
+- If `detected_emotion` is `masking_distress` with `high` confidence: create alert immediately
+- If `detected_emotion` is `withdrawn` for current call: check last 2 calls -- if also withdrawn, create alert
+- Alert title: "Emotional Concern: Elder may be masking distress" or "Pattern: Elder seems increasingly withdrawn"
+
+### Dashboard Card Design
+
+The EmotionalWellnessCard will show:
+- A header icon (Brain or Heart) with title "How They're Really Feeling"
+- Current emotion as a colored badge with plain-language label
+- 7 small colored circles for the last 7 calls (hover for details)
+- If masking detected: a subtle warning banner explaining the contradiction
+
