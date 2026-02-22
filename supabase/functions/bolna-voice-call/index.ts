@@ -501,30 +501,23 @@ serve(async (req) => {
 
         const briefingLang = isHindi ? 'Hindi (Hinglish is fine)' : 'English';
         
-        const metaPrompt = `You're briefing a voice agent about to call an elder named ${firstName}. Write a short, natural paragraph telling the agent everything they need to know for TODAY's call.
+        const metaPrompt = `Write exactly 3 short bullet points for a voice agent about to call ${firstName}. Max 50 words total.
 
-ELDER CONTEXT:
-- Name: ${firstName}
+CONTEXT:
 - Medicines: ${medicineList}
 - Active symptoms: ${activeSymptomsList || 'None'}
 - Symptom days: ${symptomDaysFormatted || 'None'}
-- Caregiver: ${hasCaregiverFlag ? `${caregiverName} (${caregiverRelation})` : 'None'}
-- Monitoring topics to weave in: ${monitoringQuestions || 'None'}
+- Monitoring topics: ${monitoringQuestions || 'None'}
 - Days since last call: ${daysSinceLastCall ?? 'First call ever'}
+- Last 3 calls:
+${(previousCheckIns || []).slice(0, 3).map(c => `  ${new Date(c.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}: Score ${c.well_being_score}/10, Meds: ${c.medicines_taken ?? '?'}, ${c.conversation_summary || 'No details'}`).join('\n')}
 
-LAST 7 CALLS:
-${callHistory || 'No previous calls.'}
-
-INSTRUCTIONS:
-- Write like notes a doctor reads before seeing a patient
-- If they've been giving short "theek hai" answers repeatedly, tell the agent to try engaging them more - ask about their day, what they did
-- Mention specific medicines BY NAME to check
-- If there are active symptoms, tell the agent to follow up on them specifically
-- Include ONE monitoring topic to naturally weave into conversation
-- If this is the first call, tell the agent to introduce warmly and keep it light
-- Keep it under 200 words
-- Language: ${briefingLang}`;
-
+RULES:
+• Bullet 1: What happened last call (one sentence).
+• Bullet 2: What to ask today — one medicine name OR one symptom to follow up.
+• Bullet 3: One conversation starter if they give brief answers.
+• Max 50 words total. No paragraphs. No explanations.
+• Language: ${briefingLang}`;
         const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
           method: "POST",
           headers: {
