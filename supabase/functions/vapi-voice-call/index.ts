@@ -257,7 +257,12 @@ serve(async (req) => {
     // Build variable values for Vapi assistant
     const isHindi = preferredLanguage === 'hindi';
     
-    const medicineList = medicines.map((m: any) => m.name).join(', ');
+    // Format medicines with name + purpose for clarity
+    const medicineList = medicines.map((m: any) => {
+      const name = m.name || '';
+      const purpose = m.purpose?.trim() || '';
+      return purpose ? `${name} (${purpose})` : name;
+    }).filter(Boolean).join(', ');
     const medicineDetails = medicines.map((m: any) => 
       `${m.name} - ${m.dosage} (${m.timing})`
     ).join('; ');
