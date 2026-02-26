@@ -46,7 +46,7 @@ interface Elder {
   medical_conditions: string[] | null;
   check_in_method: string;
   last_manual_call_at: string | null;
-  medicines: { id: string; name: string; dosage: string; timing: string }[];
+  medicines: { id: string; name: string; dosage: string; timing: string; purpose?: string }[];
   preferred_language?: string;
 }
 

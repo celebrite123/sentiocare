@@ -501,10 +501,16 @@ serve(async (req) => {
 
         const briefingLang = isHindi ? 'Hindi (Hinglish is fine)' : 'English';
         
+        // Build a strict medicine name list for validation
+        const actualMedicineNames = (medicines || []).map((m: any) => m.name).filter(Boolean);
+        const medicineNameConstraint = actualMedicineNames.length > 0 
+          ? `ALLOWED MEDICINE NAMES (use ONLY these exact names, never substitute): ${actualMedicineNames.join(', ')}`
+          : 'No medicines prescribed — do not mention any medicine names.';
+
         const metaPrompt = `Write exactly 3 short bullet points for a voice agent about to call ${firstName}. Max 50 words total.
 
 CONTEXT:
-- Medicines: ${medicineList}
+- ${medicineNameConstraint}
 - Active symptoms: ${activeSymptomsList || 'None'}
 - Symptom days: ${symptomDaysFormatted || 'None'}
 - Monitoring topics: ${monitoringQuestions || 'None'}
@@ -514,9 +520,10 @@ ${(previousCheckIns || []).slice(0, 3).map(c => `  ${new Date(c.created_at).toLo
 
 RULES:
 • Bullet 1: What happened last call (one sentence).
-• Bullet 2: What to ask today — one medicine name OR one symptom to follow up.
+• Bullet 2: What to ask today — pick ONE medicine from the ALLOWED list above OR one symptom to follow up. NEVER use a medicine name not in the allowed list.
 • Bullet 3: One conversation starter if they give brief answers.
 • Max 50 words total. No paragraphs. No explanations.
+• CRITICAL: Do NOT invent or substitute medicine names. Only use names from the ALLOWED list above.
 • Language: ${briefingLang}`;
         const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
           method: "POST",
@@ -535,6 +542,24 @@ RULES:
         if (aiResponse.ok) {
           const aiData = await aiResponse.json();
           briefing = aiData.choices?.[0]?.message?.content?.trim() || '';
+          
+          // Post-processing: validate no hallucinated medicine names in briefing
+          if (actualMedicineNames.length > 0 && briefing) {
+            // Common medicine names that might be hallucinated from training data
+            const commonHallucinations = ['thyroxin', 'amlodipine', 'metformin', 'aspirin', 'paracetamol', 'crocin', 'dolo'];
+            const briefingLower = briefing.toLowerCase();
+            const actualNamesLower = actualMedicineNames.map((n: string) => n.toLowerCase());
+            
+            for (const hallucination of commonHallucinations) {
+              if (briefingLower.includes(hallucination) && !actualNamesLower.some((n: string) => n.includes(hallucination) || hallucination.includes(n))) {
+                console.warn(`BRIEFING HALLUCINATION DETECTED: "${hallucination}" not in actual medicines [${actualMedicineNames.join(', ')}]. Removing from briefing.`);
+                // Replace the hallucinated name with the first actual medicine name
+                const regex = new RegExp(hallucination, 'gi');
+                briefing = briefing.replace(regex, actualMedicineNames[0]);
+              }
+            }
+          }
+          
           console.log('AI briefing generated:', briefing.substring(0, 100) + '...');
         } else {
           console.error('AI briefing generation failed:', aiResponse.status);
