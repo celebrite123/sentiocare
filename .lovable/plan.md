@@ -1,137 +1,73 @@
 
 
-# Emotion Detection from Call Transcripts + Dashboard Display
+# Fix: Wrong Medicines, Missing Monitoring, AI Ignoring Responses
 
-## Current State
+## Problems Found
 
-- The AI analyzes transcripts for `sentiment` (positive/neutral/negative) and `elderMood` (one word like "cheerful")
-- But these are **not stored in a queryable column** -- `elderMood` is only inside `conversation_summary` text, and `sentiment` is a simple 3-value field
-- The dashboard shows sentiment trends but does NOT show mood/emotional state anywhere
-- There is NO "says fine but seems sad" detection -- the AI just takes words at face value
+### 1. Wrong medicine being asked (CRITICAL)
+The example calls in the Bolna prompt hardcode medicine names like "Thyroxin", "Amlodipine", "Metformin". The AI treats these examples as real data and asks about them instead of reading the actual `{medicines}` variable. This is the #1 cause of the wrong medicine issue.
 
-## Important Reality
+### 2. Custom monitoring topics never asked
+The prompt only asks monitoring topics as a fallback in Step 3 when there are no active symptoms. If there are ANY previous symptoms (even old ones), monitoring is always skipped.
 
-Bolna/Vapi webhooks only send text transcripts, not raw audio. True voice pitch/tone analysis isn't possible with the current providers. However, we can do **deep linguistic emotion analysis** that catches:
-- Contradictions: saying "theek hai" but mentioning pain/tiredness later
-- Brevity patterns: consistently one-word answers = possible withdrawal/depression
-- Hedging language: "thoda sa...", "kuch nahi bas..." = minimizing problems
-- Energy markers: short vs long responses compared to their usual pattern
+### 3. AI doesn't care about responses
+The prompt says "acknowledge briefly" but doesn't give the AI specific instructions on HOW to respond to what the elder says. It just rushes through steps.
 
-This is surprisingly accurate for elder care because elders who are struggling tend to give shorter, more dismissive answers over time.
+### 4. AI briefing may hallucinate medicines
+The Gemini-generated briefing could mention wrong medicine names from example data or previous summaries that reference other elders.
 
-## Changes
+## Fixes
 
-### 1. Database: Add `emotional_tone` column to `check_ins`
+### File 1: `SENTIO_VOICE_AGENT_GUARDRAILS.md`
 
-Add a new `jsonb` column `emotional_tone` to store structured emotion data:
-```json
-{
-  "detected_emotion": "masking_distress",
-  "confidence": "medium",
-  "verbal_mood": "fine",
-  "underlying_mood": "withdrawn",
-  "indicators": ["very short responses", "said fine but didn't elaborate when asked about day"],
-  "emotional_trend": "declining"
-}
+**Remove all hardcoded medicine names from examples.** Replace "Thyroxin", "Amlodipine", "Metformin" with `[medicine from {medicines}]` placeholders. This prevents the AI from confusing example data with real data.
+
+**Restructure Step 3** to always include monitoring:
+- If active symptoms exist: ask about the first symptom
+- THEN also ask ONE monitoring topic if available (making it a natural 2-part step)
+- This ensures monitoring topics are never completely skipped
+
+**Add explicit response handling rules:**
+- After the elder responds to any question, repeat back what they said in 1 short sentence before moving on
+- Example: Elder says "haan, kha li" -> AI says "accha, le li. Bahut achhe." THEN moves to next step
+- This makes the elder feel heard instead of feeling interrogated
+
+**Add a critical rule**: "The ONLY medicine names you may speak are those listed in {medicines}. If {medicines} says 'dsa', you ask about 'dsa'. NEVER substitute, correct, or guess medicine names."
+
+### File 2: `supabase/functions/bolna-voice-call/index.ts`
+
+**Harden the briefing meta-prompt** to explicitly forbid inventing medicine names:
+- Add to the meta-prompt: "ONLY reference medicine names from this exact list: [medicines]. Do NOT use any other medicine names."
+- Add validation after briefing generation: if the briefing contains any medicine name NOT in the elder's actual medicine list, strip it out
+
+**Add medicine name validation** as a post-processing step on the briefing:
+- Extract all potential medicine names from the generated briefing
+- Cross-reference against the actual `medicineList`
+- If a mismatch is found, regenerate with a stricter prompt or remove the hallucinated name
+
+### File 3: `supabase/functions/vapi-voice-call/index.ts`
+
+Apply the same medicine data fixes:
+- The Vapi function passes `medicineList` as just `medicines.map(m => m.name).join(', ')` but the interface doesn't include `purpose`
+- Fix the Elder interface in Dashboard.tsx to include `purpose` field
+- Ensure Vapi also gets proper medicine data
+
+### File 4: `src/pages/Dashboard.tsx`
+
+Fix the Elder interface to include `purpose` in the medicines type so manual calls also pass correct data:
+```
+medicines: { id: string; name: string; dosage: string; timing: string; purpose?: string }[];
 ```
 
-This is much richer than the current single-word `sentiment` field.
+## Summary of Changes
 
-### 2. Webhook Enhancement: Deep Emotion Analysis
+| File | What Changes |
+|------|-------------|
+| `SENTIO_VOICE_AGENT_GUARDRAILS.md` | Remove hardcoded medicine examples, add "ONLY use {medicines}" rule, restructure Step 3 to include monitoring, add response acknowledgment rules |
+| `supabase/functions/bolna-voice-call/index.ts` | Add medicine-name validation to briefing, add explicit constraint in meta-prompt |
+| `supabase/functions/vapi-voice-call/index.ts` | Same medicine validation fixes |
+| `src/pages/Dashboard.tsx` | Add `purpose` to Elder medicines interface |
 
-Update the AI analysis prompt in both `vapi-webhook/index.ts` and `bolna-webhook/index.ts` to add a dedicated emotion analysis section. The prompt will instruct the AI to:
+## Key Principle
 
-- Compare what the elder SAYS vs HOW they say it (response length, engagement level, hedging)
-- Look for contradiction patterns: "theek hai" + no elaboration + short call = possible masking
-- Compare against recent call patterns (using the transcript itself): if someone who usually talks a lot is suddenly giving one-word answers, flag it
-- Output a structured `emotionalTone` object with `detected_emotion`, `confidence`, `verbal_mood`, `underlying_mood`, and `indicators`
-
-Key detected emotions:
-- `genuinely_positive` -- sounds fine AND is fine
-- `masking_distress` -- says fine but indicators suggest otherwise
-- `withdrawn` -- minimal engagement, short responses
-- `anxious` -- repetitive concerns, seeking reassurance
-- `lonely` -- trying to extend the call, asking personal questions
-- `irritable` -- curt responses, annoyance at questions
-- `neutral` -- baseline, nothing notable
-
-### 3. Alert Enhancement
-
-If `detected_emotion` is `masking_distress` or `withdrawn` for 2+ consecutive calls, auto-trigger a medium-severity alert: "Elder may be hiding distress -- verbal responses don't match engagement pattern." This catches cases where an elder always says "theek hai" but is actually declining.
-
-### 4. Dashboard: New Emotional Wellness Card
-
-Add a new component `EmotionalWellnessCard` to the elder dashboard showing:
-
-- **Current emotional state** with an icon and label (e.g., a small emoji-style indicator + "Seems withdrawn today")
-- **Last 7 days emotion timeline** -- simple colored dots showing detected emotions over time (green = genuinely positive, yellow = neutral, orange = masking/anxious, red = withdrawn/distressed)
-- **Contradiction flag** -- if the latest call detected masking, show a gentle alert: "Said everything is fine, but responses were unusually brief"
-
-This card sits alongside the existing AI Insights card.
-
-### 5. Update AIInsights to Show Mood Trends
-
-The existing AIInsights component currently shows sentiment trends. Update it to also pull `emotional_tone` data and show a "Emotional Pattern" section that summarizes the last 7 days (e.g., "3 out of 7 calls showed withdrawn pattern -- consider checking in personally").
-
-## Files Modified
-
-| File | Change |
-|------|--------|
-| New migration | Add `emotional_tone jsonb` column to `check_ins` table |
-| `supabase/functions/vapi-webhook/index.ts` | Add emotion analysis to AI prompt, save to new column |
-| `supabase/functions/bolna-webhook/index.ts` | Same emotion analysis addition |
-| `src/components/dashboard/EmotionalWellnessCard.tsx` | New component -- emotion display + 7-day timeline |
-| `src/components/dashboard/AIInsights.tsx` | Add emotional pattern section |
-| `src/pages/Dashboard.tsx` | Add EmotionalWellnessCard to dashboard layout |
-
-## Technical Details
-
-### New AI Analysis Fields (added to webhook prompts)
-
-```json
-{
-  "emotionalTone": {
-    "detected_emotion": "genuinely_positive | masking_distress | withdrawn | anxious | lonely | irritable | neutral",
-    "confidence": "high | medium | low",
-    "verbal_mood": "what they said they feel",
-    "underlying_mood": "what their response patterns suggest",
-    "indicators": ["array of specific evidence from transcript"]
-  }
-}
-```
-
-### Emotion Detection Prompt Addition
-
-The key prompt section that makes this work:
-
-```
-EMOTIONAL ANALYSIS (CRITICAL -- look beyond words):
-Analyze the elder's EMOTIONAL STATE by examining:
-1. Response length: Are they giving one-word answers or elaborating?
-2. Contradictions: Do they say "fine" but mention problems when probed?
-3. Engagement: Did they ask questions back, or just answer minimally?
-4. Hedging: "thoda sa", "kuch nahi bas", "theek hai theek hai" = minimizing
-5. Energy: Compare response verbosity to what's typical for a phone call
-
-If they say "theek hai" and nothing else despite follow-up questions, 
-mark as "withdrawn" not "genuinely_positive".
-If they say "theek hai" but then mention tiredness/pain later, 
-mark as "masking_distress".
-Only mark "genuinely_positive" if they actively engage and elaborate.
-```
-
-### Alert Logic
-
-In the webhook, after emotion analysis:
-- If `detected_emotion` is `masking_distress` with `high` confidence: create alert immediately
-- If `detected_emotion` is `withdrawn` for current call: check last 2 calls -- if also withdrawn, create alert
-- Alert title: "Emotional Concern: Elder may be masking distress" or "Pattern: Elder seems increasingly withdrawn"
-
-### Dashboard Card Design
-
-The EmotionalWellnessCard will show:
-- A header icon (Brain or Heart) with title "How They're Really Feeling"
-- Current emotion as a colored badge with plain-language label
-- 7 small colored circles for the last 7 calls (hover for details)
-- If masking detected: a subtle warning banner explaining the contradiction
-
+The root cause is that the AI has access to example data (hardcoded medicine names in the prompt) AND real data (`{medicines}` variable), and it can't tell them apart. The fix is simple: remove ALL example medicine names from the prompt and add an explicit rule that the AI may ONLY speak medicine names from `{medicines}`.
