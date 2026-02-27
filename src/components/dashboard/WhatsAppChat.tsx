@@ -102,9 +102,12 @@ const WhatsAppChat = ({ elderId, elderName, checkInMethod = 'voice' }: WhatsAppC
       setTimeout(loadConversations, 2000);
     } catch (error: any) {
       console.error('Error starting WhatsApp check-in:', error);
+      const errorDetail = error?.context?.body ? 
+        `Twilio error: ${JSON.stringify(error.context.body)}` : 
+        error.message || "Failed to send WhatsApp check-in";
       toast({
-        title: "Error",
-        description: error.message || "Failed to send WhatsApp check-in",
+        title: "WhatsApp Error",
+        description: errorDetail,
         variant: "destructive",
       });
     } finally {

@@ -56,7 +56,16 @@ const PageLoader = () => (
   </div>
 );
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000, // 5 minutes - data stays fresh, no re-fetches on navigation
+      gcTime: 10 * 60 * 1000, // 10 minutes garbage collection
+      refetchOnWindowFocus: false, // Don't re-fetch when user switches tabs
+      retry: 1, // Only retry once on failure
+    },
+  },
+});
 
 const App = () => (
   <ErrorBoundary>
