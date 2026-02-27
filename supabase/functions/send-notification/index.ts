@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
 interface NotificationRequest {
@@ -143,6 +143,11 @@ serve(async (req) => {
     }
 
     // Send email using Resend API directly
+    const fromEmail = Deno.env.get("RESEND_FROM_EMAIL") || "onboarding@resend.dev";
+    if (!Deno.env.get("RESEND_FROM_EMAIL")) {
+      console.warn("⚠️ RESEND_FROM_EMAIL not set - using onboarding@resend.dev which only works for the Resend account owner's email. Set RESEND_FROM_EMAIL to a verified domain sender for production.");
+    }
+
     const emailResponse = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
@@ -150,7 +155,7 @@ serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: "Sentio AI <onboarding@resend.dev>",
+        from: `Sentio AI <${fromEmail}>`,
         to: [settings.email_address],
         subject,
         html: htmlContent,
