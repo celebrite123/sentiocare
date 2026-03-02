@@ -1,75 +1,78 @@
 
-# Fix: Website Performance, WhatsApp, and Email Issues
 
-## Problems Identified
+# Fix: Wrong Medicine Names + Wrong Symptom Priority in Voice Calls
 
-### 1. Email Notifications Not Working
-Both `send-notification` and `notify-caregiver` use `from: "Sentio AI <onboarding@resend.dev>"`. The `onboarding@resend.dev` sender only works when sending to the Resend account owner's email address. Sending to any other email silently fails or gets rejected. You need a verified custom domain in Resend to send to real users.
+## Root Cause Analysis
 
-**Fix**: You need to add a verified domain in your Resend account (e.g., `notifications@yourdomain.com`). Once done, I'll update both edge functions to use that sender. Alternatively, we can set up Lovable's built-in email system for auth emails and use a Resend verified domain for transactional alerts.
+### Problem 1: "Thyroxin" instead of "dsa"
+The Bolna edge function has hallucination protection, BUT:
+- The hardcoded hallucination list (line 549) only catches 7 common names. If the AI hallucinates a name NOT in that list, it passes through unchecked.
+- The comment on line 472 still mentions "Thyroxin" as an example, which could influence the AI briefing context.
+- **Most critically**: The actual prompt running on the Bolna Dashboard likely still has the OLD examples with hardcoded medicine names. The `SENTIO_VOICE_AGENT_GUARDRAILS.md` was updated but you need to manually copy-paste it into the Bolna Dashboard.
 
-### 2. WhatsApp Not Working
-The `send-whatsapp-checkin` function calls Twilio's WhatsApp API. Twilio WhatsApp requires an approved WhatsApp Business sender. If you're on a Twilio sandbox, messages only work with sandbox-joined numbers. For production, you need a Twilio WhatsApp-approved number. The CORS headers are also missing the newer Supabase client headers, which could cause preflight failures from the browser.
+**Fix**: Replace the limited hallucination blocklist with a universal validator -- if ANY word in the briefing looks like a medicine name but is NOT in the elder's actual medicine list, flag and replace it. Also remove the misleading comment.
 
-**Fix**: Update CORS headers in `send-whatsapp-checkin` and `send-notification` to include the full set of Supabase client headers. Also add better error handling so you can see exactly why Twilio is failing.
+### Problem 2: Asking about "back pain" instead of "fever"
+The code collects ALL symptoms from the last 7 check-ins and deduplicates them. But it does NOT prioritize by recency. If "back pain" was reported 5 days ago and "fever" was reported yesterday, the code sends both as `active_symptoms` but the prompt asks about "the FIRST symptom" -- which may be "back pain" because the deduplication order is unpredictable (uses `Set`).
 
-### 3. Website Performance Issues
-Several things are slowing it down:
-- **Dashboard makes 6+ sequential/parallel DB queries** on load, plus each sub-component (HealthMetrics, AIInsights, CheckInLog, WhatsAppChat, CallStatusCard, CallReliabilityCard, WellbeingTrendChart, MedicationAdherenceChart) each makes their own independent DB calls -- that's 10+ separate queries on dashboard load
-- **QueryClient has no caching config** -- `new QueryClient()` with no `defaultOptions` means every navigation re-fetches everything
-- **AuthContext checks session on every route** which is fine but combined with `useAdminRole` and `useB2BMembership` hooks in Navbar, that's 3 extra DB queries on every page
-- **Landing page loads 5 PNG images** (hero, elder-phone-call, caregiver-peace-of-mind, elder-grandfather, elder-grandmother) without size optimization
+**Fix**: Sort active symptoms by most recent first. The symptom from yesterday's call (fever) should always appear first in the list so the AI asks about it.
 
-## Plan
+### Problem 3: AI doesn't acknowledge responses
+This is a Bolna Dashboard prompt issue. The updated guardrails document already has the acknowledgment rules, but you need to paste the updated prompt into the Bolna Dashboard.
 
-### A. Fix CORS Headers Across Edge Functions (Quick Win)
+## Changes
 
-Update CORS headers in `send-whatsapp-checkin`, `send-notification`, and `notify-caregiver` to include the full set:
+### File 1: `supabase/functions/bolna-voice-call/index.ts`
+
+**A. Fix symptom ordering (lines 407-420)**
+Instead of collecting symptoms into a Set (which loses order), track each symptom with its most recent occurrence date, then sort by most recent first. This ensures "fever" (yesterday) comes before "back pain" (5 days ago).
+
+**B. Improve medicine hallucination protection (lines 547-561)**
+Replace the hardcoded blocklist approach with a smarter validator:
+- Extract all capitalized words and known medicine patterns from the briefing
+- Compare each against the actual medicine list
+- If a word looks like a medicine name (capitalized, not a common English word) and is NOT in the actual list, replace it with the first actual medicine name
+- This catches ALL hallucinations, not just 7 hardcoded ones
+
+**C. Remove misleading comment (line 472)**
+Change `// Format medicines with name + purpose (e.g. "Thyroxin (Thyroid)")` to remove the specific medicine name example.
+
+### File 2: `supabase/functions/vapi-voice-call/index.ts`
+
+The Vapi function is missing:
+- Monitoring topics (never fetched or passed)
+- Resolved symptom filtering (passes ALL symptoms)
+- AI briefing generation
+- Medicine hallucination protection
+
+Since the Dashboard currently uses Bolna (not Vapi), this is lower priority but should be fixed for consistency. Add:
+- Fetch `monitoring_config` from elder record
+- Filter resolved symptoms
+- Pass monitoring topics in `variableValues`
+
+### Important: Bolna Dashboard Update Required
+
+After these code changes deploy, you MUST copy the updated prompt from `SENTIO_VOICE_AGENT_GUARDRAILS.md` and paste it into your Bolna Dashboard agent configuration. The edge function sends the correct data (medicines, symptoms, monitoring topics), but the Bolna agent prompt is what actually controls what the AI says during the call. If the old prompt is still there, it will keep using hardcoded examples.
+
+## Technical Details
+
+### Symptom Ordering Fix
+```text
+Before: Set([back_pain, headache, fever]) -- random order
+After:  [fever (1 day ago), back_pain (5 days ago), headache (3 days ago)] -- sorted by recency
 ```
-authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version
+
+### Medicine Validation Fix
+```text
+Before: Check against hardcoded list [thyroxin, amlodipine, metformin, aspirin, paracetamol, crocin, dolo]
+After:  Check ANY capitalized word against actual medicine list. If not found AND not a common English word, replace it.
 ```
 
-### B. Fix Email -- Add Custom Domain Support
-
-Update `send-notification/index.ts` and `notify-caregiver/index.ts` to use a configurable `FROM_EMAIL` secret instead of hardcoded `onboarding@resend.dev`. Add a new secret `RESEND_FROM_EMAIL`. Default to `onboarding@resend.dev` if not set but log a warning.
-
-### C. Fix WhatsApp Error Visibility
-
-Update `WhatsAppChat.tsx` to show the actual Twilio error message in the toast so you can debug what's failing. Add a status indicator showing whether WhatsApp is properly configured.
-
-### D. Performance -- Add QueryClient Caching
-
-Configure the `QueryClient` in `App.tsx` with:
-- `staleTime: 5 * 60 * 1000` (5 minutes) -- data stays fresh, no re-fetches on navigation
-- `gcTime: 10 * 60 * 1000` (10 min garbage collection)
-- `refetchOnWindowFocus: false` -- stop re-fetching when user switches tabs
-
-### E. Performance -- Consolidate Dashboard Queries
-
-Combine the Dashboard's parallel queries with the sub-component queries. Use React Query (`useQuery`) instead of raw `supabase` calls in Dashboard so data is cached and shared across components.
-
-### F. Performance -- Optimize Images
-
-Add `loading="lazy"` and explicit `width`/`height` to all landing page images. The hero image already has `fetchPriority="high"` which is correct. The other images in FeaturesSection already have `loading="lazy"`.
-
-### G. UI/UX Improvements
-
-- Add skeleton loading states to Navbar (currently shows nothing while admin/b2b hooks load)
-- Improve mobile dashboard layout -- the 6-column stats grid is cramped on mobile
-- Add smooth transitions between tab content on dashboard
-
-## Files Modified
+## Summary
 
 | File | Change |
 |------|--------|
-| `src/App.tsx` | Configure QueryClient with caching defaults |
-| `src/pages/Dashboard.tsx` | Convert to useQuery for caching, fix stats grid responsive layout |
-| `src/components/dashboard/WhatsAppChat.tsx` | Better error messages, loading states |
-| `supabase/functions/send-whatsapp-checkin/index.ts` | Fix CORS headers |
-| `supabase/functions/send-notification/index.ts` | Fix CORS headers, configurable FROM email |
-| `supabase/functions/notify-caregiver/index.ts` | Fix CORS headers, configurable FROM email |
+| `supabase/functions/bolna-voice-call/index.ts` | Sort symptoms by recency, universal medicine hallucination detection, remove misleading comment |
+| `supabase/functions/vapi-voice-call/index.ts` | Add monitoring topics, resolved symptom filtering, medicine validation |
+| **Bolna Dashboard** (manual) | Copy updated prompt from `SENTIO_VOICE_AGENT_GUARDRAILS.md` |
 
-## What You Need To Do (Before or After)
-
-1. **For email to work in production**: Add a verified domain in your Resend dashboard, then set the `RESEND_FROM_EMAIL` secret to something like `alerts@yourdomain.com`
-2. **For WhatsApp to work in production**: Ensure your Twilio WhatsApp number is approved (not sandbox). Check Twilio console for the exact error on failed messages
