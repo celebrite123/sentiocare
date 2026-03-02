@@ -76,10 +76,10 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // ============ AUTHORIZATION CHECK ============
-    // Verify elder exists
+    // Verify elder exists (include monitoring_config)
     const { data: elder, error: elderError } = await supabase
       .from("elders")
-      .select("family_member_id, last_manual_call_at")
+      .select("family_member_id, last_manual_call_at, monitoring_config")
       .eq("id", elderId)
       .single();
 
@@ -198,36 +198,50 @@ serve(async (req) => {
       isServiceRoleCall
     });
 
-    // Fetch last 5 check-ins for context
+    // Fetch last 7 check-ins for context
     const { data: previousCheckIns, error: checkInsError } = await supabase
       .from("check_ins")
       .select("created_at, sentiment, well_being_score, medicines_taken, symptoms_reported, conversation_summary")
       .eq("elder_id", elderId)
       .order("created_at", { ascending: false })
-      .limit(5);
+      .limit(7);
 
     if (checkInsError) {
       console.error("Error fetching previous check-ins:", checkInsError);
     }
 
-    // Build context from previous check-ins
-    let previousSymptoms: string[] = [];
+    // Fetch resolved symptoms to filter them out
+    const { data: resolvedSymptomsData } = await supabase
+      .from("resolved_symptoms")
+      .select("symptom")
+      .eq("elder_id", elderId);
+
+    const resolvedSymptomsList = (resolvedSymptomsData || []).map(r => r.symptom.toLowerCase().trim());
+
+    // Build context from previous check-ins with recency-sorted symptoms
     let recentConcerns = "";
     let averageWellbeing = 0;
     let checkInCount = 0;
     
+    // Track symptoms with recency for proper ordering
+    const symptomRecencyMap = new Map<string, string>();
+    
     if (previousCheckIns && previousCheckIns.length > 0) {
       previousCheckIns.forEach(checkIn => {
         if (checkIn.symptoms_reported && checkIn.symptoms_reported.length > 0) {
-          previousSymptoms = [...previousSymptoms, ...checkIn.symptoms_reported];
+          for (const symptom of checkIn.symptoms_reported) {
+            const normalized = symptom.toLowerCase().trim();
+            const existing = symptomRecencyMap.get(normalized);
+            if (!existing || new Date(checkIn.created_at) > new Date(existing)) {
+              symptomRecencyMap.set(normalized, checkIn.created_at);
+            }
+          }
         }
         if (checkIn.well_being_score) {
           averageWellbeing += checkIn.well_being_score;
           checkInCount++;
         }
       });
-      
-      previousSymptoms = [...new Set(previousSymptoms)];
       
       if (checkInCount > 0) {
         averageWellbeing = Math.round(averageWellbeing / checkInCount);
@@ -237,20 +251,32 @@ serve(async (req) => {
       if (lastCheckIn.conversation_summary) {
         recentConcerns = lastCheckIn.conversation_summary.substring(0, 200);
       }
-      
-      console.log("Previous context loaded:", {
-        symptomsCount: previousSymptoms.length,
-        averageWellbeing,
-        hasRecentConcerns: !!recentConcerns
-      });
     }
 
-    // Fetch caregiver info from notification_settings
+    // Sort symptoms by most recent first, filter out resolved
+    const previousSymptoms = [...symptomRecencyMap.entries()]
+      .sort((a, b) => new Date(b[1]).getTime() - new Date(a[1]).getTime())
+      .map(([symptom]) => symptom)
+      .filter(symptom => !resolvedSymptomsList.some(r => r.includes(symptom) || symptom.includes(r)));
+    
+    console.log("Previous context loaded:", {
+      symptomsCount: previousSymptoms.length,
+      averageWellbeing,
+      hasRecentConcerns: !!recentConcerns
+    });
+
+    // Fetch caregiver info and monitoring config
     const { data: notificationSettings } = await supabase
       .from("notification_settings")
       .select("caregiver_name, caregiver_phone, caregiver_relation")
       .eq("elder_id", elderId)
       .single();
+    
+    // Get monitoring config from elder record
+    const monitoringConfig = (elder as any).monitoring_config || { topics: [], custom_questions: [] };
+    const monitoringTopics = (monitoringConfig.topics || []).join(', ') || 'None';
+    const customQuestions = (monitoringConfig.custom_questions || [])
+      .map((q: any) => q.question).filter(Boolean).join(' | ') || '';
 
     const hasCaregiver = !!(notificationSettings?.caregiver_name && notificationSettings?.caregiver_phone);
 
@@ -297,6 +323,10 @@ serve(async (req) => {
       previous_symptoms: symptomsList,
       recent_concerns: recentConcerns || 'None',
       average_wellbeing: String(averageWellbeing || 'No data'),
+      
+      // Monitoring topics
+      monitoring_topics: monitoringTopics,
+      custom_questions: customQuestions,
       
       // Call metadata
       is_emergency: String(isEmergency),
