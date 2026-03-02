@@ -404,15 +404,26 @@ serve(async (req) => {
 
     const resolvedSymptomsList = resolvedSymptomsData || [];
 
-    let previousSymptoms: string[] = [];
+    // Track each symptom with its most recent occurrence date for recency sorting
+    const symptomRecencyMap = new Map<string, string>(); // symptom -> most recent created_at
     previousCheckIns?.forEach(checkIn => {
       if (checkIn.symptoms_reported && checkIn.symptoms_reported.length > 0) {
-        previousSymptoms = [...previousSymptoms, ...checkIn.symptoms_reported];
+        for (const symptom of checkIn.symptoms_reported) {
+          const normalized = normalizeSymptom(symptom);
+          const existing = symptomRecencyMap.get(normalized);
+          if (!existing || new Date(checkIn.created_at) > new Date(existing)) {
+            symptomRecencyMap.set(normalized, checkIn.created_at);
+          }
+        }
       }
     });
-    previousSymptoms = [...new Set(previousSymptoms)];
 
-    const activeSymptoms = previousSymptoms.filter(symptom => {
+    // Sort by most recent first, then filter out resolved
+    const sortedSymptoms = [...symptomRecencyMap.entries()]
+      .sort((a, b) => new Date(b[1]).getTime() - new Date(a[1]).getTime())
+      .map(([symptom]) => symptom);
+
+    const activeSymptoms = sortedSymptoms.filter(symptom => {
       const isResolved = resolvedSymptomsList.some(resolved => 
         symptomsMatch(symptom, resolved.symptom)
       );
@@ -469,7 +480,7 @@ serve(async (req) => {
     const firstName = getFirstName(elderName);
     const greeting = buildGreeting(firstName, isHindi, daysSinceLastCall, isEmergency);
     
-    // Format medicines with name + purpose (e.g. "Thyroxin (Thyroid)")
+    // Format medicines with name + purpose for AI context
     const medicineList = formatMedicines(medicines, isHindi);
     
     const activeSymptomsList = activeSymptoms.length > 0 ? activeSymptoms.slice(0, 2).join(', ') : '';
@@ -543,20 +554,51 @@ RULES:
           const aiData = await aiResponse.json();
           briefing = aiData.choices?.[0]?.message?.content?.trim() || '';
           
-          // Post-processing: validate no hallucinated medicine names in briefing
+          // Post-processing: universal medicine hallucination validator
+          // Instead of a hardcoded blocklist, check ALL capitalized words against actual medicine list
           if (actualMedicineNames.length > 0 && briefing) {
-            // Common medicine names that might be hallucinated from training data
-            const commonHallucinations = ['thyroxin', 'amlodipine', 'metformin', 'aspirin', 'paracetamol', 'crocin', 'dolo'];
-            const briefingLower = briefing.toLowerCase();
-            const actualNamesLower = actualMedicineNames.map((n: string) => n.toLowerCase());
+            const actualNamesLower = actualMedicineNames.map((n: string) => n.toLowerCase().trim());
             
-            for (const hallucination of commonHallucinations) {
-              if (briefingLower.includes(hallucination) && !actualNamesLower.some((n: string) => n.includes(hallucination) || hallucination.includes(n))) {
-                console.warn(`BRIEFING HALLUCINATION DETECTED: "${hallucination}" not in actual medicines [${actualMedicineNames.join(', ')}]. Removing from briefing.`);
-                // Replace the hallucinated name with the first actual medicine name
-                const regex = new RegExp(hallucination, 'gi');
-                briefing = briefing.replace(regex, actualMedicineNames[0]);
+            // Common English words to skip (not medicine names)
+            const commonWords = new Set([
+              'the', 'and', 'for', 'with', 'was', 'has', 'had', 'are', 'his', 'her',
+              'how', 'did', 'not', 'but', 'ask', 'about', 'check', 'last', 'call',
+              'today', 'yesterday', 'score', 'taken', 'said', 'fine', 'well', 'good',
+              'feeling', 'pain', 'sleep', 'mood', 'meals', 'water', 'exercise',
+              'medicine', 'medicines', 'medication', 'medications', 'meds', 'tablet',
+              'dose', 'dosage', 'prescribed', 'doctor', 'follow', 'blood', 'pressure',
+              'sugar', 'test', 'report', 'none', 'summary', 'bullet', 'conversation',
+              'starter', 'brief', 'answers', 'one', 'two', 'three', 'first', 'second',
+              'sentio', 'hello', 'namaste', 'what', 'when', 'where', 'who', 'which',
+              'they', 'them', 'that', 'this', 'from', 'been', 'being', 'have', 'will',
+              'would', 'could', 'should', 'just', 'also', 'only', 'still', 'some',
+              'any', 'all', 'each', 'every', 'both', 'few', 'more', 'most', 'other',
+              'such', 'than', 'then', 'very', 'much', 'many', 'same', 'make', 'take',
+            ]);
+            
+            // Find capitalized words that look like medicine names (2+ chars, not common English)
+            const capsWordRegex = /\b([A-Z][a-z]{2,}(?:\s*[A-Z][a-z]*)*)\b/g;
+            let match;
+            const suspectWords: string[] = [];
+            while ((match = capsWordRegex.exec(briefing)) !== null) {
+              const word = match[1].trim();
+              const wordLower = word.toLowerCase();
+              if (!commonWords.has(wordLower) && !actualNamesLower.some(n => n.includes(wordLower) || wordLower.includes(n))) {
+                // This capitalized word is NOT in the actual medicine list and NOT a common English word
+                // Check if it could plausibly be a medicine name (ends in common pharma suffixes or is a known pattern)
+                const pharmaSuffixes = ['in', 'ol', 'ide', 'ine', 'ate', 'one', 'ium', 'cin', 'min', 'tin', 'pril', 'tan', 'mab'];
+                const looksLikeMedicine = pharmaSuffixes.some(s => wordLower.endsWith(s)) || wordLower.length >= 5;
+                if (looksLikeMedicine) {
+                  suspectWords.push(word);
+                }
               }
+            }
+            
+            // Replace any suspected hallucinated medicine names with the first actual medicine
+            for (const suspect of suspectWords) {
+              console.warn(`BRIEFING HALLUCINATION DETECTED: "${suspect}" not in actual medicines [${actualMedicineNames.join(', ')}]. Replacing.`);
+              const regex = new RegExp(`\\b${suspect}\\b`, 'gi');
+              briefing = briefing.replace(regex, actualMedicineNames[0]);
             }
           }
           
