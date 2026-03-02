@@ -21,10 +21,10 @@ async function verifySignature(message: string, secret: string, signature: strin
 const allowedOrigins = [
   "https://sentio.in.net",
   "https://www.sentio.in.net",
+  "https://sentiocare.lovable.app",
 ];
 
 const getCorsHeaders = (origin: string | null) => {
-  // Allow production domain and all Lovable preview domains
   const isAllowed = origin && (
     allowedOrigins.includes(origin) ||
     origin.endsWith(".lovable.app")
@@ -32,7 +32,7 @@ const getCorsHeaders = (origin: string | null) => {
   return {
     "Access-Control-Allow-Origin": isAllowed ? origin : allowedOrigins[0],
     "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
     "Access-Control-Allow-Credentials": "true",
   };
 };

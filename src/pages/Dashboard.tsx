@@ -443,7 +443,7 @@ const Dashboard = () => {
           </div>
 
           {/* Action Buttons - Emergency Only */}
-          <div className="mb-6 flex flex-col sm:flex-row flex-wrap justify-center gap-3 sm:gap-4">
+          <div className="mb-6 flex flex-col sm:flex-row flex-wrap justify-center gap-2 sm:gap-4">
             {canUseVoice ? (
               <AlertDialog>
                 <AlertDialogTrigger asChild>
@@ -539,7 +539,7 @@ const Dashboard = () => {
           </div>
 
           {/* Stats Cards */}
-          <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-6 mb-8">
+          <div className="grid gap-3 sm:gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 mb-6 sm:mb-8">
             <Card className="border-primary/20">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Today's Check-in</CardTitle>
@@ -547,13 +547,13 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent>
                 <div
-                  className={`text-2xl font-bold ${
+                  className={`text-lg sm:text-2xl font-bold ${
                     stats.todayCheckIn.status === "completed"
                       ? "text-accent"
                       : "text-muted-foreground"
                   }`}
                 >
-                  {stats.todayCheckIn.status === "completed" ? "Completed" : "Pending"}
+                  {stats.todayCheckIn.status === "completed" ? "Done" : "Pending"}
                 </div>
                 <p className="text-xs text-muted-foreground">
                   {stats.todayCheckIn.lastTime
@@ -569,8 +569,8 @@ const Dashboard = () => {
                 <Pill className="h-4 w-4 text-accent" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-accent">
-                  {stats.medicineStatus.taken}/{stats.medicineStatus.total} Taken
+                <div className="text-lg sm:text-2xl font-bold text-accent">
+                  {stats.medicineStatus.taken}/{stats.medicineStatus.total}
                 </div>
                 <p className="text-xs text-muted-foreground">
                   {stats.medicineStatus.taken >= stats.medicineStatus.total
@@ -602,7 +602,7 @@ const Dashboard = () => {
                 }`} />
               </CardHeader>
               <CardContent>
-                <div className={`text-2xl font-bold ${
+                <div className={`text-lg sm:text-2xl font-bold ${
                   stats.wellBeingScore && stats.wellBeingScore >= 7 
                     ? "text-accent" 
                     : stats.wellBeingScore && stats.wellBeingScore >= 4 
@@ -611,7 +611,7 @@ const Dashboard = () => {
                         ? "text-destructive" 
                         : "text-muted-foreground"
                 }`}>
-                  {stats.wellBeingScore ? `${stats.wellBeingScore}/10` : "N/A"}
+                  {stats.wellBeingScore ? `${stats.wellBeingScore}/10` : "—"}
                 </div>
                 <p className="text-xs text-muted-foreground">
                   {stats.wellBeingScore
@@ -639,7 +639,7 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent>
                 <div
-                  className={`text-2xl font-bold ${
+                  className={`text-lg sm:text-2xl font-bold ${
                     stats.alertCount > 0 ? "text-destructive" : ""
                   }`}
                 >
@@ -677,7 +677,7 @@ const Dashboard = () => {
 
           {/* Tabs */}
           <Tabs defaultValue="checkins" className="space-y-6">
-            <TabsList className="grid w-full grid-cols-3 lg:w-[600px]">
+            <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="checkins">Check-in History</TabsTrigger>
               <TabsTrigger value="medicines">Medicines</TabsTrigger>
               <TabsTrigger value="analytics">Analytics</TabsTrigger>
