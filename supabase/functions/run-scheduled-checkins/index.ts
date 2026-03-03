@@ -77,8 +77,10 @@ serve(async (req) => {
     for (const schedule of schedules || []) {
       const [scheduleHour, scheduleMinute] = schedule.time_of_day.split(":").map(Number);
       
-      const timeDiff = Math.abs((currentHour * 60 + currentMinute) - (scheduleHour * 60 + scheduleMinute));
-      const isTimeMatch = timeDiff <= 5 || timeDiff >= (24 * 60 - 5);
+      const currentTotalMinutes = currentHour * 60 + currentMinute;
+      const scheduleTotalMinutes = scheduleHour * 60 + scheduleMinute;
+      const timeDiff = Math.abs(currentTotalMinutes - scheduleTotalMinutes);
+      const isTimeMatch = timeDiff <= 8 || timeDiff >= (24 * 60 - 8);
 
       const daysArray = schedule.days_of_week || [0, 1, 2, 3, 4, 5, 6];
       const isDayMatch = daysArray.includes(currentDay);
@@ -89,9 +91,15 @@ serve(async (req) => {
       const lastRunISTDate = lastRun ? getISTDateString(lastRun) : null;
       const alreadyRunToday = lastRunISTDate !== null && lastRunISTDate === nowISTDate;
 
-      console.log(`Schedule ${schedule.id}: time=${schedule.time_of_day}, timeMatch=${isTimeMatch}, dayMatch=${isDayMatch}, alreadyRun=${alreadyRunToday}, lastRunIST=${lastRunISTDate || 'never'}, nowIST=${nowISTDate}`);
+      // Catch-up: if scheduled time already passed today, hasn't run today, and last run was a previous day
+      const scheduledTimePassed = currentTotalMinutes > scheduleTotalMinutes + 8;
+      const isCatchUp = scheduledTimePassed && isDayMatch && !alreadyRunToday;
+      
+      const shouldTrigger = (isTimeMatch && isDayMatch && !alreadyRunToday) || isCatchUp;
 
-      if (isTimeMatch && isDayMatch && !alreadyRunToday) {
+      console.log(`Schedule ${schedule.id}: time=${schedule.time_of_day}, timeMatch=${isTimeMatch}, dayMatch=${isDayMatch}, alreadyRun=${alreadyRunToday}, catchUp=${isCatchUp}, lastRunIST=${lastRunISTDate || 'never'}, nowIST=${nowISTDate}`);
+
+      if (shouldTrigger) {
         const elder = schedule.elders;
         const checkInMethod = elder?.check_in_method || "whatsapp";
         
@@ -125,7 +133,11 @@ serve(async (req) => {
         const isTrialActive = status === "trial" && trialEndsAt && trialEndsAt > now;
         const canUseVoice = tier === "premium" || isTrialActive;
 
-        console.log(`Elder ${elder?.id}: method=${checkInMethod}, tier=${tier}, canUseVoice=${canUseVoice}`);
+        console.log(`Elder ${elder?.id}: method=${checkInMethod}, tier=${tier}, status=${status}, trialEndsAt=${trialEndsAt?.toISOString() || 'none'}, canUseVoice=${canUseVoice}`);
+        
+        if (status === "trial" && trialEndsAt && trialEndsAt <= now) {
+          console.log(`⚠️ TRIAL EXPIRED for elder ${elder?.id} (expired ${trialEndsAt.toISOString()}). Voice calls blocked.`);
+        }
 
         // Determine what type of check-in to run
         let shouldRunVoice = false;
