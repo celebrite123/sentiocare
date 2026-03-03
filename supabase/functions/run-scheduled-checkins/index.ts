@@ -133,7 +133,11 @@ serve(async (req) => {
         const isTrialActive = status === "trial" && trialEndsAt && trialEndsAt > now;
         const canUseVoice = tier === "premium" || isTrialActive;
 
-        console.log(`Elder ${elder?.id}: method=${checkInMethod}, tier=${tier}, canUseVoice=${canUseVoice}`);
+        console.log(`Elder ${elder?.id}: method=${checkInMethod}, tier=${tier}, status=${status}, trialEndsAt=${trialEndsAt?.toISOString() || 'none'}, canUseVoice=${canUseVoice}`);
+        
+        if (status === "trial" && trialEndsAt && trialEndsAt <= now) {
+          console.log(`⚠️ TRIAL EXPIRED for elder ${elder?.id} (expired ${trialEndsAt.toISOString()}). Voice calls blocked.`);
+        }
 
         // Determine what type of check-in to run
         let shouldRunVoice = false;
