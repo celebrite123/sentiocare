@@ -72,12 +72,15 @@ serve(async (req) => {
 
     console.log(`Found ${schedules?.length || 0} active schedules`);
 
-    const results: any[] = [];
+    const currentTotalMinutes = currentHour * 60 + currentMinute;
+    const nowISTDate = getISTDateString(now);
+
+    // ============ SEPARATE EXACT vs CATCH-UP SCHEDULES ============
+    const exactSchedules: typeof schedules = [];
+    const catchUpSchedules: typeof schedules = [];
 
     for (const schedule of schedules || []) {
       const [scheduleHour, scheduleMinute] = schedule.time_of_day.split(":").map(Number);
-      
-      const currentTotalMinutes = currentHour * 60 + currentMinute;
       const scheduleTotalMinutes = scheduleHour * 60 + scheduleMinute;
       const timeDiff = Math.abs(currentTotalMinutes - scheduleTotalMinutes);
       const isTimeMatch = timeDiff <= 8 || timeDiff >= (24 * 60 - 8);
@@ -86,306 +89,327 @@ serve(async (req) => {
       const isDayMatch = daysArray.includes(currentDay);
 
       const lastRun = schedule.last_run_at ? new Date(schedule.last_run_at) : null;
-      
-      const nowISTDate = getISTDateString(now);
       const lastRunISTDate = lastRun ? getISTDateString(lastRun) : null;
       const alreadyRunToday = lastRunISTDate !== null && lastRunISTDate === nowISTDate;
 
-      // Catch-up: if scheduled time already passed today, hasn't run today, and last run was a previous day
-      const scheduledTimePassed = currentTotalMinutes > scheduleTotalMinutes + 8;
-      const isCatchUp = scheduledTimePassed && isDayMatch && !alreadyRunToday;
-      
-      const shouldTrigger = (isTimeMatch && isDayMatch && !alreadyRunToday) || isCatchUp;
+      if (alreadyRunToday) {
+        console.log(`Schedule ${schedule.id}: SKIP (already ran today ${lastRunISTDate})`);
+        continue;
+      }
 
-      console.log(`Schedule ${schedule.id}: time=${schedule.time_of_day}, timeMatch=${isTimeMatch}, dayMatch=${isDayMatch}, alreadyRun=${alreadyRunToday}, catchUp=${isCatchUp}, lastRunIST=${lastRunISTDate || 'never'}, nowIST=${nowISTDate}`);
+      if (!isDayMatch) {
+        continue;
+      }
 
-      if (shouldTrigger) {
-        const elder = schedule.elders;
-        const checkInMethod = elder?.check_in_method || "whatsapp";
-        
-        // ============ CHECK FOR PENDING RETRIES ============
-        const { data: pendingRetries } = await supabase
-          .from("call_attempts")
-          .select("id, status, next_retry_at, created_at")
-          .eq("elder_id", schedule.elder_id)
-          .in("status", ["initiated", "no_answer"])
-          .order("created_at", { ascending: false })
-          .limit(1);
-        
-        if (pendingRetries && pendingRetries.length > 0) {
-          const pending = pendingRetries[0];
-          console.log(`SKIPPING schedule ${schedule.id} - elder ${schedule.elder_id} has pending retry: status=${pending.status}, next_retry_at=${pending.next_retry_at}`);
-          results.push({
-            schedule_id: schedule.id,
-            elder_id: schedule.elder_id,
-            status: "skipped_pending_retry",
-            pending_call_id: pending.id,
-          });
-          continue;
-        }
-        // ============ END PENDING RETRY CHECK ============
-        
-        // Get subscription info
-        const profile = elder?.profiles;
-        const tier = profile?.subscription_tier || "basic";
-        const status = profile?.subscription_status || "trial";
-        const trialEndsAt = profile?.trial_ends_at ? new Date(profile.trial_ends_at) : null;
-        const isTrialActive = status === "trial" && trialEndsAt && trialEndsAt > now;
-        const canUseVoice = tier === "premium" || isTrialActive;
-
-        console.log(`Elder ${elder?.id}: method=${checkInMethod}, tier=${tier}, status=${status}, trialEndsAt=${trialEndsAt?.toISOString() || 'none'}, canUseVoice=${canUseVoice}`);
-        
-        if (status === "trial" && trialEndsAt && trialEndsAt <= now) {
-          console.log(`⚠️ TRIAL EXPIRED for elder ${elder?.id} (expired ${trialEndsAt.toISOString()}). Voice calls blocked.`);
-        }
-
-        // Determine what type of check-in to run
-        let shouldRunVoice = false;
-        let shouldRunWhatsApp = false;
-
-        if (checkInMethod === "voice" && canUseVoice) {
-          shouldRunVoice = true;
-        } else if (checkInMethod === "whatsapp") {
-          shouldRunWhatsApp = true;
-        } else if (checkInMethod === "both") {
-          if (canUseVoice) {
-            shouldRunVoice = true;
-          }
-          shouldRunWhatsApp = true;
-        } else if (checkInMethod === "voice" && !canUseVoice) {
-          if (elder?.whatsapp_number) {
-            shouldRunWhatsApp = true;
-            console.log(`Falling back to WhatsApp for ${elder?.id} (voice requires Premium)`);
-          } else {
-            console.log(`Skipping check-in for ${elder?.id} - voice requires Premium and no WhatsApp configured`);
-          }
-        }
-
-        console.log(`Triggering check-in for elder: ${elder?.id}, voice=${shouldRunVoice}, whatsapp=${shouldRunWhatsApp}`);
-
-        let voiceSuccess = false;
-        let whatsappSuccess = false;
-
-        try {
-          // ============ FETCH MEDICINES & MONITORING CONFIG ============
-          let elderMedicines: any[] = [];
-          let monitoringConfig: any = { topics: [], custom_questions: [] };
-          
-          if (shouldRunVoice) {
-            const { data: meds } = await supabase
-              .from("medicines")
-              .select("name, dosage, timing, purpose")
-              .eq("elder_id", schedule.elder_id)
-              .eq("active", true);
-            elderMedicines = meds || [];
-            
-            monitoringConfig = elder?.monitoring_config || { topics: [], custom_questions: [] };
-            
-            console.log(`Fetched ${elderMedicines.length} medicines and ${(monitoringConfig.topics || []).length} monitoring topics for elder ${elder?.id}`);
-          }
-          // ============ END FETCH MEDICINES ============
-
-          // ============ CHRONIC FAILURE DETECTION ============
-          if (shouldRunVoice) {
-            const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
-            const { data: recentCalls } = await supabase
-              .from("call_attempts")
-              .select("id, status, created_at")
-              .eq("elder_id", schedule.elder_id)
-              .gte("created_at", threeDaysAgo.toISOString())
-              .order("created_at", { ascending: false });
-
-            if (recentCalls && recentCalls.length > 0) {
-              const callsByDate: Record<string, string[]> = {};
-              for (const call of recentCalls) {
-                const dateStr = getISTDateString(new Date(call.created_at));
-                if (!callsByDate[dateStr]) callsByDate[dateStr] = [];
-                callsByDate[dateStr].push(call.status);
-              }
-              
-              const sortedDates = Object.keys(callsByDate).sort().reverse();
-              let consecutiveFailDays = 0;
-              for (const date of sortedDates) {
-                const statuses = callsByDate[date];
-                const hasAnswered = statuses.some(s => s === 'answered');
-                if (!hasAnswered) {
-                  consecutiveFailDays++;
-                } else {
-                  break;
-                }
-              }
-              
-              if (consecutiveFailDays >= 3) {
-                console.log(`CHRONIC FAILURE: Elder ${schedule.elder_id} unreachable for ${consecutiveFailDays} consecutive days`);
-                
-                const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-                const { data: existingAlert } = await supabase
-                  .from("alerts")
-                  .select("id")
-                  .eq("elder_id", schedule.elder_id)
-                  .eq("alert_type", "chronic_unreachable")
-                  .gte("created_at", oneDayAgo.toISOString())
-                  .limit(1);
-                
-                if (!existingAlert || existingAlert.length === 0) {
-                  await supabase.from("alerts").insert({
-                    elder_id: schedule.elder_id,
-                    title: "Chronic Unreachable - Needs Immediate Attention",
-                    description: `${elder?.full_name} has not answered calls for ${consecutiveFailDays} consecutive days. Please check on them urgently.`,
-                    severity: "high",
-                    alert_type: "chronic_unreachable",
-                  });
-                  
-                  await fetch(`${supabaseUrl}/functions/v1/notify-caregiver`, {
-                    method: "POST",
-                    headers: {
-                      "Content-Type": "application/json",
-                      "Authorization": `Bearer ${supabaseServiceKey}`,
-                    },
-                    body: JSON.stringify({
-                      elderId: schedule.elder_id,
-                      alertType: "chronic_unreachable",
-                      severity: "high",
-                      title: `Unable to reach ${elder?.full_name} for ${consecutiveFailDays} days`,
-                      description: `${elder?.full_name} has not answered any check-in calls for ${consecutiveFailDays} consecutive days. Please check on them or verify their phone number.`,
-                      initiateCall: false,
-                    }),
-                  });
-                  console.log(`Chronic unreachable alert created for elder ${schedule.elder_id}`);
-                }
-              }
-            }
-          }
-          // ============ END CHRONIC FAILURE DETECTION ============
-
-          // Run voice call if applicable
-          if (shouldRunVoice) {
-            console.log(`Initiating voice call for elder ${elder?.id}...`);
-            const voiceResponse = await fetch(`${supabaseUrl}/functions/v1/bolna-voice-call`, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${supabaseServiceKey}`,
-              },
-              body: JSON.stringify({
-                elderId: schedule.elder_id,
-                elderName: elder?.full_name,
-                elderPhone: elder?.phone_number,
-                medicines: elderMedicines,
-                medicalConditions: elder?.medical_conditions || [],
-                preferredLanguage: elder?.preferred_language || "english",
-                monitoringConfig: monitoringConfig,
-              }),
-            });
-            const voiceResult = await voiceResponse.json();
-            console.log("Voice call FULL result:", JSON.stringify(voiceResult));
-            
-            if (voiceResponse.ok && voiceResult.success) {
-              voiceSuccess = true;
-              console.log(`Voice call initiated successfully. Execution ID: ${voiceResult.execution_id || voiceResult.callId}`);
-            } else {
-              console.error("Voice call FAILED:", voiceResult.error || voiceResult);
-              
-              // ============ WHATSAPP FALLBACK ON VOICE FAILURE ============
-              // If voice call initiation itself failed (Bolna API error), 
-              // automatically send WhatsApp check-in as fallback
-              if (!shouldRunWhatsApp && elder?.whatsapp_number) {
-                console.log(`Voice failed - triggering WhatsApp fallback for elder ${elder?.id}`);
-                try {
-                  const fallbackResponse = await fetch(`${supabaseUrl}/functions/v1/send-whatsapp-checkin`, {
-                    method: "POST",
-                    headers: {
-                      "Content-Type": "application/json",
-                      "Authorization": `Bearer ${supabaseServiceKey}`,
-                    },
-                    body: JSON.stringify({ elderId: schedule.elder_id }),
-                  });
-                  const fallbackResult = await fallbackResponse.json();
-                  if (fallbackResponse.ok && fallbackResult.success) {
-                    whatsappSuccess = true;
-                    console.log(`WhatsApp fallback sent successfully for elder ${elder?.id}`);
-                  } else {
-                    console.error("WhatsApp fallback also failed:", fallbackResult.error);
-                  }
-                } catch (fallbackErr) {
-                  console.error("WhatsApp fallback error:", fallbackErr);
-                }
-              }
-              // ============ END WHATSAPP FALLBACK ============
-            }
-          }
-
-          // Run WhatsApp check-in if applicable (original schedule, not fallback)
-          if (shouldRunWhatsApp && elder?.whatsapp_number) {
-            console.log(`Initiating WhatsApp check-in for elder ${elder?.id}...`);
-            const whatsappResponse = await fetch(`${supabaseUrl}/functions/v1/send-whatsapp-checkin`, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${supabaseServiceKey}`,
-              },
-              body: JSON.stringify({
-                elderId: schedule.elder_id,
-              }),
-            });
-            const whatsappResult = await whatsappResponse.json();
-            console.log("WhatsApp check-in FULL result:", JSON.stringify(whatsappResult));
-            
-            if (whatsappResponse.ok && whatsappResult.success) {
-              whatsappSuccess = true;
-              console.log(`WhatsApp sent successfully. SID: ${whatsappResult.messageSid}`);
-            } else {
-              console.error("WhatsApp check-in FAILED:", whatsappResult.error || whatsappResult);
-            }
-          }
-
-          // REMOVED: simulate-checkin call that was creating fake data in production
-          
-          // ONLY update last_run_at if at least ONE method succeeded
-          if (voiceSuccess || whatsappSuccess) {
-            await supabase
-              .from("check_in_schedules")
-              .update({ last_run_at: now.toISOString() })
-              .eq("id", schedule.id);
-            console.log(`Updated last_run_at for schedule ${schedule.id} to ${now.toISOString()}`);
-            
-            results.push({
-              schedule_id: schedule.id,
-              elder_id: schedule.elder_id,
-              status: "completed",
-              check_in_method: checkInMethod,
-              voice_enabled: shouldRunVoice,
-              whatsapp_enabled: shouldRunWhatsApp,
-              voice_success: voiceSuccess,
-              whatsapp_success: whatsappSuccess,
-            });
-          } else if (shouldRunVoice || shouldRunWhatsApp) {
-            console.error(`All check-in methods FAILED for schedule ${schedule.id} - NOT updating last_run_at`);
-            results.push({
-              schedule_id: schedule.id,
-              elder_id: schedule.elder_id,
-              status: "all_methods_failed",
-              check_in_method: checkInMethod,
-              voice_attempted: shouldRunVoice,
-              whatsapp_attempted: shouldRunWhatsApp,
-              error: "All check-in methods failed to initiate",
-            });
-          }
-
-        } catch (error) {
-          console.error(`Error running check-in for schedule ${schedule.id}:`, error);
-          const message = error instanceof Error ? error.message : "Unknown error";
-          results.push({
-            schedule_id: schedule.id,
-            elder_id: schedule.elder_id,
-            status: "error",
-            error: message,
-          });
+      if (isTimeMatch) {
+        exactSchedules.push(schedule);
+      } else {
+        const scheduledTimePassed = currentTotalMinutes > scheduleTotalMinutes + 8;
+        if (scheduledTimePassed) {
+          catchUpSchedules.push(schedule);
         }
       }
     }
 
-    console.log(`Processed ${results.length} check-ins`);
+    console.log(`Exact-time schedules: ${exactSchedules.length}, Catch-up schedules: ${catchUpSchedules.length}`);
+
+    // Process exact-time first, then catch-ups (capped at 3 per run to avoid starvation)
+    const CATCHUP_CAP = 3;
+    const toProcess = [
+      ...exactSchedules.map(s => ({ schedule: s, triggerType: 'exact' as const })),
+      ...catchUpSchedules.slice(0, CATCHUP_CAP).map(s => ({ schedule: s, triggerType: 'catchup' as const })),
+    ];
+
+    const results: any[] = [];
+
+    for (const { schedule, triggerType } of toProcess) {
+      const elder = schedule.elders;
+      const checkInMethod = elder?.check_in_method || "whatsapp";
+
+      console.log(`▶ Schedule ${schedule.id} [${triggerType}]: elder=${elder?.id}, method=${checkInMethod}, time=${schedule.time_of_day}`);
+        
+      // ============ CHECK FOR PENDING RETRIES ============
+      const { data: pendingRetries } = await supabase
+        .from("call_attempts")
+        .select("id, status, next_retry_at, created_at")
+        .eq("elder_id", schedule.elder_id)
+        .in("status", ["initiated", "no_answer"])
+        .order("created_at", { ascending: false })
+        .limit(1);
+      
+      if (pendingRetries && pendingRetries.length > 0) {
+        const pending = pendingRetries[0];
+        console.log(`  SKIP: pending retry (status=${pending.status})`);
+        results.push({
+          schedule_id: schedule.id,
+          elder_id: schedule.elder_id,
+          status: "skipped_pending_retry",
+          trigger_type: triggerType,
+        });
+        continue;
+      }
+      // ============ END PENDING RETRY CHECK ============
+      
+      // Get subscription info
+      const profile = elder?.profiles;
+      const tier = profile?.subscription_tier || "basic";
+      const status = profile?.subscription_status || "trial";
+      const trialEndsAt = profile?.trial_ends_at ? new Date(profile.trial_ends_at) : null;
+      const isTrialActive = status === "trial" && trialEndsAt && trialEndsAt > now;
+      const canUseVoice = tier === "premium" || isTrialActive;
+
+      if (status === "trial" && trialEndsAt && trialEndsAt <= now) {
+        console.log(`  ⚠️ TRIAL EXPIRED for elder ${elder?.id} (expired ${trialEndsAt.toISOString()}). Voice calls blocked.`);
+      }
+
+      // Determine what type of check-in to run
+      let shouldRunVoice = false;
+      let shouldRunWhatsApp = false;
+
+      if (checkInMethod === "voice" && canUseVoice) {
+        shouldRunVoice = true;
+      } else if (checkInMethod === "whatsapp") {
+        shouldRunWhatsApp = true;
+      } else if (checkInMethod === "both") {
+        if (canUseVoice) shouldRunVoice = true;
+        shouldRunWhatsApp = true;
+      } else if (checkInMethod === "voice" && !canUseVoice) {
+        if (elder?.whatsapp_number) {
+          shouldRunWhatsApp = true;
+          console.log(`  Falling back to WhatsApp (voice requires Premium)`);
+        } else {
+          console.log(`  SKIP: voice requires Premium, no WhatsApp configured`);
+          // Update last_run_at to prevent infinite catch-up loop for unconfigured elders
+          await supabase
+            .from("check_in_schedules")
+            .update({ last_run_at: now.toISOString() })
+            .eq("id", schedule.id);
+          results.push({
+            schedule_id: schedule.id,
+            elder_id: schedule.elder_id,
+            status: "skipped_no_channel",
+            trigger_type: triggerType,
+          });
+          continue;
+        }
+      }
+
+      let voiceSuccess = false;
+      let whatsappSuccess = false;
+
+      try {
+        // ============ FETCH MEDICINES & MONITORING CONFIG ============
+        let elderMedicines: any[] = [];
+        let monitoringConfig: any = { topics: [], custom_questions: [] };
+        
+        if (shouldRunVoice) {
+          const { data: meds } = await supabase
+            .from("medicines")
+            .select("name, dosage, timing, purpose")
+            .eq("elder_id", schedule.elder_id)
+            .eq("active", true);
+          elderMedicines = meds || [];
+          monitoringConfig = elder?.monitoring_config || { topics: [], custom_questions: [] };
+        }
+
+        // ============ CHRONIC FAILURE DETECTION ============
+        if (shouldRunVoice) {
+          const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
+          const { data: recentCalls } = await supabase
+            .from("call_attempts")
+            .select("id, status, created_at")
+            .eq("elder_id", schedule.elder_id)
+            .gte("created_at", threeDaysAgo.toISOString())
+            .order("created_at", { ascending: false });
+
+          if (recentCalls && recentCalls.length > 0) {
+            const callsByDate: Record<string, string[]> = {};
+            for (const call of recentCalls) {
+              const dateStr = getISTDateString(new Date(call.created_at));
+              if (!callsByDate[dateStr]) callsByDate[dateStr] = [];
+              callsByDate[dateStr].push(call.status);
+            }
+            
+            const sortedDates = Object.keys(callsByDate).sort().reverse();
+            let consecutiveFailDays = 0;
+            for (const date of sortedDates) {
+              const statuses = callsByDate[date];
+              const hasAnswered = statuses.some(s => s === 'answered');
+              if (!hasAnswered) {
+                consecutiveFailDays++;
+              } else {
+                break;
+              }
+            }
+            
+            if (consecutiveFailDays >= 3) {
+              console.log(`  CHRONIC FAILURE: unreachable for ${consecutiveFailDays} days`);
+              
+              const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+              const { data: existingAlert } = await supabase
+                .from("alerts")
+                .select("id")
+                .eq("elder_id", schedule.elder_id)
+                .eq("alert_type", "chronic_unreachable")
+                .gte("created_at", oneDayAgo.toISOString())
+                .limit(1);
+              
+              if (!existingAlert || existingAlert.length === 0) {
+                await supabase.from("alerts").insert({
+                  elder_id: schedule.elder_id,
+                  title: "Chronic Unreachable - Needs Immediate Attention",
+                  description: `${elder?.full_name} has not answered calls for ${consecutiveFailDays} consecutive days. Please check on them urgently.`,
+                  severity: "high",
+                  alert_type: "chronic_unreachable",
+                });
+                
+                await fetch(`${supabaseUrl}/functions/v1/notify-caregiver`, {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${supabaseServiceKey}`,
+                  },
+                  body: JSON.stringify({
+                    elderId: schedule.elder_id,
+                    alertType: "chronic_unreachable",
+                    severity: "high",
+                    title: `Unable to reach ${elder?.full_name} for ${consecutiveFailDays} days`,
+                    description: `${elder?.full_name} has not answered any check-in calls for ${consecutiveFailDays} consecutive days. Please check on them or verify their phone number.`,
+                    initiateCall: false,
+                  }),
+                });
+                console.log(`  Chronic unreachable alert created`);
+              }
+            }
+          }
+        }
+
+        // Run voice call if applicable
+        if (shouldRunVoice) {
+          console.log(`  Initiating voice call...`);
+          const voiceResponse = await fetch(`${supabaseUrl}/functions/v1/bolna-voice-call`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${supabaseServiceKey}`,
+            },
+            body: JSON.stringify({
+              elderId: schedule.elder_id,
+              elderName: elder?.full_name,
+              elderPhone: elder?.phone_number,
+              medicines: elderMedicines,
+              medicalConditions: elder?.medical_conditions || [],
+              preferredLanguage: elder?.preferred_language || "english",
+              monitoringConfig: monitoringConfig,
+            }),
+          });
+          const voiceResult = await voiceResponse.json();
+          
+          if (voiceResponse.ok && voiceResult.success) {
+            voiceSuccess = true;
+            console.log(`  ✅ Voice call initiated. Execution ID: ${voiceResult.execution_id || voiceResult.callId}`);
+          } else {
+            console.error(`  ❌ Voice FAILED: ${voiceResult.error || JSON.stringify(voiceResult)}`);
+            
+            // WhatsApp fallback on voice failure
+            if (!shouldRunWhatsApp && elder?.whatsapp_number) {
+              console.log(`  Triggering WhatsApp fallback...`);
+              try {
+                const fallbackResponse = await fetch(`${supabaseUrl}/functions/v1/send-whatsapp-checkin`, {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${supabaseServiceKey}`,
+                  },
+                  body: JSON.stringify({ elderId: schedule.elder_id }),
+                });
+                const fallbackResult = await fallbackResponse.json();
+                if (fallbackResponse.ok && fallbackResult.success) {
+                  whatsappSuccess = true;
+                  console.log(`  ✅ WhatsApp fallback sent`);
+                } else {
+                  console.error(`  ❌ WhatsApp fallback FAILED: ${fallbackResult.error}`);
+                }
+              } catch (fallbackErr) {
+                console.error("  WhatsApp fallback error:", fallbackErr);
+              }
+            }
+          }
+        }
+
+        // Run WhatsApp check-in if applicable (original schedule, not fallback)
+        if (shouldRunWhatsApp && elder?.whatsapp_number) {
+          console.log(`  Initiating WhatsApp check-in...`);
+          const whatsappResponse = await fetch(`${supabaseUrl}/functions/v1/send-whatsapp-checkin`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${supabaseServiceKey}`,
+            },
+            body: JSON.stringify({ elderId: schedule.elder_id }),
+          });
+          const whatsappResult = await whatsappResponse.json();
+          
+          if (whatsappResponse.ok && whatsappResult.success) {
+            whatsappSuccess = true;
+            console.log(`  ✅ WhatsApp sent. SID: ${whatsappResult.messageSid}`);
+          } else {
+            console.error(`  ❌ WhatsApp FAILED: ${whatsappResult.error || JSON.stringify(whatsappResult)}`);
+          }
+        }
+
+        if (voiceSuccess || whatsappSuccess) {
+          await supabase
+            .from("check_in_schedules")
+            .update({ last_run_at: now.toISOString() })
+            .eq("id", schedule.id);
+          
+          results.push({
+            schedule_id: schedule.id,
+            elder_id: schedule.elder_id,
+            status: "completed",
+            trigger_type: triggerType,
+            voice_success: voiceSuccess,
+            whatsapp_success: whatsappSuccess,
+          });
+          console.log(`  ✅ COMPLETED [${triggerType}]`);
+        } else if (shouldRunVoice || shouldRunWhatsApp) {
+          // All methods failed — update last_run_at anyway to prevent infinite catch-up loop
+          await supabase
+            .from("check_in_schedules")
+            .update({ last_run_at: now.toISOString() })
+            .eq("id", schedule.id);
+          
+          console.error(`  ❌ ALL METHODS FAILED [${triggerType}] — marking as attempted to prevent retry storm`);
+          results.push({
+            schedule_id: schedule.id,
+            elder_id: schedule.elder_id,
+            status: "all_methods_failed",
+            trigger_type: triggerType,
+            error: "All check-in methods failed to initiate",
+          });
+        }
+
+      } catch (error) {
+        console.error(`  Error for schedule ${schedule.id}:`, error);
+        // Update last_run_at even on exception to prevent infinite catch-up
+        await supabase
+          .from("check_in_schedules")
+          .update({ last_run_at: now.toISOString() })
+          .eq("id", schedule.id);
+        
+        const message = error instanceof Error ? error.message : "Unknown error";
+        results.push({
+          schedule_id: schedule.id,
+          elder_id: schedule.elder_id,
+          status: "error",
+          trigger_type: triggerType,
+          error: message,
+        });
+      }
+    }
+
+    console.log(`Processed ${results.length} check-ins (${exactSchedules.length} exact, ${Math.min(catchUpSchedules.length, CATCHUP_CAP)} catch-up)`);
 
     return new Response(JSON.stringify({ 
       success: true, 

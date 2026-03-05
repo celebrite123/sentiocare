@@ -12,7 +12,6 @@ serve(async (req) => {
   }
 
   try {
-    // ============ AUTHENTICATION CHECK ============
     const authHeader = req.headers.get('Authorization');
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return new Response(
@@ -25,20 +24,32 @@ serve(async (req) => {
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     
-    // Create client with user's auth token to verify identity
-    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } }
-    });
-    
-    const { data: { user }, error: userError } = await supabaseAuth.auth.getUser();
-    if (userError || !user) {
-      console.error('Auth error:', userError);
-      return new Response(
-        JSON.stringify({ error: 'Unauthorized - Invalid token' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    const bearerToken = authHeader.replace('Bearer ', '');
+    const isServiceRole = bearerToken === supabaseServiceKey;
+
+    // ============ DUAL-MODE AUTH ============
+    // Service role = internal cron/scheduler call (trusted)
+    // User JWT = UI-initiated call (needs ownership check)
+    let userId: string | null = null;
+
+    if (!isServiceRole) {
+      const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
+        global: { headers: { Authorization: authHeader } }
+      });
+      
+      const { data: { user }, error: userError } = await supabaseAuth.auth.getUser();
+      if (userError || !user) {
+        console.error('Auth error:', userError);
+        return new Response(
+          JSON.stringify({ error: 'Unauthorized - Invalid token' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      userId = user.id;
+    } else {
+      console.log('Internal service-role call - bypassing user auth');
     }
-    // ============ END AUTHENTICATION CHECK ============
+    // ============ END DUAL-MODE AUTH ============
 
     const { elderId } = await req.json();
 
@@ -49,7 +60,6 @@ serve(async (req) => {
     // Use service role for database operations
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // ============ AUTHORIZATION CHECK ============
     // Get elder details
     const { data: elder, error: elderError } = await supabase
       .from('elders')
@@ -64,39 +74,40 @@ serve(async (req) => {
       );
     }
 
-    // Check if user is the family member owner
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("id")
-      .eq("user_id", user.id)
-      .single();
-
-    if (!profile) {
-      return new Response(
-        JSON.stringify({ error: 'Profile not found' }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Check ownership OR access via elder_access table
-    const isOwner = profile.id === elder.family_member_id;
-    
-    if (!isOwner) {
-      const { data: accessRecord } = await supabase
-        .from("elder_access")
+    // ============ AUTHORIZATION (only for user JWT calls) ============
+    if (!isServiceRole && userId) {
+      const { data: profile } = await supabase
+        .from("profiles")
         .select("id")
-        .eq("elder_id", elderId)
-        .eq("user_id", user.id)
+        .eq("user_id", userId)
         .single();
-      
-      if (!accessRecord) {
+
+      if (!profile) {
         return new Response(
-          JSON.stringify({ error: 'Forbidden - Not authorized for this elder' }),
-          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          JSON.stringify({ error: 'Profile not found' }),
+          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
+
+      const isOwner = profile.id === elder.family_member_id;
+      
+      if (!isOwner) {
+        const { data: accessRecord } = await supabase
+          .from("elder_access")
+          .select("id")
+          .eq("elder_id", elderId)
+          .eq("user_id", userId)
+          .single();
+        
+        if (!accessRecord) {
+          return new Response(
+            JSON.stringify({ error: 'Forbidden - Not authorized for this elder' }),
+            { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
     }
-    // ============ END AUTHORIZATION CHECK ============
+    // ============ END AUTHORIZATION ============
 
     const whatsappNumber = elder.whatsapp_number || elder.phone_number;
     if (!whatsappNumber) {
@@ -156,7 +167,7 @@ serve(async (req) => {
       from: twilioWhatsAppNumber,
       to: whatsappNumber,
       elderName: elder.full_name,
-      userId: user.id
+      isServiceRole,
     });
 
     const twilioResponse = await fetch(
