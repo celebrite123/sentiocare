@@ -431,7 +431,7 @@ serve(async (req) => {
     });
 
     console.log('Symptom filtering:', { 
-      previous: previousSymptoms.length, 
+      previous: sortedSymptoms.length, 
       resolved: resolvedSymptomsList.length, 
       active: activeSymptoms.length 
     });
