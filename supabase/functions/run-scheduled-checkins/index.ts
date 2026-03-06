@@ -311,29 +311,9 @@ serve(async (req) => {
           } else {
             console.error(`  ❌ Voice FAILED: ${voiceResult.error || JSON.stringify(voiceResult)}`);
             
-            // WhatsApp fallback on voice failure
-            if (!shouldRunWhatsApp && elder?.whatsapp_number) {
-              console.log(`  Triggering WhatsApp fallback...`);
-              try {
-                const fallbackResponse = await fetch(`${supabaseUrl}/functions/v1/send-whatsapp-checkin`, {
-                  method: "POST",
-                  headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": `Bearer ${supabaseServiceKey}`,
-                  },
-                  body: JSON.stringify({ elderId: schedule.elder_id }),
-                });
-                const fallbackResult = await fallbackResponse.json();
-                if (fallbackResponse.ok && fallbackResult.success) {
-                  whatsappSuccess = true;
-                  console.log(`  ✅ WhatsApp fallback sent`);
-                } else {
-                  console.error(`  ❌ WhatsApp fallback FAILED: ${fallbackResult.error}`);
-                }
-              } catch (fallbackErr) {
-                console.error("  WhatsApp fallback error:", fallbackErr);
-              }
-            }
+            // Voice-only retry policy: do NOT fall back to WhatsApp for premium voice users
+            // Let the retry system (process-call-retries) handle failed voice calls
+            console.log(`  Voice failed — will be retried by process-call-retries (no WhatsApp fallback for premium voice users)`);
           }
         }
 
