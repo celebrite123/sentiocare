@@ -1,78 +1,56 @@
 
 
-# Fix: Wrong Medicine Names + Wrong Symptom Priority in Voice Calls
+# Middle-Ground Prompt: Shorter but Not Generic
 
-## Root Cause Analysis
+## The Problem with Both Extremes
+- **Current prompt (170 lines)**: Too long for voice LLMs → word skipping, clipping
+- **Proposed minimal (25 lines)**: Too generic → loses clinical intelligence (symptom day thresholds, severity scoring, emergency detection logic, acknowledgment pattern)
 
-### Problem 1: "Thyroxin" instead of "dsa"
-The Bolna edge function has hallucination protection, BUT:
-- The hardcoded hallucination list (line 549) only catches 7 common names. If the AI hallucinates a name NOT in that list, it passes through unchecked.
-- The comment on line 472 still mentions "Thyroxin" as an example, which could influence the AI briefing context.
-- **Most critically**: The actual prompt running on the Bolna Dashboard likely still has the OLD examples with hardcoded medicine names. The `SENTIO_VOICE_AGENT_GUARDRAILS.md` was updated but you need to manually copy-paste it into the Bolna Dashboard.
+## Strategy: Surgical Trim
+Keep the clinical brain. Remove the noise. Target: **~80 lines** (half of current).
 
-**Fix**: Replace the limited hallucination blocklist with a universal validator -- if ANY word in the briefing looks like a medicine name but is NOT in the elder's actual medicine list, flag and replace it. Also remove the misleading comment.
+### What Gets CUT (causes bloat, confuses LLM):
+1. **"NEVER DO" list** (lines 147-160) — 14 lines of negatives that LLMs fixate on. The positive instructions already cover these.
+2. **"RESPONSE ACKNOWLEDGMENT RULE" examples** (lines 55-59) — 4 example pairs are overkill. One sentence instruction is enough.
+3. **"CRITICAL MEDICINE RULE" section** (lines 39-45) — Redundant with Step 2 which already says "EXACTLY as written". Collapse into one line in Step 2.
+4. **Duplicate goodbye options** (lines 120-127) — 4 options + 2 "do NOT" lines. Replace with one line.
+5. **Variables reference table** (lines 232-251) — Not needed in the prompt, it's documentation.
+6. **Example call flows** (lines 174-228) — These are for humans reading the doc, not for the agent prompt.
 
-### Problem 2: Asking about "back pain" instead of "fever"
-The code collects ALL symptoms from the last 7 check-ins and deduplicates them. But it does NOT prioritize by recency. If "back pain" was reported 5 days ago and "fever" was reported yesterday, the code sends both as `active_symptoms` but the prompt asks about "the FIRST symptom" -- which may be "back pain" because the deduplication order is unpredictable (uses `Set`).
+### What STAYS (clinical intelligence):
+1. **3-step structure** with Parts A, B, and new concern probe
+2. **Symptom day thresholds** (3-4 days: suggest doctor, 5+: strongly recommend)
+3. **Emergency flow** with life-threatening detection
+4. **Medicine exactness** rule (one line)
+5. **Severity 1-10 for new symptoms**
+6. **Language/name rules** (condensed to 2 lines)
+7. **{new_concern_prompt}** and **{wellbeing_question}** references
 
-**Fix**: Sort active symptoms by most recent first. The symptom from yesterday's call (fever) should always appear first in the list so the AI asks about it.
+### What Gets CONDENSED:
+- Emergency flow: 12 lines → 5 lines
+- Step 1: 7 lines → 3 lines
+- Step 2: 7 lines → 3 lines  
+- Step 3: 15 lines → 8 lines (keeps Parts A, B, and new concern)
+- Hard rules: 30+ lines → 6 essential lines
 
-### Problem 3: AI doesn't acknowledge responses
-This is a Bolna Dashboard prompt issue. The updated guardrails document already has the acknowledgment rules, but you need to paste the updated prompt into the Bolna Dashboard.
+## File Change
 
-## Changes
+### `SENTIO_VOICE_AGENT_GUARDRAILS.md`
+Rewrite the agent prompt block (lines 16-169) to ~80 lines. Keep the example call flows and variables table outside the prompt block as documentation (they stay in the .md file but are NOT part of what you paste into Bolna).
 
-### File 1: `supabase/functions/bolna-voice-call/index.ts`
-
-**A. Fix symptom ordering (lines 407-420)**
-Instead of collecting symptoms into a Set (which loses order), track each symptom with its most recent occurrence date, then sort by most recent first. This ensures "fever" (yesterday) comes before "back pain" (5 days ago).
-
-**B. Improve medicine hallucination protection (lines 547-561)**
-Replace the hardcoded blocklist approach with a smarter validator:
-- Extract all capitalized words and known medicine patterns from the briefing
-- Compare each against the actual medicine list
-- If a word looks like a medicine name (capitalized, not a common English word) and is NOT in the actual list, replace it with the first actual medicine name
-- This catches ALL hallucinations, not just 7 hardcoded ones
-
-**C. Remove misleading comment (line 472)**
-Change `// Format medicines with name + purpose (e.g. "Thyroxin (Thyroid)")` to remove the specific medicine name example.
-
-### File 2: `supabase/functions/vapi-voice-call/index.ts`
-
-The Vapi function is missing:
-- Monitoring topics (never fetched or passed)
-- Resolved symptom filtering (passes ALL symptoms)
-- AI briefing generation
-- Medicine hallucination protection
-
-Since the Dashboard currently uses Bolna (not Vapi), this is lower priority but should be fixed for consistency. Add:
-- Fetch `monitoring_config` from elder record
-- Filter resolved symptoms
-- Pass monitoring topics in `variableValues`
-
-### Important: Bolna Dashboard Update Required
-
-After these code changes deploy, you MUST copy the updated prompt from `SENTIO_VOICE_AGENT_GUARDRAILS.md` and paste it into your Bolna Dashboard agent configuration. The edge function sends the correct data (medicines, symptoms, monitoring topics), but the Bolna agent prompt is what actually controls what the AI says during the call. If the old prompt is still there, it will keep using hardcoded examples.
-
-## Technical Details
-
-### Symptom Ordering Fix
+The prompt will follow this structure:
 ```text
-Before: Set([back_pain, headache, fever]) -- random order
-After:  [fever (1 day ago), back_pain (5 days ago), headache (3 days ago)] -- sorted by recency
+Identity + target (2 lines)
+Briefing + Reference Data (15 lines)  
+Emergency flow (5 lines)
+Step 1: Greeting (3 lines)
+Step 2: Medicine (3 lines)
+Step 3: Health + Monitoring + New Concern (8 lines)
+End (2 lines)
+Rules (6 lines — medicine exactness, language, name, symptom tracking, max 10 words/sentence)
 ```
 
-### Medicine Validation Fix
-```text
-Before: Check against hardcoded list [thyroxin, amlodipine, metformin, aspirin, paracetamol, crocin, dolo]
-After:  Check ANY capitalized word against actual medicine list. If not found AND not a common English word, replace it.
-```
+No backend code changes needed — the `user_data` payload already sends all variables correctly.
 
-## Summary
-
-| File | Change |
-|------|--------|
-| `supabase/functions/bolna-voice-call/index.ts` | Sort symptoms by recency, universal medicine hallucination detection, remove misleading comment |
-| `supabase/functions/vapi-voice-call/index.ts` | Add monitoring topics, resolved symptom filtering, medicine validation |
-| **Bolna Dashboard** (manual) | Copy updated prompt from `SENTIO_VOICE_AGENT_GUARDRAILS.md` |
+**After deploy**: Copy the new prompt block into Bolna Dashboard for both agents.
 
