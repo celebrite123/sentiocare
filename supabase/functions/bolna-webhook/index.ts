@@ -596,6 +596,14 @@ Respond ONLY in valid JSON format:
     
     analysis.symptomsReported = filteredSymptoms;
 
+    // Build enriched monitoring responses with emotional data
+    const enrichedMonitoringResponses = {
+      ...(analysis.monitoringResponses || {}),
+      emotionalState: (analysis as any).emotionalState || 'neutral',
+      maskingDistress: (analysis as any).maskingDistress || false,
+      newSymptomsVolunteered: (analysis as any).newSymptomsVolunteered || false,
+    };
+
     // Save check-in
     const { data: checkIn, error: checkInError } = await supabase
       .from("check_ins")
@@ -609,7 +617,7 @@ Respond ONLY in valid JSON format:
         symptoms_reported: analysis.symptomsReported,
         conversation_summary: transcript?.substring(0, 500) || hangup_reason || `Call ${status}`,
         raw_transcript: rawTranscript,
-        monitoring_responses: analysis.monitoringResponses || {},
+        monitoring_responses: enrichedMonitoringResponses,
         alert_triggered: analysis.alertTriggered,
         alert_reason: analysis.alertReason,
         recording_url: recordingUrl,
