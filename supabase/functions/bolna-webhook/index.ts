@@ -382,13 +382,13 @@ serve(async (req) => {
     // AI transcript analysis
     const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
     let analysis = {
-      sentiment: "neutral",
-      wellBeingScore: 7,
+      sentiment: isEmergencyCall ? "negative" : "neutral",
+      wellBeingScore: isEmergencyCall ? 4 : 7,
       medicinesTaken: true,
       symptomsReported: [] as string[],
       resolvedSymptoms: [] as string[],
-      alertTriggered: false,
-      alertReason: null as string | null,
+      alertTriggered: isEmergencyCall ? true : false,
+      alertReason: isEmergencyCall ? "Emergency call triggered by caregiver" : null as string | null,
       monitoringResponses: {} as Record<string, any>,
     };
 
