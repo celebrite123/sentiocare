@@ -67,7 +67,7 @@ const PricingSection = () => {
               Join Waitlist
             </Button>
             <p className="text-center text-xs text-foreground/50 mt-3">
-              No credit card required • Cancel anytime
+              Limited spots • 5-day free trial on approval
             </p>
           </Card>
         </div>
