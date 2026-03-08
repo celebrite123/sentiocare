@@ -13,8 +13,8 @@ const CTASection = () => {
             Give Your Parents the Care They Deserve
           </h2>
           <p className="text-foreground/70 text-lg mb-8 max-w-xl mx-auto">
-            Start your free trial today. Daily voice calls and WhatsApp check-ins 
-            for your elderly parents. No credit card required.
+            Join the Sentio AI waitlist. Daily voice calls and WhatsApp check-ins 
+            for your elderly parents. Limited spots available.
           </p>
           
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
