@@ -181,11 +181,11 @@ async function sendCaregiverDailyConfirmation(
     if (isHindi) {
       const medsText = medsTaken === true ? 'दवाई ली ✅' : medsTaken === false ? 'दवाई नहीं ली ❌' : '';
       const symptomText = symptoms ? `तकलीफ: ${symptoms}` : 'कोई तकलीफ नहीं 😊';
-      message = `✅ ${caregiverName} जी, ${firstName} जी की check-in हो गई।\n📊 Score: ${score}/10\n💊 ${medsText}\n${symptomText}`;
+      message = `✅ ${caregiverFirstName} जी, ${firstName} जी की check-in हो गई।\n📊 Score: ${score}/10\n💊 ${medsText}\n${symptomText}`;
     } else {
       const medsText = medsTaken === true ? 'Medicines taken ✅' : medsTaken === false ? 'Medicines NOT taken ❌' : '';
       const symptomText = symptoms ? `Concerns: ${symptoms}` : 'No concerns 😊';
-      message = `✅ ${caregiverName}, ${firstName}'s check-in is done.\n📊 Score: ${score}/10\n💊 ${medsText}\n${symptomText}`;
+      message = `✅ ${caregiverFirstName}, ${firstName}'s check-in is done.\n📊 Score: ${score}/10\n💊 ${medsText}\n${symptomText}`;
     }
 
     const formattedPhone = settings.caregiver_phone.startsWith("+")
