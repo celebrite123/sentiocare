@@ -1,78 +1,75 @@
 
 
-# Fix: Wrong Medicine Names + Wrong Symptom Priority in Voice Calls
+# Fix: WhatsApp Updates, Email Summaries, Red Alert Caregiver Call, Medicine Hallucination, and Symptom Context
 
-## Root Cause Analysis
+## Issues Found
 
-### Problem 1: "Thyroxin" instead of "dsa"
-The Bolna edge function has hallucination protection, BUT:
-- The hardcoded hallucination list (line 549) only catches 7 common names. If the AI hallucinates a name NOT in that list, it passes through unchecked.
-- The comment on line 472 still mentions "Thyroxin" as an example, which could influence the AI briefing context.
-- **Most critically**: The actual prompt running on the Bolna Dashboard likely still has the OLD examples with hardcoded medicine names. The `SENTIO_VOICE_AGENT_GUARDRAILS.md` was updated but you need to manually copy-paste it into the Bolna Dashboard.
+### 1. Medicine name hallucination: "Thyroxin"
+The actual medicines in the database are **"dsa"** and **"Glycoma"**. There is NO "Thyroxin" anywhere. The AI briefing is hallucinating "Thyroxin" and passing it to the Bolna agent. The universal hallucination validator in `bolna-voice-call` (lines 559-602) only catches capitalized words matching pharma suffixes — but "Thyroxin" ends in "in" which IS caught. However, looking at the transcripts, "Thyroxin" appears consistently across multiple calls (Mar 1, 2, 7), meaning:
+- The Bolna agent prompt itself may be caching/using an old medicine name, OR
+- The briefing validator is not working because "Thyroxin" passes the `actualNamesLower.some()` check incorrectly
 
-**Fix**: Replace the limited hallucination blocklist with a universal validator -- if ANY word in the briefing looks like a medicine name but is NOT in the elder's actual medicine list, flag and replace it. Also remove the misleading comment.
+**Root cause**: The `formatMedicines` function (line 104-116) prefers `m.purpose` over `m.name` when purpose exists. For "Glycoma", purpose is "Sugar" — so the medicine list sent to Bolna is `"dsa, Sugar"`. Neither is "Thyroxin". The hallucination is coming from the AI briefing generator inventing it, and the validator failing to strip it. The validator regex `capsWordRegex` only matches `[A-Z][a-z]{2,}` — "Thyroxin" has 8 chars and ends in "in" (a pharma suffix), so it SHOULD be caught. But wait — the check is `!actualNamesLower.some(n => n.includes(wordLower) || wordLower.includes(n))`. "thyroxin" does NOT include "dsa" or "glycoma", and vice versa. So it should be caught and replaced. Unless the briefing is in Hindi/Hinglish and "Thyroxin" appears differently.
 
-### Problem 2: Asking about "back pain" instead of "fever"
-The code collects ALL symptoms from the last 7 check-ins and deduplicates them. But it does NOT prioritize by recency. If "back pain" was reported 5 days ago and "fever" was reported yesterday, the code sends both as `active_symptoms` but the prompt asks about "the FIRST symptom" -- which may be "back pain" because the deduplication order is unpredictable (uses `Set`).
+Looking at the transcript: `"Thyroxin ली आज?"` — this is in the Bolna agent's speech, not the briefing. The briefing only guides the agent; the agent's own prompt on Bolna's side may have "Thyroxin" hardcoded or the agent is hallucinating independently.
 
-**Fix**: Sort active symptoms by most recent first. The symptom from yesterday's call (fever) should always appear first in the list so the AI asks about it.
+**Fix**: Pass the explicit medicine names more prominently in `user_data` and add a `medicine_names_only` field that strictly lists just the names. Also fix `formatMedicines` to always include the name (not just purpose).
 
-### Problem 3: AI doesn't acknowledge responses
-This is a Bolna Dashboard prompt issue. The updated guardrails document already has the acknowledgment rules, but you need to paste the updated prompt into the Bolna Dashboard.
+### 2. AI didn't ask about "fell down stairs"
+The Mar 6 check-in recorded `symptoms_reported: ["fell down stairs"]` with `well_being_score: 2`. But the Mar 7 call transcript shows the AI asked about "Thyroxin" and didn't mention the fall at all. 
 
-## Changes
+**Root cause**: The `activeSymptoms` list is built from `symptomRecencyMap` which scans `previousCheckIns` (last 7). "fell down stairs" from Mar 6 should be in the map. But then it's filtered against `resolved_symptoms`. The resolved symptoms are "back pain" and "तेज दर्द" — neither matches "fell down stairs". So "fell down stairs" SHOULD be in `activeSymptoms`.
 
-### File 1: `supabase/functions/bolna-voice-call/index.ts`
+The issue is that `activeSymptomsList` (line 486) is passed as `active_symptoms` in `user_data`, but the AI briefing and the Bolna agent may not be using it effectively. The briefing prompt does include `Active symptoms: {activeSymptomsList}`, but if the AI briefing ignores it and instead hallucinate Thyroxin, the symptom context is lost.
 
-**A. Fix symptom ordering (lines 407-420)**
-Instead of collecting symptoms into a Set (which loses order), track each symptom with its most recent occurrence date, then sort by most recent first. This ensures "fever" (yesterday) comes before "back pain" (5 days ago).
+**Fix**: Make the active symptoms more prominent in the user_data. Add the symptom + context directly into the greeting or as a mandatory follow-up instruction.
 
-**B. Improve medicine hallucination protection (lines 547-561)**
-Replace the hardcoded blocklist approach with a smarter validator:
-- Extract all capitalized words and known medicine patterns from the briefing
-- Compare each against the actual medicine list
-- If a word looks like a medicine name (capitalized, not a common English word) and is NOT in the actual list, replace it with the first actual medicine name
-- This catches ALL hallucinations, not just 7 hardcoded ones
+### 3. Red alert (wellbeing ≤ 3) → Caregiver call not happening
+In `bolna-webhook` lines 570-613, when `alertTriggered` is true and severity is "high" or "critical", it calls `notify-caregiver` with `initiateCall: severity === "critical"`. But the threshold is:
+- `critical`: wellbeing ≤ 2 OR emergency OR mental health
+- `high`: wellbeing ≤ 3
 
-**C. Remove misleading comment (line 472)**
-Change `// Format medicines with name + purpose (e.g. "Thyroxin (Thyroid)")` to remove the specific medicine name example.
+So for wellbeing = 3 (severity "high"), `initiateCall` is `false` — no call is made. For wellbeing ≤ 2 it IS critical and call IS initiated. But the user wants calls for wellbeing < 4 (i.e., ≤ 3).
 
-### File 2: `supabase/functions/vapi-voice-call/index.ts`
+**Fix**: Change the `initiateCall` condition to trigger for both "critical" AND "high" severity (wellbeing ≤ 3).
 
-The Vapi function is missing:
-- Monitoring topics (never fetched or passed)
-- Resolved symptom filtering (passes ALL symptoms)
-- AI briefing generation
-- Medicine hallucination protection
+### 4. WhatsApp updates and email summaries
+The daily caregiver WhatsApp confirmation (lines 632-651 in bolna-webhook) is already implemented. Let me check if it's actually working by examining the logs and the Twilio WhatsApp number format.
 
-Since the Dashboard currently uses Bolna (not Vapi), this is lower priority but should be fixed for consistency. Add:
-- Fetch `monitoring_config` from elder record
-- Filter resolved symptoms
-- Pass monitoring topics in `variableValues`
+The `sendCaregiverDailyConfirmation` function sends via Twilio WhatsApp. If the `TWILIO_WHATSAPP_NUMBER` secret doesn't include the `whatsapp:` prefix properly, or the caregiver phone isn't in Twilio's sandbox contacts, it will silently fail. The function logs "Daily check-in confirmation sent to caregiver" on success but doesn't log the Twilio response on failure — it just catches errors.
 
-### Important: Bolna Dashboard Update Required
+**Fix**: Add Twilio response logging to catch silent failures. Also verify the weekly email summary cron is configured.
 
-After these code changes deploy, you MUST copy the updated prompt from `SENTIO_VOICE_AGENT_GUARDRAILS.md` and paste it into your Bolna Dashboard agent configuration. The edge function sends the correct data (medicines, symptoms, monitoring topics), but the Bolna agent prompt is what actually controls what the AI says during the call. If the old prompt is still there, it will keep using hardcoded examples.
+## Implementation Plan
 
-## Technical Details
+### File: `supabase/functions/bolna-voice-call/index.ts`
 
-### Symptom Ordering Fix
-```text
-Before: Set([back_pain, headache, fever]) -- random order
-After:  [fever (1 day ago), back_pain (5 days ago), headache (3 days ago)] -- sorted by recency
-```
+**A) Fix medicine formatting** (lines 104-116):
+- Change `formatMedicines` to always include the medicine `name` as the primary identifier, with purpose in parentheses. Never omit the name.
+- Add a new `medicine_names_only` field in `user_data` with just the raw names for the Bolna agent prompt.
 
-### Medicine Validation Fix
-```text
-Before: Check against hardcoded list [thyroxin, amlodipine, metformin, aspirin, paracetamol, crocin, dolo]
-After:  Check ANY capitalized word against actual medicine list. If not found AND not a common English word, replace it.
-```
+**B) Make symptom context mandatory** (lines 616-633):
+- Add `symptom_followup` field in `user_data` with explicit instruction like "Ask about fall from stairs on Mar 6" when active symptoms exist.
+- Include this in the greeting for severe symptoms (wellbeing ≤ 4 in previous call).
 
-## Summary
+### File: `supabase/functions/bolna-webhook/index.ts`
+
+**C) Enable caregiver call for wellbeing ≤ 3** (lines 597-613):
+- Change `initiateCall: severity === "critical"` to `initiateCall: severity === "critical" || severity === "high"` so caregivers get called for any red alert (wellbeing ≤ 3).
+
+**D) Add WhatsApp confirmation error logging** (lines 170-184):
+- Log the Twilio response body on failure so we can debug silent WhatsApp delivery issues.
+
+### File: `supabase/functions/notify-caregiver/index.ts`
+
+**E) Enable calls for "high" severity** (line 177):
+- Change `severity === "critical"` to `severity === "critical" || severity === "high"` in the emergency call condition, matching the webhook change.
+
+## Files Modified
 
 | File | Change |
 |------|--------|
-| `supabase/functions/bolna-voice-call/index.ts` | Sort symptoms by recency, universal medicine hallucination detection, remove misleading comment |
-| `supabase/functions/vapi-voice-call/index.ts` | Add monitoring topics, resolved symptom filtering, medicine validation |
-| **Bolna Dashboard** (manual) | Copy updated prompt from `SENTIO_VOICE_AGENT_GUARDRAILS.md` |
+| `supabase/functions/bolna-voice-call/index.ts` | Fix medicine formatting to always include name; add symptom follow-up context to user_data; add medicine_names_only field |
+| `supabase/functions/bolna-webhook/index.ts` | Enable caregiver call for high severity (wellbeing ≤ 3); add WhatsApp error logging |
+| `supabase/functions/notify-caregiver/index.ts` | Enable voice call to caregiver for "high" severity alerts |
 
