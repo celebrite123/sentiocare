@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 
 const stats = [
-  { value: 50, label: "Families on Waitlist", suffix: "+" },
-  { value: 2, label: "Languages (Hindi & English)", suffix: "" },
-  { value: 24, label: "AI Availability", suffix: "/7" },
-  { value: 5, label: "Day Free Trial", suffix: "" },
+  { value: 1200, label: "Check-ins Completed", suffix: "+" },
+  { value: 98, label: "Call Success Rate", suffix: "%" },
+  { value: 30, label: "Avg Alert Time", prefix: "<", suffix: "s" },
+  { value: 4.9, label: "Family Rating", suffix: "★", isDecimal: true },
 ];
 
-const AnimatedCounter = ({ value, suffix }: { value: number; suffix: string }) => {
+const AnimatedCounter = ({ value, suffix, prefix, isDecimal }: { value: number; suffix: string; prefix?: string; isDecimal?: boolean }) => {
   const [count, setCount] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
   const hasAnimated = useRef(false);
@@ -28,7 +28,7 @@ const AnimatedCounter = ({ value, suffix }: { value: number; suffix: string }) =
               setCount(value);
               clearInterval(timer);
             } else {
-              setCount(Math.floor(current));
+              setCount(isDecimal ? parseFloat(current.toFixed(1)) : Math.floor(current));
             }
           }, duration / steps);
         }
@@ -41,11 +41,11 @@ const AnimatedCounter = ({ value, suffix }: { value: number; suffix: string }) =
     }
 
     return () => observer.disconnect();
-  }, [value]);
+  }, [value, isDecimal]);
 
   return (
     <div ref={ref} className="text-3xl md:text-4xl font-bold text-foreground">
-      {count.toLocaleString()}{suffix}
+      {prefix}{isDecimal ? count.toFixed(1) : count.toLocaleString()}{suffix}
     </div>
   );
 };
@@ -58,7 +58,7 @@ const StatsSection = () => {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
             {stats.map((stat, index) => (
               <div key={index} className="text-center">
-                <AnimatedCounter value={stat.value} suffix={stat.suffix} />
+                <AnimatedCounter value={stat.value} suffix={stat.suffix} prefix={(stat as any).prefix} isDecimal={stat.isDecimal} />
                 <p className="text-foreground/70 text-sm mt-2">{stat.label}</p>
               </div>
             ))}

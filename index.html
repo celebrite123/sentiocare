@@ -28,10 +28,12 @@
     <link rel="preconnect" href="https://hcdwbpbvuvbrozttahfz.supabase.co" crossorigin />
     <link rel="dns-prefetch" href="https://hcdwbpbvuvbrozttahfz.supabase.co" />
     
-    <!-- Google Fonts - Plus Jakarta Sans -->
+    <!-- Google Fonts - Plus Jakarta Sans with preload -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript><link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"></noscript>
 
     <meta property="og:title" content="Sentio AI - Daily AI Monitoring for Elderly Safety" />
     <meta property="og:description" content="Daily AI voice calls & WhatsApp alerts for elderly parents. ₹699/month. No app needed." />

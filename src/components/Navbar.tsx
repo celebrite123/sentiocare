@@ -16,6 +16,13 @@ import { useB2BMembership } from "@/hooks/useB2BMembership";
 import AlertsPanel from "./AlertsPanel";
 import sentioLogo from "@/assets/sentio-logo-new.png";
 
+const scrollToSection = (id: string) => {
+  const el = document.getElementById(id);
+  if (el) {
+    el.scrollIntoView({ behavior: "smooth" });
+  }
+};
+
 const Navbar = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -26,8 +33,8 @@ const Navbar = () => {
   const [alertsOpen, setAlertsOpen] = useState(false);
 
   const isActive = (path: string) => location.pathname === path;
+  const isLanding = location.pathname === "/";
   
-  // Determine which dashboard to show based on user type
   const getDashboardPath = () => isB2BStaff ? "/b2b/dashboard" : "/elders";
   const getDashboardLabel = () => isB2BStaff ? "Hospital Dashboard" : "Dashboard";
 
@@ -52,16 +59,26 @@ const Navbar = () => {
             </div>
 
             {/* Desktop Navigation */}
-            <nav className="hidden md:flex items-center gap-4">
+            <nav className="hidden md:flex items-center gap-1">
               {user && !b2bLoading ? (
+                <Button
+                  variant="ghost"
+                  className={isActive(getDashboardPath()) ? "bg-muted" : ""}
+                  onClick={() => navigate(getDashboardPath())}
+                >
+                  {isB2BStaff ? <Building2 className="h-4 w-4 mr-2" /> : <LayoutDashboard className="h-4 w-4 mr-2" />}
+                  {getDashboardLabel()}
+                </Button>
+              ) : isLanding ? (
                 <>
-                  <Button
-                    variant="ghost"
-                    className={isActive(getDashboardPath()) ? "bg-muted" : ""}
-                    onClick={() => navigate(getDashboardPath())}
-                  >
-                    {isB2BStaff ? <Building2 className="h-4 w-4 mr-2" /> : <LayoutDashboard className="h-4 w-4 mr-2" />}
-                    {getDashboardLabel()}
+                  <Button variant="ghost" size="sm" onClick={() => scrollToSection("features")}>
+                    Features
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => scrollToSection("pricing")}>
+                    Pricing
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => scrollToSection("faq")}>
+                    FAQ
                   </Button>
                 </>
               ) : null}
@@ -71,7 +88,6 @@ const Navbar = () => {
             <div className="flex items-center gap-2">
               {user ? (
                 <>
-                  {/* Alerts Bell - only show for non-B2B users */}
                   {!isB2BStaff && (
                     <Button
                       variant="ghost"
@@ -83,7 +99,6 @@ const Navbar = () => {
                     </Button>
                   )}
 
-                  {/* User Menu */}
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button variant="ghost" size="icon" className="rounded-full">
@@ -132,13 +147,13 @@ const Navbar = () => {
                     Log In
                   </Button>
                   <Button onClick={() => navigate("/auth")} className="bg-primary hover:bg-primary/90">
-                    Sign Up
+                    Get Started
                   </Button>
                 </div>
               )}
 
-              {/* Mobile menu button - only show for logged out users */}
-              {!user && (
+              {/* Mobile menu button */}
+              {(!user || isLanding) && (
                 <Button
                   variant="ghost"
                   size="icon"
@@ -155,38 +170,35 @@ const Navbar = () => {
           {mobileMenuOpen && (
             <div className="md:hidden py-4 border-t">
               <nav className="flex flex-col gap-2">
+                {!user && isLanding && (
+                  <>
+                    <Button variant="ghost" className="justify-start" onClick={() => { scrollToSection("features"); setMobileMenuOpen(false); }}>
+                      Features
+                    </Button>
+                    <Button variant="ghost" className="justify-start" onClick={() => { scrollToSection("pricing"); setMobileMenuOpen(false); }}>
+                      Pricing
+                    </Button>
+                    <Button variant="ghost" className="justify-start" onClick={() => { scrollToSection("faq"); setMobileMenuOpen(false); }}>
+                      FAQ
+                    </Button>
+                  </>
+                )}
                 {user ? (
                   <Button
                     variant="ghost"
                     className={`justify-start ${isActive(getDashboardPath()) ? "bg-muted" : ""}`}
-                    onClick={() => {
-                      navigate(getDashboardPath());
-                      setMobileMenuOpen(false);
-                    }}
+                    onClick={() => { navigate(getDashboardPath()); setMobileMenuOpen(false); }}
                   >
                     {isB2BStaff ? <Building2 className="h-4 w-4 mr-2" /> : <LayoutDashboard className="h-4 w-4 mr-2" />}
                     {getDashboardLabel()}
                   </Button>
                 ) : (
                   <>
-                    <Button
-                      variant="ghost"
-                      className="justify-start"
-                      onClick={() => {
-                        navigate("/auth");
-                        setMobileMenuOpen(false);
-                      }}
-                    >
+                    <Button variant="ghost" className="justify-start" onClick={() => { navigate("/auth"); setMobileMenuOpen(false); }}>
                       Log In
                     </Button>
-                    <Button
-                      className="justify-start bg-primary hover:bg-primary/90"
-                      onClick={() => {
-                        navigate("/auth");
-                        setMobileMenuOpen(false);
-                      }}
-                    >
-                      Sign Up
+                    <Button className="justify-start bg-primary hover:bg-primary/90" onClick={() => { navigate("/auth"); setMobileMenuOpen(false); }}>
+                      Get Started
                     </Button>
                   </>
                 )}

@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Check, Phone } from "lucide-react";
+import { Check, Phone, Sparkles } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 const features = [
@@ -18,22 +18,23 @@ const PricingSection = () => {
   const navigate = useNavigate();
 
   return (
-    <section className="py-20 bg-muted/30">
+    <section className="py-20 bg-muted/30" id="pricing-section">
       <div className="container mx-auto px-4">
         <div className="text-center mb-12">
           <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">
             Simple, Transparent Pricing
           </h2>
           <p className="text-foreground/70 text-lg max-w-2xl mx-auto">
-            Join the waitlist today. Limited spots available.
+            One plan. Everything included. Cancel anytime.
           </p>
         </div>
 
         <div className="max-w-lg mx-auto">
           <Card className="relative p-8 bg-card border-2 border-secondary shadow-lg shadow-secondary/10">
             <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-              <span className="bg-secondary text-foreground text-xs font-semibold px-4 py-1 rounded-full">
-                Premium Plan
+              <span className="bg-secondary text-foreground text-xs font-semibold px-4 py-1 rounded-full inline-flex items-center gap-1">
+                <Sparkles className="h-3 w-3" />
+                Launch Offer
               </span>
             </div>
 
@@ -63,8 +64,11 @@ const PricingSection = () => {
               className="w-full rounded-full py-6 text-base bg-secondary hover:bg-secondary/90 text-secondary-foreground shadow-lg shadow-secondary/25"
               onClick={() => navigate("/auth")}
             >
-              Join Waitlist
+              Start 5-Day Free Trial
             </Button>
+            <p className="text-center text-xs text-foreground/50 mt-3">
+              No credit card required • Cancel anytime
+            </p>
           </Card>
         </div>
 
@@ -87,7 +91,7 @@ const PricingSection = () => {
 
         <div className="text-center mt-8">
           <p className="text-sm text-foreground/65">
-            Join the waitlist → Get approved → 5-day free trial → Subscribe
+            Sign up → 5-day free trial → Subscribe if you love it
           </p>
         </div>
       </div>

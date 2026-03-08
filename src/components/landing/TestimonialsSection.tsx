@@ -1,7 +1,5 @@
-import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight, Star } from "lucide-react";
+import { Star } from "lucide-react";
 
 const testimonials = [
   {
@@ -31,84 +29,47 @@ const testimonials = [
 ];
 
 const TestimonialsSection = () => {
-  const [current, setCurrent] = useState(0);
-  const [isPaused, setIsPaused] = useState(false);
-
-  useEffect(() => {
-    if (isPaused) return;
-    const timer = setInterval(() => {
-      setCurrent((prev) => (prev + 1) % testimonials.length);
-    }, 5000);
-    return () => clearInterval(timer);
-  }, [isPaused]);
-
-  const prev = () => setCurrent((c) => (c - 1 + testimonials.length) % testimonials.length);
-  const next = () => setCurrent((c) => (c + 1) % testimonials.length);
-
   return (
     <section className="py-20">
       <div className="container mx-auto px-4">
         <div className="text-center mb-12">
           <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">
-            What Families Say
+            Trusted by Families Across India
           </h2>
           <p className="text-foreground/70 text-lg max-w-2xl mx-auto">
             Hear from families who trust Sentio AI with their loved ones
           </p>
         </div>
 
-        <div 
-          className="max-w-2xl mx-auto"
-          onMouseEnter={() => setIsPaused(true)}
-          onMouseLeave={() => setIsPaused(false)}
-        >
-          <Card className="p-8 bg-card border border-border">
-            {/* Stars */}
-            <div className="flex gap-1 mb-4">
-              {[...Array(testimonials[current].rating)].map((_, i) => (
-                <Star key={i} className="h-5 w-5 fill-warning text-warning" />
-              ))}
-            </div>
-
-            {/* Quote */}
-            <blockquote className="text-lg text-foreground mb-6 leading-relaxed">
-              "{testimonials[current].content}"
-            </blockquote>
-
-            {/* Author */}
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-                <span className="text-primary font-semibold">
-                  {testimonials[current].name.split(' ').map(n => n[0]).join('')}
-                </span>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto">
+          {testimonials.map((testimonial, index) => (
+            <Card key={index} className="p-6 bg-card border border-border hover:border-primary/30 transition-colors">
+              {/* Stars */}
+              <div className="flex gap-1 mb-4">
+                {[...Array(testimonial.rating)].map((_, i) => (
+                  <Star key={i} className="h-4 w-4 fill-warning text-warning" />
+                ))}
               </div>
-              <div>
-                <p className="font-semibold text-foreground">{testimonials[current].name}</p>
-                <p className="text-sm text-foreground/70">{testimonials[current].role}</p>
-              </div>
-            </div>
-          </Card>
 
-          {/* Navigation */}
-          <div className="flex items-center justify-center gap-4 mt-6">
-            <Button variant="ghost" size="icon" onClick={prev} className="rounded-full">
-              <ChevronLeft className="h-5 w-5" />
-            </Button>
-            <div className="flex gap-2">
-              {testimonials.map((_, index) => (
-                <button
-                  key={index}
-                  onClick={() => setCurrent(index)}
-                  className={`w-2 h-2 rounded-full transition-all ${
-                    current === index ? "bg-primary w-6" : "bg-foreground/30"
-                  }`}
-                />
-              ))}
-            </div>
-            <Button variant="ghost" size="icon" onClick={next} className="rounded-full">
-              <ChevronRight className="h-5 w-5" />
-            </Button>
-          </div>
+              {/* Quote */}
+              <blockquote className="text-sm text-foreground/80 mb-5 leading-relaxed line-clamp-4">
+                "{testimonial.content}"
+              </blockquote>
+
+              {/* Author */}
+              <div className="flex items-center gap-3 mt-auto">
+                <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                  <span className="text-primary font-semibold text-sm">
+                    {testimonial.name.split(' ').map(n => n[0]).join('')}
+                  </span>
+                </div>
+                <div>
+                  <p className="font-semibold text-foreground text-sm">{testimonial.name}</p>
+                  <p className="text-xs text-foreground/70">{testimonial.role}</p>
+                </div>
+              </div>
+            </Card>
+          ))}
         </div>
       </div>
     </section>
