@@ -140,8 +140,10 @@ const Auth = () => {
       return;
     }
 
-    // If no plan selected, go to plan selection
-    if (!profile || !profile.subscription_tier) {
+    // If waitlisted, go to waitlist page
+    if (profile?.subscription_status === "waitlisted") {
+      navigate("/select-plan");
+    } else if (!profile || !profile.subscription_tier) {
       navigate("/select-plan");
     } else {
       navigate("/elders");
