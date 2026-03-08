@@ -122,7 +122,7 @@ function parseTranscript(rawTranscript: string): Array<{role: string, message: s
   return parsedLogs;
 }
 
-// Send daily check-in confirmation to caregiver via WhatsApp
+// Send daily check-in confirmation to caregiver via Interakt WhatsApp
 async function sendCaregiverDailyConfirmation(
   supabase: any,
   elderId: string,
@@ -157,61 +157,60 @@ async function sendCaregiverDailyConfirmation(
     }
 
     if (!caregiverPhone) {
-      console.warn(`No caregiver_phone or emergency_contact for elder ${elderId} — skipping WhatsApp daily confirmation`);
+      console.warn(`No caregiver_phone or emergency_contact for elder ${elderId} — skipping daily confirmation`);
       return;
     }
 
-    const TWILIO_ACCOUNT_SID = Deno.env.get("TWILIO_ACCOUNT_SID");
-    const TWILIO_AUTH_TOKEN = Deno.env.get("TWILIO_AUTH_TOKEN");
-    const TWILIO_WHATSAPP_NUMBER = Deno.env.get("TWILIO_WHATSAPP_NUMBER");
-    if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN || !TWILIO_WHATSAPP_NUMBER) {
-      console.error("Twilio credentials missing — cannot send WhatsApp");
+    const INTERAKT_API_KEY = Deno.env.get("INTERAKT_API_KEY");
+    if (!INTERAKT_API_KEY) {
+      console.error("INTERAKT_API_KEY missing — cannot send WhatsApp");
       return;
     }
 
     const firstName = elderName?.split(' ')[0] || 'Elder';
     const caregiverFirstName = caregiverName?.split(' ')[0] || '';
-    const score = analysis.wellBeingScore || '?';
+    const score = String(analysis.wellBeingScore || '?');
     const medsTaken = analysis.medicinesTaken;
+    const medsStatus = medsTaken === true ? (isHindi ? 'दवाई ली ✅' : 'Taken ✅') : medsTaken === false ? (isHindi ? 'दवाई नहीं ली ❌' : 'NOT taken ❌') : '';
     const symptoms = (analysis.symptomsReported || []).length > 0
       ? (analysis.symptomsReported || []).slice(0, 2).join(', ')
-      : null;
+      : (isHindi ? 'कोई तकलीफ नहीं 😊' : 'No concerns 😊');
 
-    let message: string;
-    if (isHindi) {
-      const medsText = medsTaken === true ? 'दवाई ली ✅' : medsTaken === false ? 'दवाई नहीं ली ❌' : '';
-      const symptomText = symptoms ? `तकलीफ: ${symptoms}` : 'कोई तकलीफ नहीं 😊';
-      message = `✅ ${caregiverFirstName} जी, ${firstName} जी की check-in हो गई।\n📊 Score: ${score}/10\n💊 ${medsText}\n${symptomText}`;
-    } else {
-      const medsText = medsTaken === true ? 'Medicines taken ✅' : medsTaken === false ? 'Medicines NOT taken ❌' : '';
-      const symptomText = symptoms ? `Concerns: ${symptoms}` : 'No concerns 😊';
-      message = `✅ ${caregiverFirstName}, ${firstName}'s check-in is done.\n📊 Score: ${score}/10\n💊 ${medsText}\n${symptomText}`;
-    }
+    // Normalize phone: strip +, 0 prefix, ensure just digits
+    const cleanPhone = caregiverPhone.replace(/[\s\-\+]/g, '').replace(/^0+/, '');
+    const phoneNumber = cleanPhone.startsWith('91') ? cleanPhone.substring(2) : cleanPhone;
 
-    const formattedPhone = caregiverPhone.startsWith("+")
-      ? caregiverPhone
-      : `+91${caregiverPhone.replace(/^0+/, "")}`;
-
-    const twilioRes = await fetch(
-      `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Messages.json`,
-      {
-        method: "POST",
-        headers: {
-          "Authorization": `Basic ${btoa(`${TWILIO_ACCOUNT_SID}:${TWILIO_AUTH_TOKEN}`)}`,
-          "Content-Type": "application/x-www-form-urlencoded",
+    const interaktRes = await fetch("https://api.interakt.ai/v1/public/message/", {
+      method: "POST",
+      headers: {
+        "Authorization": `Basic ${INTERAKT_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        countryCode: "+91",
+        phoneNumber: phoneNumber,
+        callbackData: `daily_confirmation_${elderId}`,
+        type: "Template",
+        template: {
+          name: "sentio_daily_confirmation",
+          languageCode: isHindi ? "hi" : "en",
+          bodyValues: [
+            caregiverFirstName,
+            firstName,
+            score,
+            medsStatus,
+            symptoms,
+          ],
         },
-        body: new URLSearchParams({
-          From: TWILIO_WHATSAPP_NUMBER.startsWith("whatsapp:") ? TWILIO_WHATSAPP_NUMBER : `whatsapp:${TWILIO_WHATSAPP_NUMBER}`,
-          To: `whatsapp:${formattedPhone}`,
-          Body: message,
-        }),
-      }
-    );
-    if (twilioRes.ok) {
-      console.log("Daily check-in confirmation sent to caregiver");
+      }),
+    });
+
+    if (interaktRes.ok) {
+      const resData = await interaktRes.json();
+      console.log("Daily check-in confirmation sent via Interakt:", resData);
     } else {
-      const errBody = await twilioRes.text();
-      console.error("WhatsApp caregiver confirmation FAILED:", twilioRes.status, errBody);
+      const errBody = await interaktRes.text();
+      console.error("Interakt caregiver confirmation FAILED:", interaktRes.status, errBody);
     }
   } catch (error) {
     console.error("Error sending daily confirmation to caregiver:", error);
@@ -819,7 +818,7 @@ Respond ONLY in valid JSON format:
   }
 });
 
-// Send WhatsApp notifications when elder doesn't answer
+// Send WhatsApp notifications when elder doesn't answer (via Interakt)
 async function sendMissedCallNotifications(supabase: any, elderId: string) {
   const { data: elder } = await supabase
     .from("elders")
@@ -835,73 +834,84 @@ async function sendMissedCallNotifications(supabase: any, elderId: string) {
 
   if (!elder) return;
 
-  const TWILIO_ACCOUNT_SID = Deno.env.get("TWILIO_ACCOUNT_SID");
-  const TWILIO_AUTH_TOKEN = Deno.env.get("TWILIO_AUTH_TOKEN");
-  const TWILIO_WHATSAPP_NUMBER = Deno.env.get("TWILIO_WHATSAPP_NUMBER");
-  if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN || !TWILIO_WHATSAPP_NUMBER) return;
+  const INTERAKT_API_KEY = Deno.env.get("INTERAKT_API_KEY");
+  if (!INTERAKT_API_KEY) {
+    console.error("INTERAKT_API_KEY missing — cannot send missed call notifications");
+    return;
+  }
 
   const isHindi = elder.preferred_language === 'hindi';
   const firstName = elder.full_name?.split(' ')[0] || 'जी';
 
+  // Send to elder
   const elderPhone = elder.whatsapp_number || elder.phone_number;
   if (elderPhone) {
-    const elderMessage = isHindi
-      ? `🙏 ${firstName} जी, हमने आपको कॉल किया था पर जवाब नहीं मिला। सब ठीक है? कृपया जवाब दें या हम वापस कॉल करेंगे। 💚`
-      : `Hi ${firstName}! 👋 We tried calling but couldn't reach you. Is everything okay? Please reply or we'll try calling again. 💚`;
-
-    const formattedElderPhone = elderPhone.startsWith("+") ? elderPhone : `+91${elderPhone.replace(/^0+/, "")}`;
+    const cleanElderPhone = elderPhone.replace(/[\s\-\+]/g, '').replace(/^0+/, '');
+    const elderPhoneNumber = cleanElderPhone.startsWith('91') ? cleanElderPhone.substring(2) : cleanElderPhone;
 
     try {
-      await fetch(
-        `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Messages.json`,
-        {
-          method: "POST",
-          headers: {
-            "Authorization": `Basic ${btoa(`${TWILIO_ACCOUNT_SID}:${TWILIO_AUTH_TOKEN}`)}`,
-            "Content-Type": "application/x-www-form-urlencoded",
+      const res = await fetch("https://api.interakt.ai/v1/public/message/", {
+        method: "POST",
+        headers: {
+          "Authorization": `Basic ${INTERAKT_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          countryCode: "+91",
+          phoneNumber: elderPhoneNumber,
+          callbackData: `missed_call_elder_${elderId}`,
+          type: "Template",
+          template: {
+            name: "sentio_missed_call",
+            languageCode: isHindi ? "hi" : "en",
+            bodyValues: [firstName, firstName, isHindi ? "10 मिनट" : "10 minutes"],
           },
-          body: new URLSearchParams({
-            From: TWILIO_WHATSAPP_NUMBER.startsWith("whatsapp:") ? TWILIO_WHATSAPP_NUMBER : `whatsapp:${TWILIO_WHATSAPP_NUMBER}`,
-            To: `whatsapp:${formattedElderPhone}`,
-            Body: elderMessage,
-          }),
-        }
-      );
-      console.log("Missed call WhatsApp sent to elder");
+        }),
+      });
+      if (res.ok) {
+        console.log("Missed call notification sent to elder via Interakt");
+      } else {
+        const errBody = await res.text();
+        console.error("Interakt missed call to elder FAILED:", res.status, errBody);
+      }
     } catch (error) {
-      console.error("Error sending WhatsApp to elder:", error);
+      console.error("Error sending Interakt message to elder:", error);
     }
   }
 
+  // Send to caregiver
   if (settings?.caregiver_phone) {
     const caregiverName = settings.caregiver_name?.split(' ')[0] || '';
-    const caregiverMessage = isHindi
-      ? `🔔 ${caregiverName} जी, ${firstName} जी ने कॉल का जवाब नहीं दिया। हम 10 मिनट में दोबारा कोशिश करेंगे।`
-      : `🔔 ${caregiverName}, ${firstName} didn't answer our check-in call. We'll try again in 10 minutes.`;
-
-    const formattedCaregiverPhone = settings.caregiver_phone.startsWith("+") 
-      ? settings.caregiver_phone 
-      : `+91${settings.caregiver_phone.replace(/^0+/, "")}`;
+    const cleanCaregiverPhone = settings.caregiver_phone.replace(/[\s\-\+]/g, '').replace(/^0+/, '');
+    const caregiverPhoneNumber = cleanCaregiverPhone.startsWith('91') ? cleanCaregiverPhone.substring(2) : cleanCaregiverPhone;
 
     try {
-      await fetch(
-        `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Messages.json`,
-        {
-          method: "POST",
-          headers: {
-            "Authorization": `Basic ${btoa(`${TWILIO_ACCOUNT_SID}:${TWILIO_AUTH_TOKEN}`)}`,
-            "Content-Type": "application/x-www-form-urlencoded",
+      const res = await fetch("https://api.interakt.ai/v1/public/message/", {
+        method: "POST",
+        headers: {
+          "Authorization": `Basic ${INTERAKT_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          countryCode: "+91",
+          phoneNumber: caregiverPhoneNumber,
+          callbackData: `missed_call_caregiver_${elderId}`,
+          type: "Template",
+          template: {
+            name: "sentio_missed_call",
+            languageCode: isHindi ? "hi" : "en",
+            bodyValues: [caregiverName, firstName, isHindi ? "10 मिनट" : "10 minutes"],
           },
-          body: new URLSearchParams({
-            From: TWILIO_WHATSAPP_NUMBER.startsWith("whatsapp:") ? TWILIO_WHATSAPP_NUMBER : `whatsapp:${TWILIO_WHATSAPP_NUMBER}`,
-            To: `whatsapp:${formattedCaregiverPhone}`,
-            Body: caregiverMessage,
-          }),
-        }
-      );
-      console.log("Missed call notification sent to caregiver");
+        }),
+      });
+      if (res.ok) {
+        console.log("Missed call notification sent to caregiver via Interakt");
+      } else {
+        const errBody = await res.text();
+        console.error("Interakt missed call to caregiver FAILED:", res.status, errBody);
+      }
     } catch (error) {
-      console.error("Error sending WhatsApp to caregiver:", error);
+      console.error("Error sending Interakt message to caregiver:", error);
     }
   }
 }
