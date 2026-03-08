@@ -517,6 +517,26 @@ Respond ONLY in valid JSON format:
       analysis.alertReason = "Symptom persisting for 5+ days - doctor consultation recommended";
     }
 
+    // EMERGENCY POST-ANALYSIS VALIDATION: Hard safety net
+    if (isEmergencyCall) {
+      // Emergency calls ALWAYS trigger alerts
+      analysis.alertTriggered = true;
+      if (!analysis.alertReason) {
+        analysis.alertReason = "Emergency call triggered by caregiver";
+      }
+      // Cap wellbeing score at 4 for emergency calls
+      if (analysis.wellBeingScore > 4) {
+        console.log(`Emergency score cap: AI returned ${analysis.wellBeingScore}, forcing to 4`);
+        analysis.wellBeingScore = 4;
+      }
+      // If any symptoms were reported, score even lower
+      if (analysis.symptomsReported.length > 0 || Object.keys((analysis as any).symptomUpdates || {}).length > 0) {
+        analysis.wellBeingScore = Math.min(analysis.wellBeingScore, 3);
+        analysis.alertReason = `Emergency: ${analysis.symptomsReported.join(', ') || 'symptom reported'}`;
+      }
+      console.log(`Emergency call validation applied: score=${analysis.wellBeingScore}, alert=${analysis.alertTriggered}`);
+    }
+
     // Save resolved symptoms
     const resolvedSymptoms = (analysis as any).resolvedSymptoms || [];
     if (resolvedSymptoms.length > 0) {
