@@ -679,7 +679,75 @@ Respond ONLY in valid JSON format:
       }
     }
 
-    // Parse and save conversation logs
+    // ============ CONSECUTIVE MENTAL HEALTH ALERT ============
+    // Check if emotionalState has been negative for 3+ consecutive calls
+    const emotionalState = (analysis as any).emotionalState || 'neutral';
+    const negativeEmotions = ['sad', 'lonely', 'anxious', 'withdrawn'];
+    
+    if (negativeEmotions.includes(emotionalState) && elderId) {
+      try {
+        // Fetch last 3 completed check-ins (including the one just saved)
+        const { data: recentCheckIns } = await supabase
+          .from("check_ins")
+          .select("monitoring_responses")
+          .eq("elder_id", elderId)
+          .eq("status", "completed")
+          .order("created_at", { ascending: false })
+          .limit(3);
+
+        if (recentCheckIns && recentCheckIns.length >= 3) {
+          const allNegative = recentCheckIns.every((ci: any) => {
+            const state = ci.monitoring_responses?.emotionalState || 'neutral';
+            return negativeEmotions.includes(state);
+          });
+
+          if (allNegative) {
+            // Check if we already created a mental health alert recently (last 7 days)
+            const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+            const { data: existingAlert } = await supabase
+              .from("alerts")
+              .select("id")
+              .eq("elder_id", elderId)
+              .eq("alert_type", "mental_health")
+              .gte("created_at", sevenDaysAgo)
+              .limit(1);
+
+            if (!existingAlert || existingAlert.length === 0) {
+              console.log(`MENTAL HEALTH ALERT: ${emotionalState} for 3+ consecutive calls for elder ${elderId}`);
+              await supabase.from("alerts").insert({
+                elder_id: elderId,
+                title: "Mental Health Concern - Persistent Low Mood",
+                description: `Elder has shown ${emotionalState} emotional state for 3+ consecutive calls. Consider a check-in or counseling referral.`,
+                severity: "medium",
+                alert_type: "mental_health",
+              });
+
+              // Notify caregiver
+              await fetch(`${supabaseUrl}/functions/v1/notify-caregiver`, {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  "Authorization": `Bearer ${supabaseKey}`,
+                },
+                body: JSON.stringify({
+                  elderId: elderId,
+                  alertType: "mental_health",
+                  severity: "medium",
+                  title: "Persistent low mood detected",
+                  description: `Your loved one has been feeling ${emotionalState} during recent calls. Consider spending extra time with them or arranging a visit.`,
+                  initiateCall: false,
+                }),
+              });
+            }
+          }
+        }
+      } catch (mhError) {
+        console.error("Error checking consecutive mental health:", mhError);
+        // Non-fatal
+      }
+    }
+    // ============ END MENTAL HEALTH ALERT ============
+
     if (rawTranscript) {
       const parsedLogs = parseTranscript(rawTranscript);
       console.log(`Parsed ${parsedLogs.length} conversation turns from transcript`);
