@@ -420,8 +420,19 @@ For each monitoring topic and custom question, extract the elder's response if d
 Return in "monitoringResponses" object with topic/question as key and response as value.`;
         }
         
-        const analysisPrompt = `You are an AI health analyst for Sentio, an elder care check-in system. Analyze this call transcript carefully.
+        const emergencyContext = isEmergencyCall ? `
+CRITICAL — THIS WAS AN EMERGENCY CALL:
+This call was manually triggered by the caregiver as an EMERGENCY. The elder likely has an urgent health concern.
+- ANY symptom or pain reported during this call should result in wellBeingScore ≤ 4
+- alertTriggered MUST be true for emergency calls
+- If the elder reports ANY pain, discomfort, or symptom, wellBeingScore should be 3 or lower
+- Do NOT default to high scores. When in doubt, score LOW for emergency calls.
+- emergencyDetected should be true if life-threatening symptoms are present
 
+` : '';
+
+        const analysisPrompt = `You are an AI health analyst for Sentio, an elder care check-in system. Analyze this call transcript carefully.
+${emergencyContext}
 EMERGENCY KEYWORDS TO CHECK (CRITICAL):
 - Chest pain, heart pain, heart attack
 - Difficulty breathing, can't breathe
