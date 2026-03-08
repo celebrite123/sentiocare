@@ -39,7 +39,7 @@ const StickyMobileCTA = () => {
         className="w-full bg-primary hover:bg-primary/90 text-primary-foreground h-12 rounded-full text-base font-semibold shadow-lg shadow-primary/25 group"
         onClick={() => navigate("/auth")}
       >
-        Start Free Trial
+        Join Waitlist
         <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
       </Button>
     </div>

@@ -22,7 +22,7 @@ const HeroSection = () => {
           <div className="space-y-6 text-center lg:text-left">
             <div className="animate-fade-in">
               <Badge variant="secondary" className="bg-secondary/10 text-secondary border-0 px-4 py-1.5 text-sm font-medium">
-                🇮🇳 Made in India • 5-Day Free Trial
+                🇮🇳 Made in India • Limited Spots Available
               </Badge>
             </div>
             
@@ -46,7 +46,7 @@ const HeroSection = () => {
                 className="bg-primary hover:bg-primary/90 text-primary-foreground text-base h-12 px-6 rounded-full group shadow-lg shadow-primary/25"
                 onClick={() => navigate("/auth")}
               >
-                Start Free Trial
+                Join Waitlist
                 <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
               </Button>
               <Button 
@@ -66,7 +66,7 @@ const HeroSection = () => {
                 <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
                   <Shield className="h-4 w-4 text-primary" />
                 </div>
-                <span className="text-sm font-medium text-foreground/80">No Credit Card Required</span>
+                <span className="text-sm font-medium text-foreground/80">HIPAA Compliant</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-full bg-secondary/10 flex items-center justify-center">

@@ -147,7 +147,7 @@ const Navbar = () => {
                     Log In
                   </Button>
                   <Button onClick={() => navigate("/auth")} className="bg-primary hover:bg-primary/90">
-                    Get Started
+                    Sign Up
                   </Button>
                 </div>
               )}
@@ -198,7 +198,7 @@ const Navbar = () => {
                       Log In
                     </Button>
                     <Button className="justify-start bg-primary hover:bg-primary/90" onClick={() => { navigate("/auth"); setMobileMenuOpen(false); }}>
-                      Get Started
+                      Sign Up
                     </Button>
                   </>
                 )}

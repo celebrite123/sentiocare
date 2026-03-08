@@ -64,10 +64,10 @@ const PricingSection = () => {
               className="w-full rounded-full py-6 text-base bg-secondary hover:bg-secondary/90 text-secondary-foreground shadow-lg shadow-secondary/25"
               onClick={() => navigate("/auth")}
             >
-              Start 5-Day Free Trial
+              Join Waitlist
             </Button>
             <p className="text-center text-xs text-foreground/50 mt-3">
-              No credit card required • Cancel anytime
+              Limited spots • 5-day free trial on approval
             </p>
           </Card>
         </div>
@@ -91,7 +91,7 @@ const PricingSection = () => {
 
         <div className="text-center mt-8">
           <p className="text-sm text-foreground/65">
-            Sign up → 5-day free trial → Subscribe if you love it
+            Join waitlist → Get approved → 5-day free trial → Subscribe
           </p>
         </div>
       </div>
