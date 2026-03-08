@@ -451,7 +451,7 @@ RULES:
           elder_id: elder.id,
           first_name: firstName,
           greeting: greeting,
-          briefing: [briefing, mandatoryNewConcernDirective].filter(Boolean).join('\n'),
+          briefing: briefing,
           medicines: medicineList,
           medicine_names_only: medicineNamesOnly,
           active_symptoms: activeSymptomsList,
