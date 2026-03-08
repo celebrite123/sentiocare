@@ -446,15 +446,6 @@ RULES:
         const dayHash = new Date().getDate() % wellbeingQuestions.length;
         const wellbeingQuestion = wellbeingQuestions[dayHash];
 
-        // Runtime fail-safe: enforce final new-concern probe even with older dashboard prompts
-        const mandatoryNewConcernDirective = isHindi
-          ? `MANDATORY FINAL QUESTION: कॉल खत्म करने से पहले यह ज़रूर पूछें: "${newConcernPrompt}"। जवाब acknowledge करके ही goodbye दें।`
-          : `MANDATORY FINAL QUESTION: Before ending, you MUST ask exactly: "${newConcernPrompt}". Acknowledge the answer, then say goodbye.`;
-
-        const monitoringTopicsWithMandatoryClose = [
-          monitoringQuestions,
-          `MANDATORY_CLOSE: ${newConcernPrompt}`,
-        ].filter(Boolean).join(' | ');
 
         const userData = {
           elder_id: elder.id,
