@@ -37,7 +37,7 @@ const CTASection = () => {
           </div>
 
           <p className="text-sm text-foreground/60 mt-6">
-            No credit card required • Cancel anytime • 24/7 support
+            Limited spots • 5-day free trial on approval • 24/7 support
           </p>
         </div>
       </div>

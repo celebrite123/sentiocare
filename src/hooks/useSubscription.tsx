@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 
 export type SubscriptionTier = "basic" | "premium";
-export type SubscriptionStatus = "trial" | "active" | "expired";
+export type SubscriptionStatus = "trial" | "active" | "expired" | "waitlisted";
 
 interface SubscriptionState {
   tier: SubscriptionTier;
@@ -15,6 +15,7 @@ interface SubscriptionState {
   canUseWhatsApp: boolean;
   isTrialActive: boolean;
   isTrialExpired: boolean;
+  isWaitlisted: boolean;
   trialDaysLeft: number;
   elderCount: number;
   maxElders: number;
@@ -37,6 +38,7 @@ export const useSubscription = () => {
     canUseWhatsApp: true,
     isTrialActive: false,
     isTrialExpired: false,
+    isWaitlisted: false,
     trialDaysLeft: 0,
     elderCount: 0,
     maxElders: 1,
@@ -67,22 +69,23 @@ export const useSubscription = () => {
     try {
       const { data: profile, error } = await supabase
         .from("profiles")
-        .select("id, subscription_tier, subscription_status, trial_ends_at, subscription_expires_at, cancellation_requested_at")
+        .select("id, subscription_tier, subscription_status, trial_ends_at, subscription_expires_at, cancellation_requested_at, waitlist_status")
         .eq("user_id", user!.id)
         .single();
 
       if (error) {
-        // If no profile found (PGRST116), treat as new user in trial - don't show expired
+        // If no profile found (PGRST116), treat as new user waitlisted
         if (error.code === "PGRST116") {
           setState(prev => ({ 
             ...prev, 
             loading: false,
-            status: "trial",
-            isTrialActive: true,
+            status: "waitlisted",
+            isWaitlisted: true,
+            isTrialActive: false,
             isTrialExpired: false,
-            trialDaysLeft: 5,
-            canUseVoice: true,
-            canUseWhatsApp: true,
+            trialDaysLeft: 0,
+            canUseVoice: false,
+            canUseWhatsApp: false,
           }));
           return;
         }
@@ -101,11 +104,15 @@ export const useSubscription = () => {
         elderCount = count || 0;
       }
 
-      const tier = (profile?.subscription_tier as SubscriptionTier) || "basic";
-      const status = (profile?.subscription_status as SubscriptionStatus) || "trial";
+      const tier = (profile?.subscription_tier as SubscriptionTier) || "premium";
+      const status = (profile?.subscription_status as SubscriptionStatus) || "waitlisted";
       const trialEndsAt = profile?.trial_ends_at ? new Date(profile.trial_ends_at) : null;
       const expiresAt = profile?.subscription_expires_at ? new Date(profile.subscription_expires_at) : null;
       const isCancelled = !!(profile as any)?.cancellation_requested_at;
+      const waitlistStatus = (profile as any)?.waitlist_status;
+      
+      // Check if user is waitlisted
+      const isWaitlisted = status === "waitlisted" || (waitlistStatus === "pending" && status !== "trial" && status !== "active");
       
       // Calculate trial days left
       const now = new Date();
@@ -114,10 +121,9 @@ export const useSubscription = () => {
         : 0;
       
       const isTrialActive = status === "trial" && trialDaysLeft > 0;
-      const isTrialExpired = status === "trial" && trialDaysLeft <= 0;
+      const isTrialExpired = status === "trial" && trialDaysLeft <= 0 && !isWaitlisted;
       
       // During trial, all features are available
-      // After trial, features depend on tier
       const isPremiumOrTrial = tier === "premium" || isTrialActive;
       
       // 1 elder per subscription
@@ -130,10 +136,11 @@ export const useSubscription = () => {
         trialEndsAt,
         expiresAt,
         loading: false,
-        canUseVoice: isPremiumOrTrial,
-        canUseWhatsApp: true, // All tiers get WhatsApp
+        canUseVoice: isPremiumOrTrial && !isWaitlisted,
+        canUseWhatsApp: !isWaitlisted,
         isTrialActive,
         isTrialExpired,
+        isWaitlisted,
         trialDaysLeft,
         elderCount,
         maxElders,
