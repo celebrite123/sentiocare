@@ -122,8 +122,8 @@ serve(async (req) => {
       );
     }
 
-    // Fetch the audio from S3
-    console.log("Proxying recording:", recordingUrl);
+    // Fetch the audio from S3 and stream directly (no buffering)
+    console.log("Proxying recording (streaming):", recordingUrl);
     
     const audioResponse = await fetch(recordingUrl);
     
@@ -135,15 +135,15 @@ serve(async (req) => {
       );
     }
 
-    const audioData = await audioResponse.arrayBuffer();
     const contentType = audioResponse.headers.get('content-type') || 'audio/mpeg';
+    const contentLength = audioResponse.headers.get('content-length');
 
-    return new Response(audioData, {
+    return new Response(audioResponse.body, {
       status: 200,
       headers: {
         ...corsHeaders,
         'Content-Type': contentType,
-        'Content-Length': audioData.byteLength.toString(),
+        ...(contentLength ? { 'Content-Length': contentLength } : {}),
         'Cache-Control': 'public, max-age=3600',
       },
     });
