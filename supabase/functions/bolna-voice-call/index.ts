@@ -525,6 +525,16 @@ serve(async (req) => {
     const dayHash = new Date().getDate() % wellbeingQuestions.length;
     const wellbeingQuestion = wellbeingQuestions[dayHash];
 
+    // Runtime fail-safe: force a specific "new concern" close question even if dashboard prompt is stale
+    const mandatoryNewConcernDirective = isHindi
+      ? `MANDATORY FINAL QUESTION: कॉल खत्म करने से पहले यह ज़रूर पूछें: "${newConcernPrompt}"। जवाब acknowledge करके ही goodbye दें।`
+      : `MANDATORY FINAL QUESTION: Before ending, you MUST ask exactly: "${newConcernPrompt}". Acknowledge the answer, then say goodbye.`;
+
+    const monitoringTopicsWithMandatoryClose = [
+      monitoringQuestions,
+      `MANDATORY_CLOSE: ${newConcernPrompt}`,
+    ].filter(Boolean).join(' | ');
+
     const symptomDaysFormatted = Object.entries(symptomDaysMap)
       .map(([symptom, days]) => `${symptom}:${days}`)
       .join(', ');
@@ -667,7 +677,7 @@ RULES:
       elder_id: elderId,
       first_name: firstName,
       greeting: greeting,
-      briefing: isEmergency ? "" : briefing,
+      briefing: isEmergency ? "" : [briefing, mandatoryNewConcernDirective].filter(Boolean).join('\n'),
       medicines: isEmergency ? "" : medicineList,
       medicine_names_only: isEmergency ? "" : medicineNamesOnly,
       active_symptoms: isEmergency ? "" : activeSymptomsList,
@@ -675,7 +685,7 @@ RULES:
       symptom_days: isEmergency ? "" : symptomDaysFormatted,
       last_summary: isEmergency ? "" : lastSummary.substring(0, 150),
       recent_calls: isEmergency ? "" : recentCallSummaries.substring(0, 500),
-      monitoring_topics: isEmergency ? "" : monitoringQuestions,
+      monitoring_topics: isEmergency ? "" : monitoringTopicsWithMandatoryClose,
       new_concern_prompt: isEmergency ? "" : newConcernPrompt,
       wellbeing_question: isEmergency ? "" : wellbeingQuestion,
       is_emergency: isEmergency ? "true" : "false",
