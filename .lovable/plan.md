@@ -1,78 +1,64 @@
 
 
-# Fix: Wrong Medicine Names + Wrong Symptom Priority in Voice Calls
+# Fix Plan: 4 Critical Issues
 
-## Root Cause Analysis
+## Issue 1: Voice Recording Not Playing
 
-### Problem 1: "Thyroxin" instead of "dsa"
-The Bolna edge function has hallucination protection, BUT:
-- The hardcoded hallucination list (line 549) only catches 7 common names. If the AI hallucinates a name NOT in that list, it passes through unchecked.
-- The comment on line 472 still mentions "Thyroxin" as an example, which could influence the AI briefing context.
-- **Most critically**: The actual prompt running on the Bolna Dashboard likely still has the OLD examples with hardcoded medicine names. The `SENTIO_VOICE_AGENT_GUARDRAILS.md` was updated but you need to manually copy-paste it into the Bolna Dashboard.
+**Root cause**: The `AudioPlayer` component fetches audio on button click, but the `<audio>` element is only created AFTER the async fetch completes. On mobile browsers (especially iOS Safari), this breaks the user gesture requirement — the browser blocks playback because the `audio.play()` call is no longer in the original gesture context.
 
-**Fix**: Replace the limited hallucination blocklist with a universal validator -- if ANY word in the briefing looks like a medicine name but is NOT in the elder's actual medicine list, flag and replace it. Also remove the misleading comment.
+**Fix**: In `CheckInLog.tsx`, restructure `AudioPlayer` to create the `Audio` element immediately on click (within gesture context), unlock it with a silent `.play().catch(()=>{})`, then fetch the blob and set `src`. This follows the proven pattern for iOS/Safari audio playback.
 
-### Problem 2: Asking about "back pain" instead of "fever"
-The code collects ALL symptoms from the last 7 check-ins and deduplicates them. But it does NOT prioritize by recency. If "back pain" was reported 5 days ago and "fever" was reported yesterday, the code sends both as `active_symptoms` but the prompt asks about "the FIRST symptom" -- which may be "back pain" because the deduplication order is unpredictable (uses `Set`).
+## Issue 2: Mobile Scaling Problems
 
-**Fix**: Sort active symptoms by most recent first. The symptom from yesterday's call (fever) should always appear first in the list so the AI asks about it.
+**Root cause**: Several layout issues on phone screens:
+- Dashboard stats grid: `grid-cols-2 sm:grid-cols-3 lg:grid-cols-6` — 6 stats cards in 2 columns on mobile creates cramped cards
+- Action buttons row uses `flex-wrap` with `size="lg"` buttons that overflow on small screens
+- Check-in history items have `flex gap-4` with badges that wrap poorly
+- Hero section trust indicators use `gap-6` which is too wide on small phones
 
-### Problem 3: AI doesn't acknowledge responses
-This is a Bolna Dashboard prompt issue. The updated guardrails document already has the acknowledgment rules, but you need to paste the updated prompt into the Bolna Dashboard.
+**Fix** (in `Dashboard.tsx`, `CheckInLog.tsx`, `HeroSection.tsx`):
+- Dashboard stats: Change to `grid-cols-2 sm:grid-cols-3 lg:grid-cols-6` — keep but reduce card padding on mobile
+- Action buttons: Add `w-full sm:w-auto` to buttons so they stack properly on mobile
+- Check-in log: Reduce gap and fix badge wrapping with `flex-wrap` and smaller text on mobile
+- Hero section: Reduce `gap-6` to `gap-4` on mobile for trust indicators
 
-## Changes
+## Issue 3: Website Speed
 
-### File 1: `supabase/functions/bolna-voice-call/index.ts`
+**Root cause**: The `App.css` file has unused styles (Vite boilerplate). More importantly, the Dashboard page makes 4 parallel queries on load (good), but also loads `WhatsAppChat` component eagerly even when WhatsApp isn't enabled. The landing page already uses lazy loading (good).
 
-**A. Fix symptom ordering (lines 407-420)**
-Instead of collecting symptoms into a Set (which loses order), track each symptom with its most recent occurrence date, then sort by most recent first. This ensures "fever" (yesterday) comes before "back pain" (5 days ago).
+**Fix**:
+- Remove unused `App.css` boilerplate styles
+- Lazy-load `WhatsAppChat` component in Dashboard
+- Add `loading="lazy"` to hero image for non-LCP contexts
+- Consider lazy-loading `AlertsPanel` since it's hidden by default
 
-**B. Improve medicine hallucination protection (lines 547-561)**
-Replace the hardcoded blocklist approach with a smarter validator:
-- Extract all capitalized words and known medicine patterns from the briefing
-- Compare each against the actual medicine list
-- If a word looks like a medicine name (capitalized, not a common English word) and is NOT in the actual list, replace it with the first actual medicine name
-- This catches ALL hallucinations, not just 7 hardcoded ones
+## Issue 4: Caregiver Not Getting WhatsApp After Check-in
 
-**C. Remove misleading comment (line 472)**
-Change `// Format medicines with name + purpose (e.g. "Thyroxin (Thyroid)")` to remove the specific medicine name example.
+**Root cause**: The `sendCaregiverDailyConfirmation` function in `bolna-webhook/index.ts` (line 126-200) queries `notification_settings.caregiver_phone`. If this field is empty/null, it silently skips with a `console.warn`. The logs show successful check-ins completing but no "Daily check-in confirmation sent" log, meaning either:
+1. `caregiver_phone` is not set in `notification_settings` for the elder
+2. Twilio is rejecting the message (the function logs the error but doesn't surface it)
 
-### File 2: `supabase/functions/vapi-voice-call/index.ts`
+**Fix**:
+- Add better logging to identify which case is happening
+- Add a fallback: also check `notification_settings.email_address` and `elders.emergency_contact` as alternative caregiver contacts
+- Surface a warning in the dashboard if caregiver phone is not configured but daily notifications are expected
 
-The Vapi function is missing:
-- Monitoring topics (never fetched or passed)
-- Resolved symptom filtering (passes ALL symptoms)
-- AI briefing generation
-- Medicine hallucination protection
+## Issue 5 (Bonus): `run-scheduled-b2b-calls` Boot Failure
 
-Since the Dashboard currently uses Bolna (not Vapi), this is lower priority but should be fixed for consistency. Add:
-- Fetch `monitoring_config` from elder record
-- Filter resolved symptoms
-- Pass monitoring topics in `variableValues`
+**Root cause**: `const daysSinceDischarge` is declared twice in the same `for` loop scope — line 93 (staleness guard) and line 225 (call context). JavaScript/TypeScript doesn't allow duplicate `const` declarations in the same block scope. The Deno runtime rejects this at boot.
 
-### Important: Bolna Dashboard Update Required
+**Fix**: Rename the second declaration at line 225 to `const daysSinceDischargeContext` (or simply remove it since the value from line 93 is identical and still in scope).
 
-After these code changes deploy, you MUST copy the updated prompt from `SENTIO_VOICE_AGENT_GUARDRAILS.md` and paste it into your Bolna Dashboard agent configuration. The edge function sends the correct data (medicines, symptoms, monitoring topics), but the Bolna agent prompt is what actually controls what the AI says during the call. If the old prompt is still there, it will keep using hardcoded examples.
+---
 
-## Technical Details
-
-### Symptom Ordering Fix
-```text
-Before: Set([back_pain, headache, fever]) -- random order
-After:  [fever (1 day ago), back_pain (5 days ago), headache (3 days ago)] -- sorted by recency
-```
-
-### Medicine Validation Fix
-```text
-Before: Check against hardcoded list [thyroxin, amlodipine, metformin, aspirin, paracetamol, crocin, dolo]
-After:  Check ANY capitalized word against actual medicine list. If not found AND not a common English word, replace it.
-```
-
-## Summary
+## Files to Change
 
 | File | Change |
 |------|--------|
-| `supabase/functions/bolna-voice-call/index.ts` | Sort symptoms by recency, universal medicine hallucination detection, remove misleading comment |
-| `supabase/functions/vapi-voice-call/index.ts` | Add monitoring topics, resolved symptom filtering, medicine validation |
-| **Bolna Dashboard** (manual) | Copy updated prompt from `SENTIO_VOICE_AGENT_GUARDRAILS.md` |
+| `src/components/dashboard/CheckInLog.tsx` | Fix AudioPlayer: create Audio element in gesture context before async fetch; fix mobile badge wrapping |
+| `src/pages/Dashboard.tsx` | Fix mobile button sizing (`w-full sm:w-auto`); lazy-load WhatsAppChat |
+| `src/components/landing/HeroSection.tsx` | Reduce mobile trust indicator gap |
+| `supabase/functions/run-scheduled-b2b-calls/index.ts` | Rename duplicate `daysSinceDischarge` at line 225 |
+| `supabase/functions/bolna-webhook/index.ts` | Add fallback caregiver contact lookup + better error logging |
+| `src/App.css` | Remove unused Vite boilerplate styles |
 
