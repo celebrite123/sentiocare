@@ -23,7 +23,7 @@ const CTASection = () => {
               className="bg-secondary hover:bg-secondary/90 text-secondary-foreground text-base h-12 px-8 rounded-full group shadow-lg shadow-secondary/25"
               onClick={() => navigate("/auth")}
             >
-              Start Free Trial
+              Join Waitlist
               <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
             </Button>
             <Button
