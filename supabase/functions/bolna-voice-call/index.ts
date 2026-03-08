@@ -505,6 +505,26 @@ serve(async (req) => {
       isHindi
     );
 
+    // Build new concern prompt
+    const newConcernPrompt = isHindi 
+      ? "कोई नई तकलीफ़ तो नहीं है?"
+      : "Any new health concern today?";
+
+    // Build wellbeing question (rotated) — used when no monitoring topics are configured
+    const wellbeingQuestions = isHindi
+      ? [
+          "मन कैसा है आज? खुश हैं?",
+          "रात को नींद कैसी आई?",
+          "अकेला तो नहीं लगता? कोई मिलने आता है?",
+        ]
+      : [
+          "How's your mood today? Feeling okay?",
+          "How did you sleep last night?",
+          "Do you feel lonely sometimes? Does anyone visit you?",
+        ];
+    const dayHash = new Date().getDate() % wellbeingQuestions.length;
+    const wellbeingQuestion = wellbeingQuestions[dayHash];
+
     const symptomDaysFormatted = Object.entries(symptomDaysMap)
       .map(([symptom, days]) => `${symptom}:${days}`)
       .join(', ');
