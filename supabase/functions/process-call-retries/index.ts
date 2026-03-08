@@ -426,6 +426,26 @@ RULES:
         const firstName = getFirstName(elder.full_name);
         const greeting = buildRetryGreeting(firstName, isHindi);
 
+        // Build new concern prompt
+        const newConcernPrompt = isHindi 
+          ? "कोई नई तकलीफ़ तो नहीं है?"
+          : "Any new health concern today?";
+
+        // Build wellbeing question (rotated) — used when no monitoring topics configured
+        const wellbeingQuestions = isHindi
+          ? [
+              "मन कैसा है आज? खुश हैं?",
+              "रात को नींद कैसी आई?",
+              "अकेला तो नहीं लगता? कोई मिलने आता है?",
+            ]
+          : [
+              "How's your mood today? Feeling okay?",
+              "How did you sleep last night?",
+              "Do you feel lonely sometimes? Does anyone visit you?",
+            ];
+        const dayHash = new Date().getDate() % wellbeingQuestions.length;
+        const wellbeingQuestion = wellbeingQuestions[dayHash];
+
         const userData = {
           elder_id: elder.id,
           first_name: firstName,
@@ -438,6 +458,8 @@ RULES:
           symptom_days: symptomDaysFormatted,
           recent_calls: recentCallSummaries.substring(0, 500),
           monitoring_topics: monitoringQuestions,
+          new_concern_prompt: newConcernPrompt,
+          wellbeing_question: wellbeingQuestion,
           is_emergency: "false",
           has_caregiver: hasCaregiverFlag ? "true" : "false",
           caregiver_name: caregiverName,

@@ -453,6 +453,16 @@ PROLONGED SYMPTOM CHECK:
 If a symptom has persisted 5+ days without improvement → Set "prolongedSymptomAlert": true
 ${monitoringInstructions}
 
+EMOTIONAL STATE ANALYSIS:
+Analyze the elder's emotional state from the conversation. Look for:
+- Direct mood statements ("I'm sad", "मन उदास है", "lonely", "अकेला")
+- Indirect cues: very brief responses, flat engagement, contradictions (says "theek hai" but tone suggests otherwise)
+- Masking distress: verbal responses say "fine" but responses are unusually brief, evasive, or lacking detail compared to what's normal
+
+NEW CONCERN DISCOVERY:
+Check if the elder volunteered any NEW health concern when asked "कोई नई तकलीफ़?" / "Any new health concern?"
+Set "newSymptomsVolunteered" to true if they shared something new in response to this prompt.
+
 Respond ONLY in valid JSON format:
 {
   "sentiment": "positive|neutral|negative",
@@ -466,6 +476,9 @@ Respond ONLY in valid JSON format:
   "alertReason": "reason or null",
   "emergencyDetected": true|false,
   "mentalHealthConcern": true|false,
+  "emotionalState": "happy|neutral|sad|lonely|anxious|withdrawn",
+  "maskingDistress": true|false,
+  "newSymptomsVolunteered": true|false,
   "monitoringResponses": {"topic_or_question": "response_value"}
 }`;
 
@@ -583,6 +596,14 @@ Respond ONLY in valid JSON format:
     
     analysis.symptomsReported = filteredSymptoms;
 
+    // Build enriched monitoring responses with emotional data
+    const enrichedMonitoringResponses = {
+      ...(analysis.monitoringResponses || {}),
+      emotionalState: (analysis as any).emotionalState || 'neutral',
+      maskingDistress: (analysis as any).maskingDistress || false,
+      newSymptomsVolunteered: (analysis as any).newSymptomsVolunteered || false,
+    };
+
     // Save check-in
     const { data: checkIn, error: checkInError } = await supabase
       .from("check_ins")
@@ -596,7 +617,7 @@ Respond ONLY in valid JSON format:
         symptoms_reported: analysis.symptomsReported,
         conversation_summary: transcript?.substring(0, 500) || hangup_reason || `Call ${status}`,
         raw_transcript: rawTranscript,
-        monitoring_responses: analysis.monitoringResponses || {},
+        monitoring_responses: enrichedMonitoringResponses,
         alert_triggered: analysis.alertTriggered,
         alert_reason: analysis.alertReason,
         recording_url: recordingUrl,
@@ -658,7 +679,75 @@ Respond ONLY in valid JSON format:
       }
     }
 
-    // Parse and save conversation logs
+    // ============ CONSECUTIVE MENTAL HEALTH ALERT ============
+    // Check if emotionalState has been negative for 3+ consecutive calls
+    const emotionalState = (analysis as any).emotionalState || 'neutral';
+    const negativeEmotions = ['sad', 'lonely', 'anxious', 'withdrawn'];
+    
+    if (negativeEmotions.includes(emotionalState) && elderId) {
+      try {
+        // Fetch last 3 completed check-ins (including the one just saved)
+        const { data: recentCheckIns } = await supabase
+          .from("check_ins")
+          .select("monitoring_responses")
+          .eq("elder_id", elderId)
+          .eq("status", "completed")
+          .order("created_at", { ascending: false })
+          .limit(3);
+
+        if (recentCheckIns && recentCheckIns.length >= 3) {
+          const allNegative = recentCheckIns.every((ci: any) => {
+            const state = ci.monitoring_responses?.emotionalState || 'neutral';
+            return negativeEmotions.includes(state);
+          });
+
+          if (allNegative) {
+            // Check if we already created a mental health alert recently (last 7 days)
+            const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+            const { data: existingAlert } = await supabase
+              .from("alerts")
+              .select("id")
+              .eq("elder_id", elderId)
+              .eq("alert_type", "mental_health")
+              .gte("created_at", sevenDaysAgo)
+              .limit(1);
+
+            if (!existingAlert || existingAlert.length === 0) {
+              console.log(`MENTAL HEALTH ALERT: ${emotionalState} for 3+ consecutive calls for elder ${elderId}`);
+              await supabase.from("alerts").insert({
+                elder_id: elderId,
+                title: "Mental Health Concern - Persistent Low Mood",
+                description: `Elder has shown ${emotionalState} emotional state for 3+ consecutive calls. Consider a check-in or counseling referral.`,
+                severity: "medium",
+                alert_type: "mental_health",
+              });
+
+              // Notify caregiver
+              await fetch(`${supabaseUrl}/functions/v1/notify-caregiver`, {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  "Authorization": `Bearer ${supabaseKey}`,
+                },
+                body: JSON.stringify({
+                  elderId: elderId,
+                  alertType: "mental_health",
+                  severity: "medium",
+                  title: "Persistent low mood detected",
+                  description: `Your loved one has been feeling ${emotionalState} during recent calls. Consider spending extra time with them or arranging a visit.`,
+                  initiateCall: false,
+                }),
+              });
+            }
+          }
+        }
+      } catch (mhError) {
+        console.error("Error checking consecutive mental health:", mhError);
+        // Non-fatal
+      }
+    }
+    // ============ END MENTAL HEALTH ALERT ============
+
     if (rawTranscript) {
       const parsedLogs = parseTranscript(rawTranscript);
       console.log(`Parsed ${parsedLogs.length} conversation turns from transcript`);
