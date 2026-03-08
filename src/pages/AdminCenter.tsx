@@ -200,6 +200,10 @@ const AdminCenter = () => {
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="mb-6">
+            <TabsTrigger value="waitlist" className="gap-2">
+              <Users className="h-4 w-4" />
+              Waitlist
+            </TabsTrigger>
             <TabsTrigger value="pilot" className="gap-2">
               <FlaskConical className="h-4 w-4" />
               Pilot Metrics
@@ -217,6 +221,10 @@ const AdminCenter = () => {
               Blog
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="waitlist">
+            <WaitlistManager />
+          </TabsContent>
 
           <TabsContent value="pilot">
             {analytics.pilotMetrics ? (
