@@ -18,9 +18,30 @@ serve(async (req) => {
 
     console.log("Processing scheduled callbacks...");
 
-    const now = new Date().toISOString();
+    const now = new Date();
+    const nowISO = now.toISOString();
+    const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
+
+    // STALENESS GUARD: Auto-expire any pending callbacks older than 24 hours
+    const { data: staleCallbacks, error: staleError } = await supabase
+      .from("scheduled_callbacks")
+      .update({ 
+        status: "expired",
+        notes: "Auto-expired: scheduled_for was more than 24 hours in the past",
+        updated_at: nowISO
+      })
+      .eq("status", "pending")
+      .lt("scheduled_for", twentyFourHoursAgo)
+      .select("id");
+
+    if (staleError) {
+      console.error("Error expiring stale callbacks:", staleError);
+    } else if (staleCallbacks && staleCallbacks.length > 0) {
+      console.log(`Auto-expired ${staleCallbacks.length} stale callbacks (older than 24h)`);
+    }
 
     // Find callbacks that are due (scheduled_for <= now) and still pending
+    // After expiry above, only callbacks within the last 24h window remain
     const { data: dueCallbacks, error: fetchError } = await supabase
       .from("scheduled_callbacks")
       .select(`
@@ -32,11 +53,13 @@ serve(async (req) => {
           language,
           organization_id,
           status,
-          consent_given
+          consent_given,
+          discharge_date,
+          last_call_date
         )
       `)
       .eq("status", "pending")
-      .lte("scheduled_for", now)
+      .lte("scheduled_for", nowISO)
       .limit(20);
 
     if (fetchError) {

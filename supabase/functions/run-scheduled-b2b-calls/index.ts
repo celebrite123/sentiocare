@@ -37,7 +37,8 @@ serve(async (req) => {
       : "Running scheduled B2B calls processor...");
 
     // Get patients with calls due now or in the past
-    const now = new Date().toISOString();
+    const now = new Date();
+    const nowISO = now.toISOString();
     
     let query = supabase
       .from("discharged_patients")
@@ -66,7 +67,7 @@ serve(async (req) => {
       query = query.eq("id", body.patient_id);
     } else {
       // For scheduled runs, only get patients with due calls
-      query = query.lte("next_call_due", now).not("next_call_due", "is", null).limit(50);
+      query = query.lte("next_call_due", nowISO).not("next_call_due", "is", null).limit(50);
     }
     
     const { data: patients, error: fetchError } = await query;
@@ -87,6 +88,28 @@ serve(async (req) => {
 
     for (const patient of patients || []) {
       const org = patient.organizations;
+
+      // STALENESS GUARD: Refuse to call patients discharged more than 14 days ago
+      const daysSinceDischarge = Math.floor(
+        (now.getTime() - new Date(patient.discharge_date).getTime()) / 86400000
+      );
+      const maxScheduleDay = Math.max(...(patient.call_schedule || []).map((s: any) => s.day || 0), 7);
+      const maxAllowedDays = maxScheduleDay + 7; // 7-day buffer beyond last scheduled day
+      if (daysSinceDischarge > maxAllowedDays) {
+        console.warn(`STALENESS GUARD: Skipping ${patient.id} (${patient.patient_name}) — discharged ${daysSinceDischarge} days ago, max allowed: ${maxAllowedDays}`);
+        skipped++;
+        continue;
+      }
+
+      // DEBOUNCE: If last call was within 5 minutes, skip (prevents parallel duplicate calls)
+      if (patient.last_call_date) {
+        const timeSinceLastCall = now.getTime() - new Date(patient.last_call_date).getTime();
+        if (timeSinceLastCall < 5 * 60 * 1000) { // 5 minutes
+          console.warn(`DEBOUNCE: Skipping ${patient.id} — last call was ${Math.round(timeSinceLastCall / 1000)}s ago`);
+          skipped++;
+          continue;
+        }
+      }
 
       // Skip if voice disabled or limits exceeded
       if (!org?.voice_enabled) {
