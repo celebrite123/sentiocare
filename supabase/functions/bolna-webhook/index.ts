@@ -170,7 +170,7 @@ async function sendCaregiverDailyConfirmation(
     }
 
     const firstName = elderName?.split(' ')[0] || 'Elder';
-    const caregiverName = settings.caregiver_name?.split(' ')[0] || '';
+    const caregiverFirstName = caregiverName?.split(' ')[0] || '';
     const score = analysis.wellBeingScore || '?';
     const medsTaken = analysis.medicinesTaken;
     const symptoms = (analysis.symptomsReported || []).length > 0
