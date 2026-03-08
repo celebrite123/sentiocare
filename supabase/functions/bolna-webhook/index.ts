@@ -131,14 +131,33 @@ async function sendCaregiverDailyConfirmation(
   isHindi: boolean
 ) {
   try {
+    // Try notification_settings first, then fallback to elders.emergency_contact
     const { data: settings } = await supabase
       .from("notification_settings")
-      .select("caregiver_name, caregiver_phone")
+      .select("caregiver_name, caregiver_phone, email_address")
       .eq("elder_id", elderId)
       .single();
 
-    if (!settings?.caregiver_phone) {
-      console.warn(`No caregiver_phone for elder ${elderId} — skipping WhatsApp daily confirmation`);
+    let caregiverPhone = settings?.caregiver_phone;
+    let caregiverName = settings?.caregiver_name;
+
+    // Fallback: if no caregiver_phone in notification_settings, check elders.emergency_contact
+    if (!caregiverPhone) {
+      const { data: elderData } = await supabase
+        .from("elders")
+        .select("emergency_contact")
+        .eq("id", elderId)
+        .single();
+      
+      if (elderData?.emergency_contact) {
+        caregiverPhone = elderData.emergency_contact;
+        caregiverName = caregiverName || "Caregiver";
+        console.log(`Using emergency_contact as fallback for elder ${elderId}`);
+      }
+    }
+
+    if (!caregiverPhone) {
+      console.warn(`No caregiver_phone or emergency_contact for elder ${elderId} — skipping WhatsApp daily confirmation`);
       return;
     }
 
