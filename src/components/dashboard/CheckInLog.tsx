@@ -32,20 +32,37 @@ interface CheckInLogProps {
 
 // Audio player component that uses proxy to avoid CORS issues
 const AudioPlayer = ({ checkInId }: { checkInId: string }) => {
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [ready, setReady] = useState(false);
 
-  const loadAudio = async () => {
-    if (audioUrl || loading) return;
+  const loadAndPlay = async () => {
+    if (loading) return;
+    
+    // If already loaded, just show the player
+    if (audioUrl) {
+      setReady(true);
+      return;
+    }
     
     setLoading(true);
     setError(null);
+    
+    // Create Audio element immediately in gesture context (critical for iOS Safari)
+    const audio = new Audio();
+    audio.preload = "auto";
+    audioRef.current = audio;
+    
+    // Unlock audio on mobile by playing silence in gesture context
+    try { await audio.play(); } catch { /* expected - no src yet */ }
     
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
         setError("Please log in to play recordings");
+        setLoading(false);
         return;
       }
 
@@ -66,6 +83,12 @@ const AudioPlayer = ({ checkInId }: { checkInId: string }) => {
       const audioBlob = await response.blob();
       const url = URL.createObjectURL(audioBlob);
       setAudioUrl(url);
+      setReady(true);
+      
+      // Set src and play on the already-unlocked audio element
+      audio.src = url;
+      audio.onended = () => { /* keep url alive for replay */ };
+      await audio.play().catch(() => { /* user can press play on controls */ });
     } catch (err: any) {
       console.error('Error loading audio:', err);
       setError(err.message || 'Failed to load recording');
@@ -80,6 +103,10 @@ const AudioPlayer = ({ checkInId }: { checkInId: string }) => {
       if (audioUrl) {
         URL.revokeObjectURL(audioUrl);
       }
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
     };
   }, [audioUrl]);
 
@@ -88,7 +115,7 @@ const AudioPlayer = ({ checkInId }: { checkInId: string }) => {
       <p className="text-sm font-medium mb-2">Voice Recording</p>
       {error ? (
         <p className="text-sm text-destructive">{error}</p>
-      ) : audioUrl ? (
+      ) : ready && audioUrl ? (
         <audio 
           controls 
           className="w-full h-10"
@@ -98,7 +125,7 @@ const AudioPlayer = ({ checkInId }: { checkInId: string }) => {
         </audio>
       ) : (
         <button
-          onClick={loadAudio}
+          onClick={loadAndPlay}
           disabled={loading}
           className="flex items-center gap-2 text-sm text-primary hover:underline disabled:opacity-50"
         >
@@ -108,7 +135,7 @@ const AudioPlayer = ({ checkInId }: { checkInId: string }) => {
               Loading recording...
             </>
           ) : (
-            "Click to load recording"
+            "▶ Play recording"
           )}
         </button>
       )}
