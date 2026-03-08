@@ -225,6 +225,9 @@ serve(async (req) => {
     } = payload;
 
     const user_data = payload.user_data;
+    const isEmergencyCall = user_data?.is_emergency === "true" || 
+      context_details?.user_data?.is_emergency === "true" ||
+      context_details?.recipient_data?.is_emergency === "true";
     const actualExecutionId = execution_id || call_id || payload.id;
 
     const normalizedStatus = String(status || '').toLowerCase().replace(/_/g, '-');
