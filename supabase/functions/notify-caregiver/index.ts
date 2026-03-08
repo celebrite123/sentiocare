@@ -174,7 +174,7 @@ serve(async (req) => {
     }
 
     // 3. Emergency Call to Caregiver (only for critical emergencies)
-    if (initiateCall && severity === "critical" && settings.caregiver_phone) {
+    if (initiateCall && (severity === "critical" || severity === "high") && settings.caregiver_phone) {
       try {
         const BOLNA_API_KEY = Deno.env.get("BOLNA_API_KEY");
         const BOLNA_AGENT_ID = Deno.env.get("BOLNA_AGENT_ID");

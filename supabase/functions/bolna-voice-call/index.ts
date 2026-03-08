@@ -100,19 +100,24 @@ function buildGreeting(firstName: string, isHindi: boolean, daysSinceLastCall: n
   }
 }
 
-// Format medicine list with both name and purpose for AI clarity
+// Format medicine list — ALWAYS use the medicine name as primary identifier
 function formatMedicines(medicines: any[], isHindi: boolean): string {
   if (!medicines || medicines.length === 0) {
     return isHindi ? 'कोई दवाई नहीं' : 'No medicines';
   }
   return medicines.map((m: any) => {
-    const name = m.name || '';
-    const purpose = m.purpose?.trim() || '';
-    if (purpose && name) {
-      return `${name} (${purpose})`;
-    }
-    return purpose || name;
+    const name = (m.name || '').trim();
+    if (!name) return '';
+    const purpose = (m.purpose || '').trim();
+    // Always lead with name — never omit it
+    return purpose ? `${name} (for ${purpose})` : name;
   }).filter(Boolean).join(', ');
+}
+
+// Extract just the raw medicine names for strict AI reference
+function getMedicineNamesOnly(medicines: any[]): string {
+  if (!medicines || medicines.length === 0) return '';
+  return medicines.map((m: any) => (m.name || '').trim()).filter(Boolean).join(', ');
 }
 
 // Build natural-language monitoring questions from topic IDs
@@ -613,13 +618,30 @@ RULES:
     }
     // ============ END AI BRIEFING ============
 
+    // Build symptom follow-up instruction so AI MUST ask about recent symptoms
+    let symptomFollowup = '';
+    if (activeSymptoms.length > 0) {
+      const topSymptom = activeSymptoms[0];
+      const daysAgo = symptomDaysMap[topSymptom] || 0;
+      const timeDesc = daysAgo === 0 ? 'today' : daysAgo === 1 ? 'yesterday' : `${daysAgo} days ago`;
+      if (isHindi) {
+        symptomFollowup = `MANDATORY: पहले "${topSymptom}" के बारे में पूछें (${timeDesc} बताया था)। दवाई के बारे में पूछने से पहले ये पूछें।`;
+      } else {
+        symptomFollowup = `MANDATORY: Ask about "${topSymptom}" first (reported ${timeDesc}). Ask this BEFORE asking about medicines.`;
+      }
+    }
+
+    const medicineNamesOnly = getMedicineNamesOnly(medicines);
+
     const userData = {
       elder_id: elderId,
       first_name: firstName,
       greeting: greeting,
       briefing: briefing,
       medicines: medicineList,
+      medicine_names_only: medicineNamesOnly,
       active_symptoms: activeSymptomsList,
+      symptom_followup: symptomFollowup,
       symptom_days: symptomDaysFormatted,
       last_summary: lastSummary.substring(0, 150),
       recent_calls: recentCallSummaries.substring(0, 500),

@@ -167,7 +167,7 @@ async function sendCaregiverDailyConfirmation(
       ? settings.caregiver_phone
       : `+91${settings.caregiver_phone.replace(/^0+/, "")}`;
 
-    await fetch(
+    const twilioRes = await fetch(
       `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Messages.json`,
       {
         method: "POST",
@@ -182,7 +182,12 @@ async function sendCaregiverDailyConfirmation(
         }),
       }
     );
-    console.log("Daily check-in confirmation sent to caregiver");
+    if (twilioRes.ok) {
+      console.log("Daily check-in confirmation sent to caregiver");
+    } else {
+      const errBody = await twilioRes.text();
+      console.error("WhatsApp caregiver confirmation FAILED:", twilioRes.status, errBody);
+    }
   } catch (error) {
     console.error("Error sending daily confirmation to caregiver:", error);
   }
@@ -607,7 +612,7 @@ Respond ONLY in valid JSON format:
             severity: severity,
             title: analysis.alertReason,
             description: transcript?.substring(0, 200) || "Health concern detected during voice check-in",
-            initiateCall: severity === "critical",
+            initiateCall: severity === "critical" || severity === "high",
           }),
         });
       }
