@@ -1411,6 +1411,9 @@ export type Database = {
           trial_ends_at: string | null
           updated_at: string | null
           user_id: string
+          waitlist_approved_at: string | null
+          waitlist_approved_by: string | null
+          waitlist_status: string | null
         }
         Insert: {
           api_calls_reset_at?: string | null
@@ -1432,6 +1435,9 @@ export type Database = {
           trial_ends_at?: string | null
           updated_at?: string | null
           user_id: string
+          waitlist_approved_at?: string | null
+          waitlist_approved_by?: string | null
+          waitlist_status?: string | null
         }
         Update: {
           api_calls_reset_at?: string | null
@@ -1453,6 +1459,9 @@ export type Database = {
           trial_ends_at?: string | null
           updated_at?: string | null
           user_id?: string
+          waitlist_approved_at?: string | null
+          waitlist_approved_by?: string | null
+          waitlist_status?: string | null
         }
         Relationships: []
       }

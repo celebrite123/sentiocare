@@ -12,7 +12,8 @@ import LanguageDistribution from "@/components/admin/LanguageDistribution";
 import BlogManager from "@/components/admin/BlogManager";
 import B2BAdminDashboard from "@/components/admin/B2BAdminDashboard";
 import PilotMetrics from "@/components/admin/PilotMetrics";
-import { Loader2, RefreshCw, Shield, BarChart3, FileText, Building2, FlaskConical } from "lucide-react";
+import WaitlistManager from "@/components/admin/WaitlistManager";
+import { Loader2, RefreshCw, Shield, BarChart3, FileText, Building2, FlaskConical, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
@@ -109,7 +110,7 @@ const AdminCenter = () => {
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [activeTab, setActiveTab] = useState("pilot");
+  const [activeTab, setActiveTab] = useState("waitlist");
 
   const fetchAnalytics = async () => {
     try {
@@ -199,6 +200,10 @@ const AdminCenter = () => {
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="mb-6">
+            <TabsTrigger value="waitlist" className="gap-2">
+              <Users className="h-4 w-4" />
+              Waitlist
+            </TabsTrigger>
             <TabsTrigger value="pilot" className="gap-2">
               <FlaskConical className="h-4 w-4" />
               Pilot Metrics
@@ -216,6 +221,10 @@ const AdminCenter = () => {
               Blog
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="waitlist">
+            <WaitlistManager />
+          </TabsContent>
 
           <TabsContent value="pilot">
             {analytics.pilotMetrics ? (

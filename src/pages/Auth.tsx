@@ -124,23 +124,26 @@ const Auth = () => {
         .insert({
           user_id: userId,
           full_name: fullName,
-          subscription_status: "trial",
+          subscription_status: "waitlisted",
+          waitlist_status: "pending",
+          trial_ends_at: null,
           terms_accepted_at: new Date().toISOString(),
           privacy_accepted_at: new Date().toISOString(),
-          // trial_ends_at is set by default in DB (5 days)
         });
 
       if (insertError) {
         console.error("Failed to create profile:", insertError);
       }
       
-      // New user, go to plan selection
+      // New user goes to waitlist page
       navigate("/select-plan");
       return;
     }
 
-    // If no plan selected, go to plan selection
-    if (!profile || !profile.subscription_tier) {
+    // If waitlisted, go to waitlist page
+    if (profile?.subscription_status === "waitlisted") {
+      navigate("/select-plan");
+    } else if (!profile || !profile.subscription_tier) {
       navigate("/select-plan");
     } else {
       navigate("/elders");
@@ -319,24 +322,25 @@ const Auth = () => {
       if (authError) throw authError;
 
       if (authData.user) {
-        // Create profile with trial and consent tracking
+        // Create profile as waitlisted (no trial until approved)
         const { error: profileError } = await supabase
           .from("profiles")
           .insert({
             user_id: authData.user.id,
             full_name: fullName,
             phone_number: phoneNumber || null,
-            subscription_status: "trial",
+            subscription_status: "waitlisted",
+            waitlist_status: "pending",
+            trial_ends_at: null,
             terms_accepted_at: new Date().toISOString(),
             privacy_accepted_at: new Date().toISOString(),
-            // trial_ends_at is set by default in DB
           });
 
         if (profileError) throw profileError;
 
         toast({
           title: "Welcome to Sentio AI! 🎉",
-          description: "Your 5-day free trial has started.",
+          description: "You're on the waitlist. We'll notify you once approved.",
         });
       }
     } catch (error: any) {
