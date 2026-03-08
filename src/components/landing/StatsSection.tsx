@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 
 const stats = [
-  { value: 15, label: "Languages Supported", suffix: "+" },
+  { value: 50, label: "Families on Waitlist", suffix: "+" },
+  { value: 2, label: "Languages (Hindi & English)", suffix: "" },
   { value: 24, label: "AI Availability", suffix: "/7" },
-  { value: 99.9, label: "Uptime Guarantee", suffix: "%" },
   { value: 5, label: "Day Free Trial", suffix: "" },
 ];
 

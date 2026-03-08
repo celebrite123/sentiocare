@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { Mail, MessageCircle } from "lucide-react";
 import sentioLogo from "@/assets/sentio-logo-new.png";
 
 const Footer = () => {
@@ -25,6 +26,29 @@ const Footer = () => {
             <Link to="/cancellation-refund" className="hover:text-foreground transition-colors">Cancellation & Refund</Link>
           </nav>
 
+          <div className="flex items-center gap-4">
+            <a
+              href="https://wa.me/919876543210?text=Hi%2C%20I%27m%20interested%20in%20Sentio%20AI"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 text-sm text-foreground/70 hover:text-whatsapp transition-colors"
+              aria-label="Chat on WhatsApp"
+            >
+              <MessageCircle className="h-4 w-4" />
+              <span>WhatsApp</span>
+            </a>
+            <a
+              href="mailto:hello@sentio.in.net"
+              className="flex items-center gap-1.5 text-sm text-foreground/70 hover:text-foreground transition-colors"
+              aria-label="Email us"
+            >
+              <Mail className="h-4 w-4" />
+              <span>hello@sentio.in.net</span>
+            </a>
+          </div>
+        </div>
+
+        <div className="text-center mt-6">
           <p className="text-sm text-foreground/60">
             © 2026 Sentio AI. Made with ❤️ in India
           </p>

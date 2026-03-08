@@ -68,6 +68,23 @@ const PricingSection = () => {
           </Card>
         </div>
 
+        {/* Cost comparison */}
+        <div className="max-w-lg mx-auto mt-10 space-y-3">
+          <p className="text-center text-sm font-medium text-foreground/80 mb-4">How Sentio compares:</p>
+          <div className="flex items-center justify-between px-4 py-2.5 rounded-lg bg-destructive/5 border border-destructive/10">
+            <span className="text-sm text-foreground/70">Full-time caregiver</span>
+            <span className="text-sm font-semibold text-destructive line-through">₹25,000/mo</span>
+          </div>
+          <div className="flex items-center justify-between px-4 py-2.5 rounded-lg bg-destructive/5 border border-destructive/10">
+            <span className="text-sm text-foreground/70">Wearable devices</span>
+            <span className="text-sm font-semibold text-destructive line-through">₹15,000 + 40% abandon</span>
+          </div>
+          <div className="flex items-center justify-between px-4 py-2.5 rounded-lg bg-secondary/10 border border-secondary/20">
+            <span className="text-sm font-medium text-foreground">Sentio AI</span>
+            <span className="text-sm font-bold text-secondary">₹699/mo ✓</span>
+          </div>
+        </div>
+
         <div className="text-center mt-8">
           <p className="text-sm text-foreground/65">
             Join the waitlist → Get approved → 5-day free trial → Subscribe
