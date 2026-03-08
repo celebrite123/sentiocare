@@ -222,9 +222,7 @@ serve(async (req) => {
         .filter((v: string, i: number, a: string[]) => a.indexOf(v) === i)
         .slice(0, 5) || [];
       const lastMedicineAdherence = lastCheckins?.[0]?.medicines_taken;
-      const daysSinceDischarge = Math.floor(
-        (Date.now() - new Date(patient.discharge_date).getTime()) / 86400000
-      );
+      // Reuse daysSinceDischarge from staleness guard above (same scope)
 
       // Make Bolna API call
       try {

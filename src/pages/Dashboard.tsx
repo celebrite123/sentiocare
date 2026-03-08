@@ -28,7 +28,8 @@ import HealthMetrics from "@/components/dashboard/HealthMetrics";
 import CheckInLog from "@/components/dashboard/CheckInLog";
 import MedicineTracker from "@/components/dashboard/MedicineTracker";
 import AIInsights from "@/components/dashboard/AIInsights";
-import WhatsAppChat from "@/components/dashboard/WhatsAppChat";
+import { lazy, Suspense } from "react";
+const WhatsAppChat = lazy(() => import("@/components/dashboard/WhatsAppChat"));
 import AlertsPanel from "@/components/AlertsPanel";
 import { WellbeingTrendChart } from "@/components/dashboard/WellbeingTrendChart";
 import { MedicationAdherenceChart } from "@/components/dashboard/MedicationAdherenceChart";
@@ -443,7 +444,7 @@ const Dashboard = () => {
           </div>
 
           {/* Action Buttons - Emergency Only */}
-          <div className="mb-6 flex flex-col sm:flex-row flex-wrap justify-center gap-2 sm:gap-4">
+          <div className="mb-6 flex flex-col sm:flex-row flex-wrap justify-center gap-2 sm:gap-3">
             {canUseVoice ? (
               <AlertDialog>
                 <AlertDialogTrigger asChild>
@@ -521,7 +522,7 @@ const Dashboard = () => {
               onClick={() => navigate(`/elders/${elderId}/health-book`)}
               variant="outline"
               size="lg"
-              className="gap-2"
+              className="gap-2 w-full sm:w-auto"
             >
               <BookHeart className="h-5 w-5" />
               Health Book
@@ -531,7 +532,7 @@ const Dashboard = () => {
               onClick={() => navigate(`/elders/${elderId}/settings`)}
               variant="outline"
               size="lg"
-              className="gap-2"
+              className="gap-2 w-full sm:w-auto"
             >
               <Settings className="h-5 w-5" />
               Settings
@@ -668,11 +669,13 @@ const Dashboard = () => {
 
           {/* WhatsApp Chat */}
           <div className="mb-8">
-            <WhatsAppChat 
-              elderId={elderId} 
-              elderName={elder.full_name} 
-              checkInMethod={elder.check_in_method}
-            />
+            <Suspense fallback={<div className="h-20" />}>
+              <WhatsAppChat 
+                elderId={elderId} 
+                elderName={elder.full_name} 
+                checkInMethod={elder.check_in_method}
+              />
+            </Suspense>
           </div>
 
           {/* Tabs */}

@@ -131,14 +131,33 @@ async function sendCaregiverDailyConfirmation(
   isHindi: boolean
 ) {
   try {
+    // Try notification_settings first, then fallback to elders.emergency_contact
     const { data: settings } = await supabase
       .from("notification_settings")
-      .select("caregiver_name, caregiver_phone")
+      .select("caregiver_name, caregiver_phone, email_address")
       .eq("elder_id", elderId)
       .single();
 
-    if (!settings?.caregiver_phone) {
-      console.warn(`No caregiver_phone for elder ${elderId} — skipping WhatsApp daily confirmation`);
+    let caregiverPhone = settings?.caregiver_phone;
+    let caregiverName = settings?.caregiver_name;
+
+    // Fallback: if no caregiver_phone in notification_settings, check elders.emergency_contact
+    if (!caregiverPhone) {
+      const { data: elderData } = await supabase
+        .from("elders")
+        .select("emergency_contact")
+        .eq("id", elderId)
+        .single();
+      
+      if (elderData?.emergency_contact) {
+        caregiverPhone = elderData.emergency_contact;
+        caregiverName = caregiverName || "Caregiver";
+        console.log(`Using emergency_contact as fallback for elder ${elderId}`);
+      }
+    }
+
+    if (!caregiverPhone) {
+      console.warn(`No caregiver_phone or emergency_contact for elder ${elderId} — skipping WhatsApp daily confirmation`);
       return;
     }
 
@@ -151,7 +170,7 @@ async function sendCaregiverDailyConfirmation(
     }
 
     const firstName = elderName?.split(' ')[0] || 'Elder';
-    const caregiverName = settings.caregiver_name?.split(' ')[0] || '';
+    const caregiverFirstName = caregiverName?.split(' ')[0] || '';
     const score = analysis.wellBeingScore || '?';
     const medsTaken = analysis.medicinesTaken;
     const symptoms = (analysis.symptomsReported || []).length > 0
@@ -162,16 +181,16 @@ async function sendCaregiverDailyConfirmation(
     if (isHindi) {
       const medsText = medsTaken === true ? 'दवाई ली ✅' : medsTaken === false ? 'दवाई नहीं ली ❌' : '';
       const symptomText = symptoms ? `तकलीफ: ${symptoms}` : 'कोई तकलीफ नहीं 😊';
-      message = `✅ ${caregiverName} जी, ${firstName} जी की check-in हो गई।\n📊 Score: ${score}/10\n💊 ${medsText}\n${symptomText}`;
+      message = `✅ ${caregiverFirstName} जी, ${firstName} जी की check-in हो गई।\n📊 Score: ${score}/10\n💊 ${medsText}\n${symptomText}`;
     } else {
       const medsText = medsTaken === true ? 'Medicines taken ✅' : medsTaken === false ? 'Medicines NOT taken ❌' : '';
       const symptomText = symptoms ? `Concerns: ${symptoms}` : 'No concerns 😊';
-      message = `✅ ${caregiverName}, ${firstName}'s check-in is done.\n📊 Score: ${score}/10\n💊 ${medsText}\n${symptomText}`;
+      message = `✅ ${caregiverFirstName}, ${firstName}'s check-in is done.\n📊 Score: ${score}/10\n💊 ${medsText}\n${symptomText}`;
     }
 
-    const formattedPhone = settings.caregiver_phone.startsWith("+")
-      ? settings.caregiver_phone
-      : `+91${settings.caregiver_phone.replace(/^0+/, "")}`;
+    const formattedPhone = caregiverPhone.startsWith("+")
+      ? caregiverPhone
+      : `+91${caregiverPhone.replace(/^0+/, "")}`;
 
     const twilioRes = await fetch(
       `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Messages.json`,

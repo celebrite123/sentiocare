@@ -64,7 +64,7 @@ const HeroSection = () => {
             </div>
 
             {/* Trust indicators */}
-            <div className="flex flex-wrap justify-center lg:justify-start gap-6 pt-6 animate-fade-in animation-delay-400">
+            <div className="flex flex-wrap justify-center lg:justify-start gap-4 sm:gap-6 pt-6 animate-fade-in animation-delay-400">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
                   <Shield className="h-4 w-4 text-primary" />
