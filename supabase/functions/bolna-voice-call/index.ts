@@ -668,7 +668,7 @@ RULES:
       elder_id: elderId,
       first_name: firstName,
       greeting: greeting,
-      briefing: isEmergency ? "" : [briefing, mandatoryNewConcernDirective].filter(Boolean).join('\n'),
+      briefing: isEmergency ? "" : briefing,
       medicines: isEmergency ? "" : medicineList,
       medicine_names_only: isEmergency ? "" : medicineNamesOnly,
       active_symptoms: isEmergency ? "" : activeSymptomsList,
