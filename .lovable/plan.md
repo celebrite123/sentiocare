@@ -1,78 +1,53 @@
 
 
-# Fix: Wrong Medicine Names + Wrong Symptom Priority in Voice Calls
+# Fix: Emergency Call — Wrong Agent Behavior + Wrong Wellbeing Score
 
-## Root Cause Analysis
+## Two Separate Problems
 
-### Problem 1: "Thyroxin" instead of "dsa"
-The Bolna edge function has hallucination protection, BUT:
-- The hardcoded hallucination list (line 549) only catches 7 common names. If the AI hallucinates a name NOT in that list, it passes through unchecked.
-- The comment on line 472 still mentions "Thyroxin" as an example, which could influence the AI briefing context.
-- **Most critically**: The actual prompt running on the Bolna Dashboard likely still has the OLD examples with hardcoded medicine names. The `SENTIO_VOICE_AGENT_GUARDRAILS.md` was updated but you need to manually copy-paste it into the Bolna Dashboard.
+### Problem 1: AI Agent Said "dard tha, ab kaisa hai" During Emergency
+The Bolna voice agent received `is_emergency: "true"` in `user_data`, but the agent prompt on Bolna's dashboard appears to not be following the emergency flow correctly. Looking at the logs, `active_symptoms` was **empty** — so the agent couldn't have gotten "dard tha" from the symptom data. It improvised.
 
-**Fix**: Replace the limited hallucination blocklist with a universal validator -- if ANY word in the briefing looks like a medicine name but is NOT in the elder's actual medicine list, flag and replace it. Also remove the misleading comment.
+**Root cause**: The agent prompt in Bolna dashboard may not have the latest guardrails from `SENTIO_VOICE_AGENT_GUARDRAILS.md`. The emergency flow says: ask "kya hua?", listen, acknowledge, end. It should NOT run Steps 2/3 (medicine + symptom follow-up).
 
-### Problem 2: Asking about "back pain" instead of "fever"
-The code collects ALL symptoms from the last 7 check-ins and deduplicates them. But it does NOT prioritize by recency. If "back pain" was reported 5 days ago and "fever" was reported yesterday, the code sends both as `active_symptoms` but the prompt asks about "the FIRST symptom" -- which may be "back pain" because the deduplication order is unpredictable (uses `Set`).
+**Fix**: This is a **Bolna Dashboard configuration issue**, not a code fix. You need to update the agent prompt in Bolna's dashboard with the exact prompt from `SENTIO_VOICE_AGENT_GUARDRAILS.md`. However, we can add a defensive measure in code — when `isEmergency` is true, set `active_symptoms`, `symptom_followup`, `monitoring_topics`, and `medicines` to empty so the agent has nothing to improvise with.
 
-**Fix**: Sort active symptoms by most recent first. The symptom from yesterday's call (fever) should always appear first in the list so the AI asks about it.
+### Problem 2: Wellbeing Score Was 7 for Knee Pain Emergency
+The `bolna-webhook` AI analysis prompt has **zero emergency context**. It doesn't know this was an emergency call, so it treats "knee pain" casually and defaults to score 7.
 
-### Problem 3: AI doesn't acknowledge responses
-This is a Bolna Dashboard prompt issue. The updated guardrails document already has the acknowledgment rules, but you need to paste the updated prompt into the Bolna Dashboard.
+**Fix**: Extract `is_emergency` from `user_data` in the webhook payload. Pass it into the AI analysis prompt. Add post-analysis validation to cap scores and force alerts for emergency calls with symptoms.
 
-## Changes
+## Code Changes
 
-### File 1: `supabase/functions/bolna-voice-call/index.ts`
+### File: `supabase/functions/bolna-voice-call/index.ts`
+**Defensive: Clear routine data for emergency calls** (around line 636-655)
 
-**A. Fix symptom ordering (lines 407-420)**
-Instead of collecting symptoms into a Set (which loses order), track each symptom with its most recent occurrence date, then sort by most recent first. This ensures "fever" (yesterday) comes before "back pain" (5 days ago).
+When `isEmergency` is true, override:
+- `medicines` → empty
+- `active_symptoms` → empty  
+- `symptom_followup` → empty
+- `monitoring_topics` → empty
+- `briefing` → empty (already skipped via line 509 `!isEmergency` check)
 
-**B. Improve medicine hallucination protection (lines 547-561)**
-Replace the hardcoded blocklist approach with a smarter validator:
-- Extract all capitalized words and known medicine patterns from the briefing
-- Compare each against the actual medicine list
-- If a word looks like a medicine name (capitalized, not a common English word) and is NOT in the actual list, replace it with the first actual medicine name
-- This catches ALL hallucinations, not just 7 hardcoded ones
+This ensures the agent has no routine data to improvise with during emergencies.
 
-**C. Remove misleading comment (line 472)**
-Change `// Format medicines with name + purpose (e.g. "Thyroxin (Thyroid)")` to remove the specific medicine name example.
+### File: `supabase/functions/bolna-webhook/index.ts`
+Three changes:
 
-### File 2: `supabase/functions/vapi-voice-call/index.ts`
-
-The Vapi function is missing:
-- Monitoring topics (never fetched or passed)
-- Resolved symptom filtering (passes ALL symptoms)
-- AI briefing generation
-- Medicine hallucination protection
-
-Since the Dashboard currently uses Bolna (not Vapi), this is lower priority but should be fixed for consistency. Add:
-- Fetch `monitoring_config` from elder record
-- Filter resolved symptoms
-- Pass monitoring topics in `variableValues`
-
-### Important: Bolna Dashboard Update Required
-
-After these code changes deploy, you MUST copy the updated prompt from `SENTIO_VOICE_AGENT_GUARDRAILS.md` and paste it into your Bolna Dashboard agent configuration. The edge function sends the correct data (medicines, symptoms, monitoring topics), but the Bolna agent prompt is what actually controls what the AI says during the call. If the old prompt is still there, it will keep using hardcoded examples.
-
-## Technical Details
-
-### Symptom Ordering Fix
-```text
-Before: Set([back_pain, headache, fever]) -- random order
-After:  [fever (1 day ago), back_pain (5 days ago), headache (3 days ago)] -- sorted by recency
+**A. Extract emergency flag** (after line 227)
+```
+const isEmergencyCall = user_data?.is_emergency === "true";
 ```
 
-### Medicine Validation Fix
-```text
-Before: Check against hardcoded list [thyroxin, amlodipine, metformin, aspirin, paracetamol, crocin, dolo]
-After:  Check ANY capitalized word against actual medicine list. If not found AND not a common English word, replace it.
-```
+**B. Add emergency context to AI prompt** (around line 420)
+Append to the analysis prompt:
+- If emergency: "This was an EMERGENCY call. Any reported symptom should result in wellBeingScore ≤ 4 and alertTriggered: true."
 
-## Summary
+**C. Emergency-aware defaults and post-analysis validation** (lines 381-390, after line 498)
+- Default wellBeingScore: 4 (not 7) for emergency calls
+- After AI analysis: if emergency + any symptoms → force score ≤ 4, force alert
 
 | File | Change |
 |------|--------|
-| `supabase/functions/bolna-voice-call/index.ts` | Sort symptoms by recency, universal medicine hallucination detection, remove misleading comment |
-| `supabase/functions/vapi-voice-call/index.ts` | Add monitoring topics, resolved symptom filtering, medicine validation |
-| **Bolna Dashboard** (manual) | Copy updated prompt from `SENTIO_VOICE_AGENT_GUARDRAILS.md` |
+| `bolna-voice-call/index.ts` | Clear routine data (meds, symptoms, monitoring) for emergency calls |
+| `bolna-webhook/index.ts` | Extract `is_emergency`, add to AI prompt, cap scores, force alerts |
 
