@@ -124,17 +124,18 @@ const Auth = () => {
         .insert({
           user_id: userId,
           full_name: fullName,
-          subscription_status: "trial",
+          subscription_status: "waitlisted",
+          waitlist_status: "pending",
+          trial_ends_at: null,
           terms_accepted_at: new Date().toISOString(),
           privacy_accepted_at: new Date().toISOString(),
-          // trial_ends_at is set by default in DB (5 days)
         });
 
       if (insertError) {
         console.error("Failed to create profile:", insertError);
       }
       
-      // New user, go to plan selection
+      // New user goes to waitlist page
       navigate("/select-plan");
       return;
     }
