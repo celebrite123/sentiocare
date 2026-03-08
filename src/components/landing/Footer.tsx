@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Mail, MessageCircle } from "lucide-react";
+import { Mail, MessageCircle, Building2 } from "lucide-react";
 import sentioLogo from "@/assets/sentio-logo-new.png";
 
 const Footer = () => {
@@ -48,7 +48,7 @@ const Footer = () => {
           </div>
         </div>
 
-        <div className="text-center mt-6">
+        <div className="text-center mt-6 space-y-2">
           <p className="text-sm text-foreground/60">
             © 2026 Sentio AI. Made with ❤️ in India
           </p>

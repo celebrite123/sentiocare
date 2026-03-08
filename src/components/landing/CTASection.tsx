@@ -13,8 +13,8 @@ const CTASection = () => {
             Give Your Parents the Care They Deserve
           </h2>
           <p className="text-foreground/70 text-lg mb-8 max-w-xl mx-auto">
-            Join the Sentio AI waitlist. Daily voice calls and WhatsApp check-ins 
-            for your elderly parents. Limited spots available.
+            Start your free trial today. Daily voice calls and WhatsApp check-ins 
+            for your elderly parents. No credit card required.
           </p>
           
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
@@ -23,7 +23,7 @@ const CTASection = () => {
               className="bg-secondary hover:bg-secondary/90 text-secondary-foreground text-base h-12 px-8 rounded-full group shadow-lg shadow-secondary/25"
               onClick={() => navigate("/auth")}
             >
-              Join Waitlist
+              Start Free Trial
               <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
             </Button>
             <Button
@@ -37,7 +37,7 @@ const CTASection = () => {
           </div>
 
           <p className="text-sm text-foreground/60 mt-6">
-            Limited spots • 5-day free trial on approval • 24/7 support
+            5-day free trial • No credit card • Cancel anytime
           </p>
         </div>
       </div>

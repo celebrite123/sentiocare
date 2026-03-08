@@ -1,21 +1,50 @@
-import { lazy, Suspense, memo } from "react";
+import { lazy, Suspense, memo, useState, useEffect } from "react";
+import { ArrowRight } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Button } from "@/components/ui/button";
 import Navbar from "@/components/Navbar";
 import HeroSection from "@/components/landing/HeroSection";
+import StatsSection from "@/components/landing/StatsSection";
+import HowItWorks from "@/components/landing/HowItWorks";
+import FeaturesSection from "@/components/landing/FeaturesSection";
+import TestimonialsSection from "@/components/landing/TestimonialsSection";
+import PricingSection from "@/components/landing/PricingSection";
+import FAQSection from "@/components/landing/FAQSection";
+import CTASection from "@/components/landing/CTASection";
+import Footer from "@/components/landing/Footer";
 
-// Lazy load below-the-fold components for faster initial render
-const StatsSection = lazy(() => import("@/components/landing/StatsSection"));
+// Only lazy load heavy/below-fold sections
 const DemoSection = lazy(() => import("@/components/landing/DemoSection"));
-const HowItWorks = lazy(() => import("@/components/landing/HowItWorks"));
-const FeaturesSection = lazy(() => import("@/components/landing/FeaturesSection"));
-const TestimonialsSection = lazy(() => import("@/components/landing/TestimonialsSection"));
-const PricingSection = lazy(() => import("@/components/landing/PricingSection"));
 const B2BSection = lazy(() => import("@/components/landing/B2BSection"));
-const FAQSection = lazy(() => import("@/components/landing/FAQSection"));
-const CTASection = lazy(() => import("@/components/landing/CTASection"));
-const Footer = lazy(() => import("@/components/landing/Footer"));
 
-// Minimal loading placeholder - prevents layout shift
 const SectionLoader = memo(() => <div className="min-h-[200px]" aria-hidden="true" />);
+
+const StickyMobileCTA = () => {
+  const [show, setShow] = useState(false);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setShow(window.scrollY > 600);
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  if (!show) return null;
+
+  return (
+    <div className="fixed bottom-0 left-0 right-0 z-50 p-3 bg-background/95 backdrop-blur border-t border-border md:hidden">
+      <Button
+        className="w-full bg-primary hover:bg-primary/90 text-primary-foreground h-12 rounded-full text-base font-semibold shadow-lg shadow-primary/25 group"
+        onClick={() => navigate("/auth")}
+      >
+        Start Free Trial
+        <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
+      </Button>
+    </div>
+  );
+};
 
 const Index = () => {
   return (
@@ -23,37 +52,28 @@ const Index = () => {
       <Navbar />
       <main>
         <HeroSection />
-        <Suspense fallback={<SectionLoader />}>
-          <StatsSection />
-        </Suspense>
+        <StatsSection />
         <Suspense fallback={<SectionLoader />}>
           <DemoSection />
         </Suspense>
-        <Suspense fallback={<SectionLoader />}>
-          <HowItWorks />
-        </Suspense>
-        <Suspense fallback={<SectionLoader />}>
+        <HowItWorks />
+        <div id="features">
           <FeaturesSection />
-        </Suspense>
-        <Suspense fallback={<SectionLoader />}>
-          <TestimonialsSection />
-        </Suspense>
-        <Suspense fallback={<SectionLoader />}>
+        </div>
+        <TestimonialsSection />
+        <div id="pricing">
           <PricingSection />
-        </Suspense>
+        </div>
         <Suspense fallback={<SectionLoader />}>
           <B2BSection />
         </Suspense>
-        <Suspense fallback={<SectionLoader />}>
+        <div id="faq">
           <FAQSection />
-        </Suspense>
-        <Suspense fallback={<SectionLoader />}>
-          <CTASection />
-        </Suspense>
+        </div>
+        <CTASection />
       </main>
-      <Suspense fallback={<SectionLoader />}>
-        <Footer />
-      </Suspense>
+      <Footer />
+      <StickyMobileCTA />
     </div>
   );
 };
