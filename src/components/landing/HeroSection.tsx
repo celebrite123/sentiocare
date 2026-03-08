@@ -46,7 +46,7 @@ const HeroSection = () => {
                 className="bg-primary hover:bg-primary/90 text-primary-foreground text-base h-12 px-6 rounded-full group shadow-lg shadow-primary/25"
                 onClick={() => navigate("/auth")}
               >
-                Start Free Trial
+                Join Waitlist
                 <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
               </Button>
               <Button 
