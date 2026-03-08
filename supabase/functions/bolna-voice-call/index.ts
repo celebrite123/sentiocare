@@ -676,7 +676,7 @@ RULES:
       symptom_days: isEmergency ? "" : symptomDaysFormatted,
       last_summary: isEmergency ? "" : lastSummary.substring(0, 150),
       recent_calls: isEmergency ? "" : recentCallSummaries.substring(0, 500),
-      monitoring_topics: isEmergency ? "" : monitoringTopicsWithMandatoryClose,
+      monitoring_topics: isEmergency ? "" : monitoringQuestions,
       new_concern_prompt: isEmergency ? "" : newConcernPrompt,
       wellbeing_question: isEmergency ? "" : wellbeingQuestion,
       is_emergency: isEmergency ? "true" : "false",

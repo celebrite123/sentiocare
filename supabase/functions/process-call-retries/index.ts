@@ -458,7 +458,7 @@ RULES:
           symptom_followup: symptomFollowup,
           symptom_days: symptomDaysFormatted,
           recent_calls: recentCallSummaries.substring(0, 500),
-          monitoring_topics: monitoringTopicsWithMandatoryClose,
+          monitoring_topics: monitoringQuestions,
           new_concern_prompt: newConcernPrompt,
           wellbeing_question: wellbeingQuestion,
           is_emergency: "false",
