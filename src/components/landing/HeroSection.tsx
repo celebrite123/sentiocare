@@ -22,7 +22,7 @@ const HeroSection = () => {
           <div className="space-y-6 text-center lg:text-left">
             <div className="animate-fade-in">
               <Badge variant="secondary" className="bg-secondary/10 text-secondary border-0 px-4 py-1.5 text-sm font-medium">
-                🇮🇳 Made in India • 5-Day Free Trial
+                🇮🇳 Made in India • Limited Spots Available
               </Badge>
             </div>
             
