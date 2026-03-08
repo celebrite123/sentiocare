@@ -29,17 +29,17 @@ const HeroSection = () => {
             
             {/* Main Headline */}
             <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight animate-fade-in animation-delay-100">
-              <span className="text-foreground">AI-Powered Care</span>
+              <span className="text-foreground">Your Parents Are Safe.</span>
               <br />
               <span className="bg-gradient-to-r from-secondary via-primary to-accent bg-clip-text text-transparent">
-                For Your Loved Ones
+                We Check Every Day.
               </span>
             </h1>
             
             {/* Subheadline */}
             <p className="text-lg md:text-xl text-muted-foreground max-w-xl animate-fade-in animation-delay-200 leading-relaxed">
-              Daily voice calls and WhatsApp check-ins for your elderly parents in <strong>Hindi & English</strong>. 
-              Custom health monitoring, symptom tracking, and instant alerts. Peace of mind, delivered daily.
+              AI calls your elderly parents daily in <strong>Hindi & English</strong>. 
+              Instant WhatsApp alerts if something's wrong. No app. No wearable. Just peace of mind — <strong>₹699/month</strong>.
             </p>
 
             {/* CTA Buttons */}

@@ -7,6 +7,10 @@ import {
 
 const faqs = [
   {
+    question: "Does my parent need a smartphone?",
+    answer: "No! Your parent just needs any phone that can receive calls. Our AI calls them directly — no app to install, no internet needed on their end. WhatsApp messages go to the family caregiver's phone.",
+  },
+  {
     question: "How does the AI make phone calls?",
     answer: "Our AI uses advanced voice synthesis to make natural-sounding calls. The voice is warm and conversational, specifically designed to put elderly users at ease. Calls typically last 2-5 minutes and cover health, medication, and general wellbeing.",
   },
@@ -19,8 +23,16 @@ const faqs = [
     answer: "If a call isn't answered, we'll try again after 30 minutes. If still no response, we send a WhatsApp message. After 3 missed attempts, you'll receive an alert so you can check in personally.",
   },
   {
+    question: "How much does it cost?",
+    answer: "Sentio AI costs ₹699/month per elder. This includes daily AI voice calls, WhatsApp check-ins, medicine tracking, symptom monitoring, and instant alerts. That's less than 3% of what a full-time caregiver costs.",
+  },
+  {
+    question: "Can I try before I pay?",
+    answer: "Yes! Join our waitlist and once approved, you'll get a 5-day free trial with full access to all features. No credit card required upfront.",
+  },
+  {
     question: "Is my family's health data secure?",
-    answer: "Absolutely. We're HIPAA-compliant and use end-to-end encryption for all data. Health information is never shared with third parties and you can request complete data deletion at any time.",
+    answer: "Absolutely. We use end-to-end encryption for all data. Health information is never shared with third parties and you can request complete data deletion at any time.",
   },
   {
     question: "Can I customize the check-in questions?",
