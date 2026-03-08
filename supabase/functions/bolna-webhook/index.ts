@@ -188,9 +188,9 @@ async function sendCaregiverDailyConfirmation(
       message = `✅ ${caregiverFirstName}, ${firstName}'s check-in is done.\n📊 Score: ${score}/10\n💊 ${medsText}\n${symptomText}`;
     }
 
-    const formattedPhone = settings.caregiver_phone.startsWith("+")
-      ? settings.caregiver_phone
-      : `+91${settings.caregiver_phone.replace(/^0+/, "")}`;
+    const formattedPhone = caregiverPhone.startsWith("+")
+      ? caregiverPhone
+      : `+91${caregiverPhone.replace(/^0+/, "")}`;
 
     const twilioRes = await fetch(
       `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Messages.json`,

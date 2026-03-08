@@ -270,7 +270,7 @@ const CheckInLog = ({ elderId }: CheckInLogProps) => {
                   >
                     <div className="rounded-lg border bg-card hover:bg-muted/50 transition-colors">
                       <CollapsibleTrigger className="w-full text-left">
-                        <div className="flex gap-4 p-4">
+                        <div className="flex gap-3 sm:gap-4 p-3 sm:p-4">
                           <div className="flex-shrink-0">
                             <div
                               className={`h-10 w-10 rounded-full flex items-center justify-center ${

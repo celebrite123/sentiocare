@@ -522,7 +522,7 @@ const Dashboard = () => {
               onClick={() => navigate(`/elders/${elderId}/health-book`)}
               variant="outline"
               size="lg"
-              className="gap-2"
+              className="gap-2 w-full sm:w-auto"
             >
               <BookHeart className="h-5 w-5" />
               Health Book
@@ -532,7 +532,7 @@ const Dashboard = () => {
               onClick={() => navigate(`/elders/${elderId}/settings`)}
               variant="outline"
               size="lg"
-              className="gap-2"
+              className="gap-2 w-full sm:w-auto"
             >
               <Settings className="h-5 w-5" />
               Settings
