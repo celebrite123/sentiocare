@@ -1,78 +1,86 @@
 
 
-# Fix: Wrong Medicine Names + Wrong Symptom Priority in Voice Calls
+# Diagnostic Results: What's Fixed, What's Still Broken
 
-## Root Cause Analysis
+## Status of Previous Fixes
 
-### Problem 1: "Thyroxin" instead of "dsa"
-The Bolna edge function has hallucination protection, BUT:
-- The hardcoded hallucination list (line 549) only catches 7 common names. If the AI hallucinates a name NOT in that list, it passes through unchecked.
-- The comment on line 472 still mentions "Thyroxin" as an example, which could influence the AI briefing context.
-- **Most critically**: The actual prompt running on the Bolna Dashboard likely still has the OLD examples with hardcoded medicine names. The `SENTIO_VOICE_AGENT_GUARDRAILS.md` was updated but you need to manually copy-paste it into the Bolna Dashboard.
+**Working correctly (verified from DB + logs):**
+- Scheduler runs every 5 minutes, processes exact-time schedules first
+- `bolna-voice-call` no longer crashes (`previousSymptoms` → `sortedSymptoms` fix applied)
+- Dual-mode auth works in both `send-whatsapp-checkin` and `bolna-voice-call`
+- Call attempts ARE being created (Mar 7: `status: answered`, execution_id present)
+- Caregiver notification logic updated for `high` + `critical` severity
+- `last_run_at` updates even on failure (no more retry storms)
 
-**Fix**: Replace the limited hallucination blocklist with a universal validator -- if ANY word in the briefing looks like a medicine name but is NOT in the elder's actual medicine list, flag and replace it. Also remove the misleading comment.
+**The Mar 7 call (the last one you received) used OLD code** — it happened BEFORE the medicine/symptom fixes were deployed. The "Thyroxin" and "no fell-down-stairs question" issues are from the old code. Tonight's 21:50 IST call will be the first using the new code.
 
-### Problem 2: Asking about "back pain" instead of "fever"
-The code collects ALL symptoms from the last 7 check-ins and deduplicates them. But it does NOT prioritize by recency. If "back pain" was reported 5 days ago and "fever" was reported yesterday, the code sends both as `active_symptoms` but the prompt asks about "the FIRST symptom" -- which may be "back pain" because the deduplication order is unpredictable (uses `Set`).
+## Remaining Issues Found
 
-**Fix**: Sort active symptoms by most recent first. The symptom from yesterday's call (fever) should always appear first in the list so the AI asks about it.
+### 1. Weekly Email Summary Has No Cron Job
+The `weekly-health-summary` edge function exists but has NO cron job configured. The B2B weekly report has one (`b2b-weekly-email-report`, Sundays 3:30 UTC), but B2C family caregivers never receive weekly email summaries.
 
-### Problem 3: AI doesn't acknowledge responses
-This is a Bolna Dashboard prompt issue. The updated guardrails document already has the acknowledgment rules, but you need to paste the updated prompt into the Bolna Dashboard.
+**Fix:** Create a cron job for `weekly-health-summary` — run every Sunday at 4:00 UTC (9:30 AM IST).
 
-## Changes
+### 2. `RESEND_FROM_EMAIL` Secret Missing
+The `notify-caregiver` function uses `RESEND_FROM_EMAIL` to set the sender address. Without it, it falls back to `onboarding@resend.dev` which only delivers to the Resend account owner's email. All caregiver emails to other addresses silently fail.
 
-### File 1: `supabase/functions/bolna-voice-call/index.ts`
+**Fix:** You need to add a `RESEND_FROM_EMAIL` secret with a verified domain sender (e.g., `alerts@sentiocare.com`). Without this, email notifications will not reach real caregivers.
 
-**A. Fix symptom ordering (lines 407-420)**
-Instead of collecting symptoms into a Set (which loses order), track each symptom with its most recent occurrence date, then sort by most recent first. This ensures "fever" (yesterday) comes before "back pain" (5 days ago).
+### 3. `process-scheduled-callbacks` Has No Cron Job
+The function exists and is configured in `config.toml` but has no cron job. B2B scheduled callbacks will never auto-process.
 
-**B. Improve medicine hallucination protection (lines 547-561)**
-Replace the hardcoded blocklist approach with a smarter validator:
-- Extract all capitalized words and known medicine patterns from the briefing
-- Compare each against the actual medicine list
-- If a word looks like a medicine name (capitalized, not a common English word) and is NOT in the actual list, replace it with the first actual medicine name
-- This catches ALL hallucinations, not just 7 hardcoded ones
+**Fix:** Create a cron job — run every 5 minutes.
 
-**C. Remove misleading comment (line 472)**
-Change `// Format medicines with name + purpose (e.g. "Thyroxin (Thyroid)")` to remove the specific medicine name example.
+### 4. Bolna Dashboard Agent Prompt (Cannot Fix From Code)
+The "Thyroxin" hallucination has a dual source:
+- **Code side (FIXED):** `user_data` now sends `medicine_names_only: "dsa"` and `symptom_followup: "MANDATORY: Ask about fell down stairs first"`. The briefing validator strips hallucinated medicine names.
+- **Bolna Dashboard side (NOT FIXABLE HERE):** The Bolna agent's system prompt on their dashboard likely still contains hardcoded examples or doesn't reference the `{medicine_names_only}` and `{symptom_followup}` variables. You must manually update the Bolna Dashboard agent prompt to use `{medicine_names_only}` and `{symptom_followup}` from the `SENTIO_VOICE_AGENT_GUARDRAILS.md` document.
 
-### File 2: `supabase/functions/vapi-voice-call/index.ts`
+## Implementation Plan
 
-The Vapi function is missing:
-- Monitoring topics (never fetched or passed)
-- Resolved symptom filtering (passes ALL symptoms)
-- AI briefing generation
-- Medicine hallucination protection
+### A. Create missing cron jobs (database migration)
+```sql
+-- Weekly health summary for B2C caregivers (Sundays 4:00 UTC = 9:30 AM IST)
+SELECT cron.schedule(
+  'weekly-health-summary-email',
+  '0 4 * * 0',
+  $$SELECT net.http_post(
+    url := 'https://hcdwbpbvuvbrozttahfz.supabase.co/functions/v1/weekly-health-summary',
+    headers := '{"Content-Type": "application/json", "Authorization": "Bearer <anon_key>"}'::jsonb,
+    body := '{"trigger": "cron"}'::jsonb
+  ) AS request_id;$$
+);
 
-Since the Dashboard currently uses Bolna (not Vapi), this is lower priority but should be fixed for consistency. Add:
-- Fetch `monitoring_config` from elder record
-- Filter resolved symptoms
-- Pass monitoring topics in `variableValues`
-
-### Important: Bolna Dashboard Update Required
-
-After these code changes deploy, you MUST copy the updated prompt from `SENTIO_VOICE_AGENT_GUARDRAILS.md` and paste it into your Bolna Dashboard agent configuration. The edge function sends the correct data (medicines, symptoms, monitoring topics), but the Bolna agent prompt is what actually controls what the AI says during the call. If the old prompt is still there, it will keep using hardcoded examples.
-
-## Technical Details
-
-### Symptom Ordering Fix
-```text
-Before: Set([back_pain, headache, fever]) -- random order
-After:  [fever (1 day ago), back_pain (5 days ago), headache (3 days ago)] -- sorted by recency
+-- Process scheduled callbacks every 5 minutes
+SELECT cron.schedule(
+  'process-scheduled-callbacks',
+  '*/5 * * * *',
+  $$SELECT net.http_post(
+    url := 'https://hcdwbpbvuvbrozttahfz.supabase.co/functions/v1/process-scheduled-callbacks',
+    headers := '{"Content-Type": "application/json", "Authorization": "Bearer <anon_key>"}'::jsonb,
+    body := '{"trigger": "cron"}'::jsonb
+  ) AS request_id;$$
+);
 ```
 
-### Medicine Validation Fix
-```text
-Before: Check against hardcoded list [thyroxin, amlodipine, metformin, aspirin, paracetamol, crocin, dolo]
-After:  Check ANY capitalized word against actual medicine list. If not found AND not a common English word, replace it.
-```
+### B. Add `RESEND_FROM_EMAIL` secret
+Prompt user to provide a verified domain sender email address.
+
+### C. Manual action required
+Update the Bolna Dashboard agent prompt to reference `{medicine_names_only}` and `{symptom_followup}` variables from `user_data`.
 
 ## Summary
 
-| File | Change |
-|------|--------|
-| `supabase/functions/bolna-voice-call/index.ts` | Sort symptoms by recency, universal medicine hallucination detection, remove misleading comment |
-| `supabase/functions/vapi-voice-call/index.ts` | Add monitoring topics, resolved symptom filtering, medicine validation |
-| **Bolna Dashboard** (manual) | Copy updated prompt from `SENTIO_VOICE_AGENT_GUARDRAILS.md` |
+| Issue | Status | Action |
+|-------|--------|--------|
+| Voice call crash (`previousSymptoms`) | FIXED | No action needed |
+| Scheduler priority + starvation | FIXED | No action needed |
+| Auth for internal calls | FIXED | No action needed |
+| Caregiver call for wellbeing ≤ 3 | FIXED | No action needed |
+| Medicine hallucination (code side) | FIXED | Will take effect tonight's call |
+| Symptom follow-up context | FIXED | Will take effect tonight's call |
+| Weekly email summary cron | MISSING | Create cron job |
+| Scheduled callbacks cron | MISSING | Create cron job |
+| `RESEND_FROM_EMAIL` secret | MISSING | User must provide verified sender |
+| Bolna Dashboard prompt | NOT FIXABLE HERE | Manual update required |
 
