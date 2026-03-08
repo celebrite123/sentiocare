@@ -453,6 +453,16 @@ PROLONGED SYMPTOM CHECK:
 If a symptom has persisted 5+ days without improvement → Set "prolongedSymptomAlert": true
 ${monitoringInstructions}
 
+EMOTIONAL STATE ANALYSIS:
+Analyze the elder's emotional state from the conversation. Look for:
+- Direct mood statements ("I'm sad", "मन उदास है", "lonely", "अकेला")
+- Indirect cues: very brief responses, flat engagement, contradictions (says "theek hai" but tone suggests otherwise)
+- Masking distress: verbal responses say "fine" but responses are unusually brief, evasive, or lacking detail compared to what's normal
+
+NEW CONCERN DISCOVERY:
+Check if the elder volunteered any NEW health concern when asked "कोई नई तकलीफ़?" / "Any new health concern?"
+Set "newSymptomsVolunteered" to true if they shared something new in response to this prompt.
+
 Respond ONLY in valid JSON format:
 {
   "sentiment": "positive|neutral|negative",
@@ -466,6 +476,9 @@ Respond ONLY in valid JSON format:
   "alertReason": "reason or null",
   "emergencyDetected": true|false,
   "mentalHealthConcern": true|false,
+  "emotionalState": "happy|neutral|sad|lonely|anxious|withdrawn",
+  "maskingDistress": true|false,
+  "newSymptomsVolunteered": true|false,
   "monitoringResponses": {"topic_or_question": "response_value"}
 }`;
 

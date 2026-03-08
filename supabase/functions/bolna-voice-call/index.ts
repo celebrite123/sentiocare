@@ -676,6 +676,8 @@ RULES:
       last_summary: isEmergency ? "" : lastSummary.substring(0, 150),
       recent_calls: isEmergency ? "" : recentCallSummaries.substring(0, 500),
       monitoring_topics: isEmergency ? "" : monitoringQuestions,
+      new_concern_prompt: isEmergency ? "" : newConcernPrompt,
+      wellbeing_question: isEmergency ? "" : wellbeingQuestion,
       is_emergency: isEmergency ? "true" : "false",
       emergency_intro: emergencyIntro,
       has_caregiver: hasCaregiverFlag ? "true" : "false",
