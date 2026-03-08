@@ -225,6 +225,9 @@ serve(async (req) => {
     } = payload;
 
     const user_data = payload.user_data;
+    const isEmergencyCall = user_data?.is_emergency === "true" || 
+      context_details?.user_data?.is_emergency === "true" ||
+      context_details?.recipient_data?.is_emergency === "true";
     const actualExecutionId = execution_id || call_id || payload.id;
 
     const normalizedStatus = String(status || '').toLowerCase().replace(/_/g, '-');
@@ -379,13 +382,13 @@ serve(async (req) => {
     // AI transcript analysis
     const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
     let analysis = {
-      sentiment: "neutral",
-      wellBeingScore: 7,
+      sentiment: isEmergencyCall ? "negative" : "neutral",
+      wellBeingScore: isEmergencyCall ? 4 : 7,
       medicinesTaken: true,
       symptomsReported: [] as string[],
       resolvedSymptoms: [] as string[],
-      alertTriggered: false,
-      alertReason: null as string | null,
+      alertTriggered: isEmergencyCall ? true : false,
+      alertReason: isEmergencyCall ? "Emergency call triggered by caregiver" : null as string | null,
       monitoringResponses: {} as Record<string, any>,
     };
 
@@ -417,8 +420,19 @@ For each monitoring topic and custom question, extract the elder's response if d
 Return in "monitoringResponses" object with topic/question as key and response as value.`;
         }
         
-        const analysisPrompt = `You are an AI health analyst for Sentio, an elder care check-in system. Analyze this call transcript carefully.
+        const emergencyContext = isEmergencyCall ? `
+CRITICAL — THIS WAS AN EMERGENCY CALL:
+This call was manually triggered by the caregiver as an EMERGENCY. The elder likely has an urgent health concern.
+- ANY symptom or pain reported during this call should result in wellBeingScore ≤ 4
+- alertTriggered MUST be true for emergency calls
+- If the elder reports ANY pain, discomfort, or symptom, wellBeingScore should be 3 or lower
+- Do NOT default to high scores. When in doubt, score LOW for emergency calls.
+- emergencyDetected should be true if life-threatening symptoms are present
 
+` : '';
+
+        const analysisPrompt = `You are an AI health analyst for Sentio, an elder care check-in system. Analyze this call transcript carefully.
+${emergencyContext}
 EMERGENCY KEYWORDS TO CHECK (CRITICAL):
 - Chest pain, heart pain, heart attack
 - Difficulty breathing, can't breathe
@@ -501,6 +515,26 @@ Respond ONLY in valid JSON format:
     if (prolongedSymptomAlert && !analysis.alertTriggered) {
       analysis.alertTriggered = true;
       analysis.alertReason = "Symptom persisting for 5+ days - doctor consultation recommended";
+    }
+
+    // EMERGENCY POST-ANALYSIS VALIDATION: Hard safety net
+    if (isEmergencyCall) {
+      // Emergency calls ALWAYS trigger alerts
+      analysis.alertTriggered = true;
+      if (!analysis.alertReason) {
+        analysis.alertReason = "Emergency call triggered by caregiver";
+      }
+      // Cap wellbeing score at 4 for emergency calls
+      if (analysis.wellBeingScore > 4) {
+        console.log(`Emergency score cap: AI returned ${analysis.wellBeingScore}, forcing to 4`);
+        analysis.wellBeingScore = 4;
+      }
+      // If any symptoms were reported, score even lower
+      if (analysis.symptomsReported.length > 0 || Object.keys((analysis as any).symptomUpdates || {}).length > 0) {
+        analysis.wellBeingScore = Math.min(analysis.wellBeingScore, 3);
+        analysis.alertReason = `Emergency: ${analysis.symptomsReported.join(', ') || 'symptom reported'}`;
+      }
+      console.log(`Emergency call validation applied: score=${analysis.wellBeingScore}, alert=${analysis.alertTriggered}`);
     }
 
     // Save resolved symptoms

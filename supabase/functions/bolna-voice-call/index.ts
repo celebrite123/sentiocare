@@ -633,19 +633,22 @@ RULES:
 
     const medicineNamesOnly = getMedicineNamesOnly(medicines);
 
+    // DEFENSIVE: For emergency calls, clear ALL routine data so the agent
+    // cannot improvise medicine checks, symptom follow-ups, or monitoring questions.
+    // The agent should ONLY follow the emergency flow: ask "kya hua?", listen, acknowledge, end.
     const userData = {
       elder_id: elderId,
       first_name: firstName,
       greeting: greeting,
-      briefing: briefing,
-      medicines: medicineList,
-      medicine_names_only: medicineNamesOnly,
-      active_symptoms: activeSymptomsList,
-      symptom_followup: symptomFollowup,
-      symptom_days: symptomDaysFormatted,
-      last_summary: lastSummary.substring(0, 150),
-      recent_calls: recentCallSummaries.substring(0, 500),
-      monitoring_topics: monitoringQuestions,
+      briefing: isEmergency ? "" : briefing,
+      medicines: isEmergency ? "" : medicineList,
+      medicine_names_only: isEmergency ? "" : medicineNamesOnly,
+      active_symptoms: isEmergency ? "" : activeSymptomsList,
+      symptom_followup: isEmergency ? "" : symptomFollowup,
+      symptom_days: isEmergency ? "" : symptomDaysFormatted,
+      last_summary: isEmergency ? "" : lastSummary.substring(0, 150),
+      recent_calls: isEmergency ? "" : recentCallSummaries.substring(0, 500),
+      monitoring_topics: isEmergency ? "" : monitoringQuestions,
       is_emergency: isEmergency ? "true" : "false",
       emergency_intro: emergencyIntro,
       has_caregiver: hasCaregiverFlag ? "true" : "false",
