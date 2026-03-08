@@ -137,12 +137,18 @@ async function sendCaregiverDailyConfirmation(
       .eq("elder_id", elderId)
       .single();
 
-    if (!settings?.caregiver_phone) return;
+    if (!settings?.caregiver_phone) {
+      console.warn(`No caregiver_phone for elder ${elderId} — skipping WhatsApp daily confirmation`);
+      return;
+    }
 
     const TWILIO_ACCOUNT_SID = Deno.env.get("TWILIO_ACCOUNT_SID");
     const TWILIO_AUTH_TOKEN = Deno.env.get("TWILIO_AUTH_TOKEN");
     const TWILIO_WHATSAPP_NUMBER = Deno.env.get("TWILIO_WHATSAPP_NUMBER");
-    if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN || !TWILIO_WHATSAPP_NUMBER) return;
+    if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN || !TWILIO_WHATSAPP_NUMBER) {
+      console.error("Twilio credentials missing — cannot send WhatsApp");
+      return;
+    }
 
     const firstName = elderName?.split(' ')[0] || 'Elder';
     const caregiverName = settings.caregiver_name?.split(' ')[0] || '';
@@ -176,7 +182,7 @@ async function sendCaregiverDailyConfirmation(
           "Content-Type": "application/x-www-form-urlencoded",
         },
         body: new URLSearchParams({
-          From: `whatsapp:${TWILIO_WHATSAPP_NUMBER}`,
+          From: TWILIO_WHATSAPP_NUMBER.startsWith("whatsapp:") ? TWILIO_WHATSAPP_NUMBER : `whatsapp:${TWILIO_WHATSAPP_NUMBER}`,
           To: `whatsapp:${formattedPhone}`,
           Body: message,
         }),
@@ -713,7 +719,7 @@ async function sendMissedCallNotifications(supabase: any, elderId: string) {
             "Content-Type": "application/x-www-form-urlencoded",
           },
           body: new URLSearchParams({
-            From: `whatsapp:${TWILIO_WHATSAPP_NUMBER}`,
+            From: TWILIO_WHATSAPP_NUMBER.startsWith("whatsapp:") ? TWILIO_WHATSAPP_NUMBER : `whatsapp:${TWILIO_WHATSAPP_NUMBER}`,
             To: `whatsapp:${formattedElderPhone}`,
             Body: elderMessage,
           }),
@@ -745,7 +751,7 @@ async function sendMissedCallNotifications(supabase: any, elderId: string) {
             "Content-Type": "application/x-www-form-urlencoded",
           },
           body: new URLSearchParams({
-            From: `whatsapp:${TWILIO_WHATSAPP_NUMBER}`,
+            From: TWILIO_WHATSAPP_NUMBER.startsWith("whatsapp:") ? TWILIO_WHATSAPP_NUMBER : `whatsapp:${TWILIO_WHATSAPP_NUMBER}`,
             To: `whatsapp:${formattedCaregiverPhone}`,
             Body: caregiverMessage,
           }),
