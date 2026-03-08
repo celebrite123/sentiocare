@@ -1,78 +1,92 @@
 
 
-# Fix: Wrong Medicine Names + Wrong Symptom Priority in Voice Calls
+# Fix: Agent Doesn't Ask About New Symptoms or Probe Mental Health
 
-## Root Cause Analysis
+## The Problems
 
-### Problem 1: "Thyroxin" instead of "dsa"
-The Bolna edge function has hallucination protection, BUT:
-- The hardcoded hallucination list (line 549) only catches 7 common names. If the AI hallucinates a name NOT in that list, it passes through unchecked.
-- The comment on line 472 still mentions "Thyroxin" as an example, which could influence the AI briefing context.
-- **Most critically**: The actual prompt running on the Bolna Dashboard likely still has the OLD examples with hardcoded medicine names. The `SENTIO_VOICE_AGENT_GUARDRAILS.md` was updated but you need to manually copy-paste it into the Bolna Dashboard.
+1. **No new symptom discovery**: The agent ONLY follows up on *existing* symptoms from `{active_symptoms}`. If the elder has a brand new problem today (e.g., knee pain for the first time), the agent never asks. The hard rules even say "Do NOT say 'aur kuch?' or 'koi aur problem?'" — this was to keep calls short but means new symptoms are only captured if the elder volunteers them unprompted.
 
-**Fix**: Replace the limited hallucination blocklist with a universal validator -- if ANY word in the briefing looks like a medicine name but is NOT in the elder's actual medicine list, flag and replace it. Also remove the misleading comment.
+2. **No open-ended wellbeing probe**: Step 1 asks "din kaisa gaya?" only if the elder says "theek hai" with nothing else. There's no consistent question like "कोई नई तकलीफ़ तो नहीं?" that gives the elder space to share new concerns.
 
-### Problem 2: Asking about "back pain" instead of "fever"
-The code collects ALL symptoms from the last 7 check-ins and deduplicates them. But it does NOT prioritize by recency. If "back pain" was reported 5 days ago and "fever" was reported yesterday, the code sends both as `active_symptoms` but the prompt asks about "the FIRST symptom" -- which may be "back pain" because the deduplication order is unpredictable (uses `Set`).
+3. **Mental health is passive, not active**: The webhook extracts `mentalHealthConcern` from transcripts post-call, but the agent never actively asks about mood or emotional state unless "mood" is configured as a monitoring topic (which most caregivers haven't set up). There's no default emotional check.
 
-**Fix**: Sort active symptoms by most recent first. The symptom from yesterday's call (fever) should always appear first in the list so the AI asks about it.
+## What Changes
 
-### Problem 3: AI doesn't acknowledge responses
-This is a Bolna Dashboard prompt issue. The updated guardrails document already has the acknowledgment rules, but you need to paste the updated prompt into the Bolna Dashboard.
+### File 1: `SENTIO_VOICE_AGENT_GUARDRAILS.md`
 
-## Changes
+**Restructure Step 3 to include a new-concern probe and emotional check:**
 
-### File 1: `supabase/functions/bolna-voice-call/index.ts`
-
-**A. Fix symptom ordering (lines 407-420)**
-Instead of collecting symptoms into a Set (which loses order), track each symptom with its most recent occurrence date, then sort by most recent first. This ensures "fever" (yesterday) comes before "back pain" (5 days ago).
-
-**B. Improve medicine hallucination protection (lines 547-561)**
-Replace the hardcoded blocklist approach with a smarter validator:
-- Extract all capitalized words and known medicine patterns from the briefing
-- Compare each against the actual medicine list
-- If a word looks like a medicine name (capitalized, not a common English word) and is NOT in the actual list, replace it with the first actual medicine name
-- This catches ALL hallucinations, not just 7 hardcoded ones
-
-**C. Remove misleading comment (line 472)**
-Change `// Format medicines with name + purpose (e.g. "Thyroxin (Thyroid)")` to remove the specific medicine name example.
-
-### File 2: `supabase/functions/vapi-voice-call/index.ts`
-
-The Vapi function is missing:
-- Monitoring topics (never fetched or passed)
-- Resolved symptom filtering (passes ALL symptoms)
-- AI briefing generation
-- Medicine hallucination protection
-
-Since the Dashboard currently uses Bolna (not Vapi), this is lower priority but should be fixed for consistency. Add:
-- Fetch `monitoring_config` from elder record
-- Filter resolved symptoms
-- Pass monitoring topics in `variableValues`
-
-### Important: Bolna Dashboard Update Required
-
-After these code changes deploy, you MUST copy the updated prompt from `SENTIO_VOICE_AGENT_GUARDRAILS.md` and paste it into your Bolna Dashboard agent configuration. The edge function sends the correct data (medicines, symptoms, monitoring topics), but the Bolna agent prompt is what actually controls what the AI says during the call. If the old prompt is still there, it will keep using hardcoded examples.
-
-## Technical Details
-
-### Symptom Ordering Fix
+Current Step 3 flow:
 ```text
-Before: Set([back_pain, headache, fever]) -- random order
-After:  [fever (1 day ago), back_pain (5 days ago), headache (3 days ago)] -- sorted by recency
+Part A: Follow up existing symptoms → Part B: Monitoring topic → END
 ```
 
-### Medicine Validation Fix
+New Step 3 flow:
 ```text
-Before: Check against hardcoded list [thyroxin, amlodipine, metformin, aspirin, paracetamol, crocin, dolo]
-After:  Check ANY capitalized word against actual medicine list. If not found AND not a common English word, replace it.
+Part A: Follow up existing symptoms (unchanged)
+Part B: Monitoring topic OR emotional check (if no monitoring topics, ask about mood/feelings instead of just sleep)
+Part C (NEW): Open-ended close — "aur koi nai taklif toh nahi?" / "anything else bothering you?"
+   → If elder shares something: acknowledge, note it, THEN end
+   → If elder says no: end warmly
+```
+
+This adds ~10 seconds but catches new symptoms the elder was hesitant to volunteer. The "aur kuch?" was previously banned, but the problem is it was too generic. The new phrasing specifically asks about *new health issues*, not open-ended chat.
+
+**Remove the "NEVER DO: aur kuch?"** rule and replace with: "Do NOT ask generic open questions like 'aur kuch batana hai?' — but DO ask specifically about new health concerns."
+
+**Add emotional awareness default**: When no monitoring topics include "mood", the agent should use an emotionally aware general question instead of always defaulting to "नींद कैसी आई?". Rotate between:
+- "मन कैसा है आज?" / "How's your mood today?"
+- "नींद कैसी आई?" / "How did you sleep?"
+- "अकेला तो नहीं लगता?" / "Do you feel lonely sometimes?"
+
+This ensures mental health data is captured in at least some calls even without explicit monitoring config.
+
+### File 2: `supabase/functions/bolna-voice-call/index.ts`
+
+**Add a `new_concern_prompt` field to `user_data`** so the agent has the exact phrasing ready:
+- Hindi: `"कोई नई तकलीफ़ तो नहीं है?"`
+- English: `"Any new health concern today?"`
+
+**Add a `wellbeing_question` field** that rotates between mood/sleep/loneliness questions (using the same date-hash approach as greetings) when no monitoring topics are configured. This replaces the hardcoded "नींद कैसी आई?" fallback.
+
+### File 3: `supabase/functions/bolna-webhook/index.ts`
+
+**Enhance the AI analysis prompt** to explicitly extract:
+- `emotionalState`: "happy" | "neutral" | "sad" | "lonely" | "anxious" | "withdrawn"
+- `newSymptomsVolunteered`: boolean — whether the elder brought up a new concern in response to the open question
+- `maskingDistress`: boolean — whether verbal responses contradict tone/engagement patterns (e.g., says "theek hai" but voice is flat, responses are very brief)
+
+**Create mental health alerts**: If `emotionalState` is "lonely", "anxious", or "withdrawn" for 3+ consecutive calls, trigger a "Mental Health Concern" alert with medium severity.
+
+### File 4: `supabase/functions/process-call-retries/index.ts`
+
+Add the same `new_concern_prompt` and `wellbeing_question` fields to retry `user_data` for parity.
+
+## How Mental Health Measurement Works After This
+
+```text
+During Call:
+  Agent asks mood/emotional question (rotated) → Elder responds
+  Agent asks "koi nai taklif?" → Elder may share emotional concerns
+
+Post-Call (Webhook):
+  AI extracts emotionalState from transcript
+  AI detects masking (says "fine" but brief/flat responses)
+  Stored in check_in's monitoring_responses
+
+Alert Logic:
+  3+ consecutive calls with sad/lonely/anxious/withdrawn → Mental Health Alert
+  mentalHealthConcern flag (existing) → Critical alert
 ```
 
 ## Summary
 
 | File | Change |
 |------|--------|
-| `supabase/functions/bolna-voice-call/index.ts` | Sort symptoms by recency, universal medicine hallucination detection, remove misleading comment |
-| `supabase/functions/vapi-voice-call/index.ts` | Add monitoring topics, resolved symptom filtering, medicine validation |
-| **Bolna Dashboard** (manual) | Copy updated prompt from `SENTIO_VOICE_AGENT_GUARDRAILS.md` |
+| `SENTIO_VOICE_AGENT_GUARDRAILS.md` | Add Part C (new concern probe), rotate emotional questions as default, update hard rules |
+| `bolna-voice-call/index.ts` | Add `new_concern_prompt` and `wellbeing_question` to user_data |
+| `bolna-webhook/index.ts` | Add `emotionalState` extraction, masking detection, consecutive-call mental health alerts |
+| `process-call-retries/index.ts` | Add same new fields to retry user_data |
+
+After deployment, copy the updated prompt from the guardrails doc into the Bolna Dashboard.
 
