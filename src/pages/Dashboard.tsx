@@ -444,7 +444,7 @@ const Dashboard = () => {
           </div>
 
           {/* Action Buttons - Emergency Only */}
-          <div className="mb-6 flex flex-col sm:flex-row flex-wrap justify-center gap-2 sm:gap-4">
+          <div className="mb-6 flex flex-col sm:flex-row flex-wrap justify-center gap-2 sm:gap-3">
             {canUseVoice ? (
               <AlertDialog>
                 <AlertDialogTrigger asChild>
