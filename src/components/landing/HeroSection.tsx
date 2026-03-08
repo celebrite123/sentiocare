@@ -66,7 +66,7 @@ const HeroSection = () => {
                 <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
                   <Shield className="h-4 w-4 text-primary" />
                 </div>
-                <span className="text-sm font-medium text-foreground/80">No Credit Card Required</span>
+                <span className="text-sm font-medium text-foreground/80">HIPAA Compliant</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-full bg-secondary/10 flex items-center justify-center">

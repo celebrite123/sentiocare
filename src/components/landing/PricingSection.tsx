@@ -91,7 +91,7 @@ const PricingSection = () => {
 
         <div className="text-center mt-8">
           <p className="text-sm text-foreground/65">
-            Sign up → 5-day free trial → Subscribe if you love it
+            Join waitlist → Get approved → 5-day free trial → Subscribe
           </p>
         </div>
       </div>
