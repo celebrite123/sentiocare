@@ -669,11 +669,13 @@ const Dashboard = () => {
 
           {/* WhatsApp Chat */}
           <div className="mb-8">
-            <WhatsAppChat 
-              elderId={elderId} 
-              elderName={elder.full_name} 
-              checkInMethod={elder.check_in_method}
-            />
+            <Suspense fallback={<div className="h-20" />}>
+              <WhatsAppChat 
+                elderId={elderId} 
+                elderName={elder.full_name} 
+                checkInMethod={elder.check_in_method}
+              />
+            </Suspense>
           </div>
 
           {/* Tabs */}
