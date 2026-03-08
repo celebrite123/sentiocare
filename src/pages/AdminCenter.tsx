@@ -110,7 +110,7 @@ const AdminCenter = () => {
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [activeTab, setActiveTab] = useState("pilot");
+  const [activeTab, setActiveTab] = useState("waitlist");
 
   const fetchAnalytics = async () => {
     try {
