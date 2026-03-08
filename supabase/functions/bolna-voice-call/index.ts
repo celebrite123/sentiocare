@@ -100,7 +100,9 @@ function buildGreeting(firstName: string, isHindi: boolean, daysSinceLastCall: n
   }
 }
 
-// Format medicine list — ALWAYS use the medicine name as primary identifier
+// Format medicine list — PURPOSE-FIRST so the AI asks about the condition, not brand name
+// e.g. Hindi: "diabetes ki dawai (sugar)" → AI says "diabetes ki dawai li?"
+// e.g. English: "diabetes medicine (sugar)" → AI says "Did you take your diabetes medicine?"
 function formatMedicines(medicines: any[], isHindi: boolean): string {
   if (!medicines || medicines.length === 0) {
     return isHindi ? 'कोई दवाई नहीं' : 'No medicines';
@@ -109,8 +111,13 @@ function formatMedicines(medicines: any[], isHindi: boolean): string {
     const name = (m.name || '').trim();
     if (!name) return '';
     const purpose = (m.purpose || '').trim();
-    // Always lead with name — never omit it
-    return purpose ? `${name} (for ${purpose})` : name;
+    if (purpose) {
+      // Purpose-first format so AI naturally asks about the condition
+      return isHindi 
+        ? `${purpose} ki dawai (${name})`
+        : `${purpose} medicine (${name})`;
+    }
+    return name;
   }).filter(Boolean).join(', ');
 }
 
