@@ -4,7 +4,12 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useSubscription } from "@/hooks/useSubscription";
 import { Loader2 } from "lucide-react";
 
-export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+interface ProtectedRouteProps {
+  children: React.ReactNode;
+  allowWaitlisted?: boolean;
+}
+
+export const ProtectedRoute = ({ children, allowWaitlisted = false }: ProtectedRouteProps) => {
   const { user, loading } = useAuth();
   const { isWaitlisted, loading: subLoading } = useSubscription();
   const navigate = useNavigate();
@@ -16,10 +21,10 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   }, [user, loading, navigate]);
 
   useEffect(() => {
-    if (!loading && !subLoading && user && isWaitlisted) {
+    if (!allowWaitlisted && !loading && !subLoading && user && isWaitlisted) {
       navigate("/select-plan");
     }
-  }, [user, loading, subLoading, isWaitlisted, navigate]);
+  }, [user, loading, subLoading, isWaitlisted, navigate, allowWaitlisted]);
 
   if (loading || subLoading) {
     return (
@@ -29,7 +34,7 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     );
   }
 
-  if (!user || isWaitlisted) {
+  if (!user || (!allowWaitlisted && isWaitlisted)) {
     return null;
   }
 

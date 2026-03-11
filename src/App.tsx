@@ -89,7 +89,7 @@ const App = () => (
                   <Route 
                     path="/select-plan" 
                     element={
-                      <ProtectedRoute>
+                      <ProtectedRoute allowWaitlisted>
                         <SelectPlan />
                       </ProtectedRoute>
                     } 
