@@ -47,6 +47,7 @@ const Auth = () => {
   const [fullName, setFullName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [showWaitlistConfirmation, setShowWaitlistConfirmation] = useState(false);
 
   useEffect(() => {
     // Check URL for password recovery token
