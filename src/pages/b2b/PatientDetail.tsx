@@ -92,7 +92,7 @@ const PatientDetail = () => {
   const [callingNow, setCallingNow] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [isPolling, setIsPolling] = useState(false);
-  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     if (id && organization) {

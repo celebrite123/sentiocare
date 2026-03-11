@@ -34,7 +34,7 @@ export function useRateLimiter({
   const [lastActionTime, setLastActionTime] = useState<number>(0);
   const [cooldownRemaining, setCooldownRemaining] = useState<number>(0);
   const actionTimestamps = useRef<number[]>([]);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Clean up old timestamps outside the window
   const cleanupOldTimestamps = useCallback(() => {
@@ -123,7 +123,7 @@ export function useDebounce<T extends (...args: any[]) => any>(
   callback: T,
   delayMs: number
 ): (...args: Parameters<T>) => void {
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const callbackRef = useRef(callback);
 
   // Update callback ref on change
