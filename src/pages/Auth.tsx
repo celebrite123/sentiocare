@@ -412,7 +412,7 @@ const Auth = () => {
             <CardContent className="space-y-4">
               <div className="space-y-3 text-left">
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center text-green-600 text-sm font-bold shrink-0">✓</div>
+                  <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary text-sm font-bold shrink-0">✓</div>
                   <span className="text-sm">Account created successfully</span>
                 </div>
                 <div className="flex items-center gap-3">
