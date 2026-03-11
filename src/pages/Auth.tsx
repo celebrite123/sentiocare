@@ -339,10 +339,7 @@ const Auth = () => {
 
         if (profileError) throw profileError;
 
-        toast({
-          title: "Welcome to Sentio AI! 🎉",
-          description: "You're on the waitlist. We'll notify you once approved.",
-        });
+        setShowWaitlistConfirmation(true);
       }
     } catch (error: any) {
       toast({
