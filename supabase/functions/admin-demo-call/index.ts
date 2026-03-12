@@ -81,6 +81,33 @@ serve(async (req) => {
 
       console.log(`Admin ${user.id} triggering demo call for elder ${elderId}`);
 
+      const [{ data: elder, error: elderError }, { data: medicines, error: medicinesError }] = await Promise.all([
+        supabaseAdmin
+          .from('elders')
+          .select('id, full_name, phone_number, preferred_language, medical_conditions')
+          .eq('id', elderId)
+          .single(),
+        supabaseAdmin
+          .from('medicines')
+          .select('name, purpose, dosage, timing, frequency, active')
+          .eq('elder_id', elderId)
+          .eq('active', true),
+      ]);
+
+      if (elderError || !elder) {
+        console.error('Elder lookup failed:', elderError);
+        return new Response(JSON.stringify({ error: 'Elder not found' }), {
+          status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      if (medicinesError) {
+        console.error('Medicine lookup failed:', medicinesError);
+        return new Response(JSON.stringify({ error: 'Failed to fetch medicines for elder' }), {
+          status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
       // Call bolna-voice-call using service role key to bypass ownership checks
       const callResponse = await fetch(`${supabaseUrl}/functions/v1/bolna-voice-call`, {
         method: 'POST',
@@ -88,15 +115,24 @@ serve(async (req) => {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${supabaseServiceKey}`,
         },
-        body: JSON.stringify({ elderId }),
+        body: JSON.stringify({
+          elderId: elder.id,
+          elderName: elder.full_name,
+          elderPhone: elder.phone_number,
+          medicines: medicines || [],
+          medicalConditions: elder.medical_conditions || [],
+          preferredLanguage: elder.preferred_language || 'english',
+          isEmergency: false,
+        }),
       });
 
       const callResult = await callResponse.json();
 
-      if (!callResponse.ok) {
+      if (!callResponse.ok || callResult?.success === false || callResult?.error) {
         console.error('Call failed:', callResult);
-        return new Response(JSON.stringify({ error: callResult.error || 'Call failed' }), {
-          status: callResponse.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        return new Response(JSON.stringify({ error: callResult?.error || 'Call failed' }), {
+          status: callResponse.ok ? 500 : callResponse.status,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
       }
 
