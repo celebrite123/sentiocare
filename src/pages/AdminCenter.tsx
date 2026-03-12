@@ -221,6 +221,10 @@ const AdminCenter = () => {
               <FileText className="h-4 w-4" />
               Blog
             </TabsTrigger>
+            <TabsTrigger value="demo" className="gap-2">
+              <Phone className="h-4 w-4" />
+              Live Demo
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="waitlist">
