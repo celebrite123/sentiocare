@@ -3,6 +3,9 @@ project_id = "hcdwbpbvuvbrozttahfz"
 [functions.admin-analytics]
 verify_jwt = false
 
+[functions.admin-demo-call]
+verify_jwt = false
+
 [functions.vapi-voice-call]
 verify_jwt = true
 

@@ -13,7 +13,8 @@ import BlogManager from "@/components/admin/BlogManager";
 import B2BAdminDashboard from "@/components/admin/B2BAdminDashboard";
 import PilotMetrics from "@/components/admin/PilotMetrics";
 import WaitlistManager from "@/components/admin/WaitlistManager";
-import { Loader2, RefreshCw, Shield, BarChart3, FileText, Building2, FlaskConical, Users } from "lucide-react";
+import DemoCallPanel from "@/components/admin/DemoCallPanel";
+import { Loader2, RefreshCw, Shield, BarChart3, FileText, Building2, FlaskConical, Users, Phone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
@@ -220,6 +221,10 @@ const AdminCenter = () => {
               <FileText className="h-4 w-4" />
               Blog
             </TabsTrigger>
+            <TabsTrigger value="demo" className="gap-2">
+              <Phone className="h-4 w-4" />
+              Live Demo
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="waitlist">
@@ -266,6 +271,10 @@ const AdminCenter = () => {
 
           <TabsContent value="blog">
             <BlogManager />
+          </TabsContent>
+
+          <TabsContent value="demo">
+            <DemoCallPanel />
           </TabsContent>
         </Tabs>
       </div>
