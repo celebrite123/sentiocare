@@ -272,6 +272,10 @@ const AdminCenter = () => {
           <TabsContent value="blog">
             <BlogManager />
           </TabsContent>
+
+          <TabsContent value="demo">
+            <DemoCallPanel />
+          </TabsContent>
         </Tabs>
       </div>
     </div>
