@@ -308,7 +308,7 @@ serve(async (req) => {
     const trialEndsAt = profile?.trial_ends_at ? new Date(profile.trial_ends_at) : null;
     const now = new Date();
     const isTrialActive = status === "trial" && trialEndsAt && trialEndsAt > now;
-    const canUseVoice = tier === "premium" || isTrialActive;
+    const canUseVoice = tier === "premium" || isTrialActive || isServiceRoleCall;
 
     if (!canUseVoice) {
       console.log("Voice call blocked - Basic tier without active trial");
