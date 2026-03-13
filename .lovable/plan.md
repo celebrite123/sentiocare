@@ -1,78 +1,107 @@
 
 
-# Fix: Wrong Medicine Names + Wrong Symptom Priority in Voice Calls
+# Fix: Simplify Voice Agent — Stop "Bahut Acche + Nahi Li" and Clean Up
 
-## Root Cause Analysis
+## Problems (from latest transcripts)
 
-### Problem 1: "Thyroxin" instead of "dsa"
-The Bolna edge function has hallucination protection, BUT:
-- The hardcoded hallucination list (line 549) only catches 7 common names. If the AI hallucinates a name NOT in that list, it passes through unchecked.
-- The comment on line 472 still mentions "Thyroxin" as an example, which could influence the AI briefing context.
-- **Most critically**: The actual prompt running on the Bolna Dashboard likely still has the OLD examples with hardcoded medicine names. The `SENTIO_VOICE_AGENT_GUARDRAILS.md` was updated but you need to manually copy-paste it into the Bolna Dashboard.
+1. **"Bahut acche, aapne dawai nahi li"** — Agent merges YES and NO medicine responses into one nonsensical sentence because the prompt puts both options on the same line
+2. **Double greeting** — `welcome_message` = `{greeting}` AND prompt says "Say {greeting} exactly" → agent speaks greeting twice
+3. **Context bloat** — `last_summary`, `recent_calls`, `symptom_followup`, `medicine_names_only`, `symptom_days` all dumped into userData, polluting the agent's working memory and causing it to read instructions literally
+4. **Briefing echoes medicine question** — The AI briefing sometimes generates "Ask about dsa" which makes the agent double-ask about medicine
 
-**Fix**: Replace the limited hallucination blocklist with a universal validator -- if ANY word in the briefing looks like a medicine name but is NOT in the elder's actual medicine list, flag and replace it. Also remove the misleading comment.
+## Solution: Two files, surgical changes
 
-### Problem 2: Asking about "back pain" instead of "fever"
-The code collects ALL symptoms from the last 7 check-ins and deduplicates them. But it does NOT prioritize by recency. If "back pain" was reported 5 days ago and "fever" was reported yesterday, the code sends both as `active_symptoms` but the prompt asks about "the FIRST symptom" -- which may be "back pain" because the deduplication order is unpredictable (uses `Set`).
+### File 1: `SENTIO_VOICE_AGENT_GUARDRAILS.md` — Full rewrite to ~30 lines
 
-**Fix**: Sort active symptoms by most recent first. The symptom from yesterday's call (fever) should always appear first in the list so the AI asks about it.
+Replace the entire agent prompt section with a dead-simple linear flow:
 
-### Problem 3: AI doesn't acknowledge responses
-This is a Bolna Dashboard prompt issue. The updated guardrails document already has the acknowledgment rules, but you need to paste the updated prompt into the Bolna Dashboard.
+```
+You are Sentio. Daily elder health check-in. Warm, caring, under 90 seconds.
 
-## Changes
+BRIEFING: {briefing}
 
-### File 1: `supabase/functions/bolna-voice-call/index.ts`
+EMERGENCY — IMMEDIATE OVERRIDE (at ANY point in the call):
+If elder says: chest pain, breathing difficulty, fainting, behosh, stroke signs, suicidal words, severe bleeding
+→ 1. "Main samajh raha hu. Ye serious hai."
+→ 2. "Turant {caregiver_name} ko call karein" (or "doctor ko call karein")
+→ 3. "Aapke parivaar ko bata raha hu. Fikr mat karein."
+→ 4. End call.
 
-**A. Fix symptom ordering (lines 407-420)**
-Instead of collecting symptoms into a Set (which loses order), track each symptom with its most recent occurrence date, then sort by most recent first. This ensures "fever" (yesterday) comes before "back pain" (5 days ago).
+IF {is_emergency} = "true":
+→ Ask "Kya hua? Bataiye." → Listen → Acknowledge → If life-threatening, do emergency above → Otherwise reassure and end.
 
-**B. Improve medicine hallucination protection (lines 547-561)**
-Replace the hardcoded blocklist approach with a smarter validator:
-- Extract all capitalized words and known medicine patterns from the briefing
-- Compare each against the actual medicine list
-- If a word looks like a medicine name (capitalized, not a common English word) and is NOT in the actual list, replace it with the first actual medicine name
-- This catches ALL hallucinations, not just 7 hardcoded ones
+NORMAL CALL — 4 STEPS IN ORDER:
 
-**C. Remove misleading comment (line 472)**
-Change `// Format medicines with name + purpose (e.g. "Thyroxin (Thyroid)")` to remove the specific medicine name example.
+STEP 1: Ask: {first_question}
+  Wait for full answer. Acknowledge what they said in ONE sentence.
+  Example: They say "theek nahi" → You say "accha, theek nahi lag raha"
+  NEVER say "haan theek hai" if they said "theek nahi"
 
-### File 2: `supabase/functions/vapi-voice-call/index.ts`
+STEP 2: Ask: {medicine_question}   [skip if empty]
+  Wait for answer.
+  ✅ If they say YES / haan / li → Reply ONLY: "बहुत अच्छे"
+  ❌ If they say NO / nahi / nahi li → Reply ONLY: "कोई बात नहीं, कल ज़रूर लीजिए"
+  ⚠️ NEVER combine both. NEVER say "bahut acche" and "nahi li" together.
 
-The Vapi function is missing:
-- Monitoring topics (never fetched or passed)
-- Resolved symptom filtering (passes ALL symptoms)
-- AI briefing generation
-- Medicine hallucination protection
+STEP 3: Ask: {wellbeing_question}
+  Wait. Acknowledge.
+  Then ask: {new_concern_prompt}
+  Wait. If they mention pain → ask "1 se 10 mein kitna dard?" Only say "doctor" if 8+.
 
-Since the Dashboard currently uses Bolna (not Vapi), this is lower priority but should be fixed for consistency. Add:
-- Fetch `monitoring_config` from elder record
-- Filter resolved symptoms
-- Pass monitoring topics in `variableValues`
+STEP 4: One warm closing sentence. End.
 
-### Important: Bolna Dashboard Update Required
-
-After these code changes deploy, you MUST copy the updated prompt from `SENTIO_VOICE_AGENT_GUARDRAILS.md` and paste it into your Bolna Dashboard agent configuration. The edge function sends the correct data (medicines, symptoms, monitoring topics), but the Bolna agent prompt is what actually controls what the AI says during the call. If the old prompt is still there, it will keep using hardcoded examples.
-
-## Technical Details
-
-### Symptom Ordering Fix
-```text
-Before: Set([back_pain, headache, fever]) -- random order
-After:  [fever (1 day ago), back_pain (5 days ago), headache (3 days ago)] -- sorted by recency
+RULES:
+- After EVERY question: WAIT → ACKNOWLEDGE → then next question
+- Medicine names: ONLY from {medicines}. Never invent.
+- Say {first_question}, {medicine_question}, {wellbeing_question}, {new_concern_prompt} EXACTLY as given
+- Language: {preferred_language}
+- Use {first_name} only in greeting. After that: "aap" / "you"
+- Do NOT repeat the greeting. It is already spoken as the welcome message.
 ```
 
-### Medicine Validation Fix
-```text
-Before: Check against hardcoded list [thyroxin, amlodipine, metformin, aspirin, paracetamol, crocin, dolo]
-After:  Check ANY capitalized word against actual medicine list. If not found AND not a common English word, replace it.
-```
+**Key differences from current prompt:**
+- Removed "Say {greeting} exactly" → fixes double greeting
+- Medicine YES/NO on separate lines with ✅/❌ markers and explicit "NEVER combine" rule
+- Removed `{active_symptoms}`, `{symptom_days}`, `{monitoring_topics}` from the flow → dramatically simplifies branching
+- Removed "max 4 questions" rule that conflicted with "complete all steps"
+- ~30 lines instead of ~80
+- Variables table updated to remove deprecated fields
+
+### File 2: `supabase/functions/bolna-voice-call/index.ts` — Remove 6 noisy userData fields
+
+**Remove these fields from the `userData` object (lines 697-720):**
+
+| Field to remove | Why |
+|---|---|
+| `medicine_names_only` (line 704) | Redundant with `medicines`, adds noise |
+| `symptom_followup` (line 707) | Contains instruction text the agent reads literally |
+| `symptom_days` (line 708) | Removed from prompt, no longer needed |
+| `last_summary` (line 709) | Raw transcript text, not a real summary — pollutes context |
+| `recent_calls` (line 710) | Dumps full previous transcripts into context |
+| `active_symptoms` (line 706) | Simplified flow doesn't branch on this; wellbeing question covers it |
+
+**Keep these fields (unchanged):**
+`elder_id`, `first_name`, `greeting`, `first_question`, `briefing`, `medicines`, `medicine_question`, `monitoring_topics`, `new_concern_prompt`, `wellbeing_question`, `is_emergency`, `emergency_intro`, `has_caregiver`, `caregiver_name`, `caregiver_relation`, `preferred_language`
+
+**Also fix the briefing prompt (lines 584-601):**
+- Remove bullet 2's instruction to "pick ONE medicine... to follow up" — this causes the briefing to echo the medicine question
+- Change bullet 2 to: "One thing to watch for today (a symptom, mood, or health pattern)"
+- This prevents the AI briefing from generating "Ask about dsa" which makes the agent double-ask
+
+**Also remove dead code:**
+- Remove `getMedicineNamesOnly()` function (line 126-129) — no longer called
+- Remove `symptomFollowup` variable construction (lines 679-690) — no longer used
+- Remove `recentCallSummaries` construction (lines 389-395) — no longer used
+- Remove `symptomDaysFormatted` construction (lines 559-561) — no longer used
+
+### After deployment
+
+You **must** copy the updated prompt from `SENTIO_VOICE_AGENT_GUARDRAILS.md` and paste it into the **Bolna Dashboard** for both Hindi and English agents. The code sends correct data, but the dashboard prompt controls what the agent actually says.
 
 ## Summary
 
-| File | Change |
-|------|--------|
-| `supabase/functions/bolna-voice-call/index.ts` | Sort symptoms by recency, universal medicine hallucination detection, remove misleading comment |
-| `supabase/functions/vapi-voice-call/index.ts` | Add monitoring topics, resolved symptom filtering, medicine validation |
-| **Bolna Dashboard** (manual) | Copy updated prompt from `SENTIO_VOICE_AGENT_GUARDRAILS.md` |
+| File | What changes |
+|------|-------------|
+| `SENTIO_VOICE_AGENT_GUARDRAILS.md` | Full rewrite: ~30 line linear prompt, fix medicine YES/NO, fix double greeting, remove branching complexity |
+| `supabase/functions/bolna-voice-call/index.ts` | Remove 6 noisy userData fields, fix briefing to not echo medicine question, remove dead code |
 
