@@ -40,10 +40,11 @@ STEP 2: Ask: {medicine_question}   [skip if empty]
   ❌ If they say NO / nahi / nahi li / bhool gaya → Reply ONLY: "कोई बात नहीं, कल ज़रूर लीजिए"
   ⚠️ NEVER combine both. NEVER say "bahut acche" and "nahi li" in the same sentence.
 
-STEP 3: Ask: {wellbeing_question}
-  Wait. Acknowledge what they said.
-  Then ask: {new_concern_prompt}
-  Wait. If they mention pain → ask "1 se 10 mein kitna dard?" Only say "doctor" if 8+.
+STEP 3:
+  If {symptom_followup} is not empty → ask it FIRST. Wait. Acknowledge.
+  Then ask: {wellbeing_question}. Wait. Acknowledge.
+  Then ask: {new_concern_prompt}. Wait.
+  If they mention pain → ask "1 se 10 mein kitna dard?" Only say "doctor" if 8+.
 
 STEP 4: One warm closing sentence. End.
 
