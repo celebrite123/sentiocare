@@ -122,6 +122,16 @@ serve(async (req) => {
       );
     }
 
+    // URL-only mode: return the direct S3 URL for native browser streaming
+    const urlOnly = urlParams.searchParams.get('urlOnly');
+    if (urlOnly === 'true') {
+      console.log("Returning recording URL (urlOnly mode):", recordingUrl);
+      return new Response(
+        JSON.stringify({ url: recordingUrl }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Fetch the audio from S3 and stream directly (no buffering)
     console.log("Proxying recording (streaming):", recordingUrl);
     
