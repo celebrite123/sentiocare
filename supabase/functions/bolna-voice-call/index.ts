@@ -34,40 +34,9 @@ function buildGreeting(firstName: string, isHindi: boolean, daysSinceLastCall: n
     }
   }
 
-  // Use date-based hash for variety so the same elder hears different greetings each day
-  const dayHash = new Date().getDate() % 3; // 0, 1, or 2
-
-  // Statement-only greetings — no questions. The Bolna agent prompt handles the first question.
+  // Simple, clean greeting — no questions. The Bolna agent prompt handles the first question.
   if (isHindi) {
-    if (daysSinceLastCall === null || daysSinceLastCall > 7) {
-      const options = [
-        `नमस्ते ${firstName} जी, मैं Sentio हूं, आपका health साथी।`,
-        `${firstName} जी, नमस्ते! मैं Sentio, आपसे बात करके अच्छा लगा।`,
-        `नमस्ते ${firstName} जी, Sentio यहां है आपके लिए।`,
-      ];
-      return options[dayHash];
-    } else if (daysSinceLastCall === 0) {
-      const options = [
-        `${firstName} जी, Sentio फिर से। आज दोबारा बात कर रहे हैं।`,
-        `${firstName} जी, Sentio यहां है, आज फिर मिल रहे हैं।`,
-        `${firstName} जी, Sentio आपके साथ है आज भी।`,
-      ];
-      return options[dayHash];
-    } else if (daysSinceLastCall === 1) {
-      const options = [
-        `${firstName} जी, Sentio यहां है। कल भी बात हुई थी।`,
-        `${firstName} जी, नमस्ते! कल के बाद आज फिर मिल रहे हैं।`,
-        `${firstName} जी, Sentio है आपके साथ, कल भी बात की थी।`,
-      ];
-      return options[dayHash];
-    } else {
-      const options = [
-        `${firstName} जी, Sentio है। ${daysSinceLastCall} दिन हो गए बात किए।`,
-        `नमस्ते ${firstName} जी! Sentio यहां है, कुछ दिन हो गए मिले।`,
-        `${firstName} जी, Sentio आपके साथ है। कई दिन हो गए बात किए।`,
-      ];
-      return options[dayHash];
-    }
+    return `Hello ${firstName} जी! Sentio की तरफ से आपकी daily call है।`;
   } else {
     if (daysSinceLastCall === null || daysSinceLastCall > 7) {
       const options = [
