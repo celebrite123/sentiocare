@@ -626,6 +626,7 @@ RULES:
       monitoring_topics: isEmergency ? "" : monitoringQuestions,
       new_concern_prompt: isEmergency ? "" : newConcernPrompt,
       wellbeing_question: isEmergency ? "" : wellbeingQuestion,
+      symptom_followup: isEmergency ? "" : symptomFollowup,
       is_emergency: isEmergency ? "true" : "false",
       emergency_intro: emergencyIntro,
       has_caregiver: hasCaregiverFlag ? "true" : "false",

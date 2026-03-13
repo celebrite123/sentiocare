@@ -71,6 +71,7 @@ RULES:
 | `medicine_question` | Pre-built medicine question (say verbatim) | "क्या आपने आज diabetes की दवाई ली?" |
 | `wellbeing_question` | Rotated wellbeing question | "रात को नींद कैसी आई?" |
 | `new_concern_prompt` | Question about new issues | "कोई नई तकलीफ़ तो नहीं है?" |
+| `symptom_followup` | Follow-up on previous symptom (empty if none) | "पिछली बार आपने leg pain बताया था। अभी कैसा है?" |
 | `preferred_language` | "english" or "hindi" | "hindi" |
 | `is_emergency` | Emergency flag | "true" / "false" |
 | `has_caregiver` | Caregiver exists | "true" / "false" |
