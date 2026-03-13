@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { MessageSquare, Phone, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
@@ -32,15 +32,27 @@ interface CheckInLogProps {
 
 // Audio player component that uses proxy to avoid CORS issues
 const AudioPlayer = ({ checkInId }: { checkInId: string }) => {
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const loadAndPlay = async () => {
-    if (loading || audioUrl) return;
+    if (loading) return;
+    if (audioUrl) {
+      // Already loaded — just play
+      audioRef.current?.play().catch(() => {});
+      return;
+    }
     
     setLoading(true);
     setError(null);
+
+    // Create and unlock Audio in user gesture context (critical for iOS/Safari)
+    const audio = new Audio();
+    audio.preload = "auto";
+    audioRef.current = audio;
+    audio.play().catch(() => {}); // unlock
     
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -66,6 +78,10 @@ const AudioPlayer = ({ checkInId }: { checkInId: string }) => {
 
       const { url } = await response.json();
       setAudioUrl(url);
+      
+      // Set src on the already-unlocked audio element and play
+      audio.src = url;
+      await audio.play().catch(() => {});
     } catch (err: any) {
       console.error('Error loading audio:', err);
       setError(err.message || 'Failed to load recording');
@@ -73,6 +89,15 @@ const AudioPlayer = ({ checkInId }: { checkInId: string }) => {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+    };
+  }, []);
 
   return (
     <div className="mb-4 p-3 bg-muted/50 rounded-lg">
@@ -85,7 +110,6 @@ const AudioPlayer = ({ checkInId }: { checkInId: string }) => {
       ) : audioUrl ? (
         <audio 
           controls 
-          autoPlay
           className="w-full h-10"
           src={audioUrl}
         >
