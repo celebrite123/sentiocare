@@ -209,7 +209,7 @@ serve(async (req) => {
     }
     // ============ END AUTHENTICATION CHECK ============
 
-    const { elderId, elderName, elderPhone, medicines, medicalConditions, preferredLanguage = 'english', isEmergency = false } = await req.json();
+    const { elderId, elderName, elderPhone, medicines, medicalConditions, preferredLanguage = 'english', isEmergency = false, bypassDailyLimit = false } = await req.json();
     
     const BOLNA_API_KEY = Deno.env.get('BOLNA_API_KEY');
     const BOLNA_AGENT_ID_ENGLISH = Deno.env.get('BOLNA_AGENT_ID');
@@ -241,7 +241,9 @@ serve(async (req) => {
       .gte("created_at", todayStart.toISOString());
     
     const MAX_CALLS_PER_DAY = 3;
-    if (todayCalls && todayCalls.length >= MAX_CALLS_PER_DAY) {
+    // Allow bypass for admin/demo calls and service role (scheduled) calls
+    const shouldEnforceLimit = !isServiceRoleCall && !bypassDailyLimit;
+    if (shouldEnforceLimit && todayCalls && todayCalls.length >= MAX_CALLS_PER_DAY) {
       console.log(`DAILY CALL LIMIT REACHED for elder ${elderId}: ${todayCalls.length} calls today`);
       return new Response(
         JSON.stringify({ 
@@ -251,6 +253,9 @@ serve(async (req) => {
         }),
         { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+    }
+    if (!shouldEnforceLimit && todayCalls && todayCalls.length >= MAX_CALLS_PER_DAY) {
+      console.log(`Daily limit bypassed (admin/service call) for elder ${elderId}: ${todayCalls.length} calls today`);
     }
     
     console.log(`Daily call check passed: ${todayCalls?.length || 0}/${MAX_CALLS_PER_DAY} calls today for elder ${elderId}`);

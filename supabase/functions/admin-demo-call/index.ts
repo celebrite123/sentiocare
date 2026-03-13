@@ -123,6 +123,7 @@ serve(async (req) => {
           medicalConditions: elder.medical_conditions || [],
           preferredLanguage: elder.preferred_language || 'english',
           isEmergency: false,
+          bypassDailyLimit: true,
         }),
       });
 

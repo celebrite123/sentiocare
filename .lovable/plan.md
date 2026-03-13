@@ -1,104 +1,78 @@
 
-## What I found from recent transcripts + logs
 
-1. **Your “error 2xx” issue is real and reproducible**  
-   Recent backend logs show `DAILY CALL LIMIT REACHED ... 3 calls today` right when Call Now is pressed.  
-   So the call is being blocked by daily cap, and UI is surfacing a generic non-2xx function error.
+# Fix: Wrong Medicine Names + Wrong Symptom Priority in Voice Calls
 
-2. **Current call quality has 5 concrete failures**
-   - Template leak: `"[medicine from Sugar ki dawai (Glycoma)]"` spoken literally.
-   - Bad acknowledgement: elder says “not well”, agent replies “हाँ, ठीक है”.
-   - Over-escalation: “Serious hai” without proper safety branch logic.
-   - Flow breaks: calls end early, missing one or more required checks.
-   - Context drop: elder gives symptom detail, agent doesn’t always follow immediately.
+## Root Cause Analysis
 
-3. **Prompt/logic mismatch is causing drift**
-   - Prompt is long/contradictory (e.g., strict question count vs multi-step requirements).
-   - Code sends multiple variables, but flow control is still too open-ended.
-   - Emergency interrupt behavior is not enforced strongly enough during live turn handling.
+### Problem 1: "Thyroxin" instead of "dsa"
+The Bolna edge function has hallucination protection, BUT:
+- The hardcoded hallucination list (line 549) only catches 7 common names. If the AI hallucinates a name NOT in that list, it passes through unchecked.
+- The comment on line 472 still mentions "Thyroxin" as an example, which could influence the AI briefing context.
+- **Most critically**: The actual prompt running on the Bolna Dashboard likely still has the OLD examples with hardcoded medicine names. The `SENTIO_VOICE_AGENT_GUARDRAILS.md` was updated but you need to manually copy-paste it into the Bolna Dashboard.
 
----
+**Fix**: Replace the limited hallucination blocklist with a universal validator -- if ANY word in the briefing looks like a medicine name but is NOT in the elder's actual medicine list, flag and replace it. Also remove the misleading comment.
 
-## Implementation plan (focused + fast)
+### Problem 2: Asking about "back pain" instead of "fever"
+The code collects ALL symptoms from the last 7 check-ins and deduplicates them. But it does NOT prioritize by recency. If "back pain" was reported 5 days ago and "fever" was reported yesterday, the code sends both as `active_symptoms` but the prompt asks about "the FIRST symptom" -- which may be "back pain" because the deduplication order is unpredictable (uses `Set`).
 
-### Phase 1 — Fix “Call Now” reliability first
-**Files:**  
-- `supabase/functions/bolna-voice-call/index.ts`  
-- `supabase/functions/admin-demo-call/index.ts`  
-- `src/components/admin/DemoCallPanel.tsx` (and call UI where applicable)
+**Fix**: Sort active symptoms by most recent first. The symptom from yesterday's call (fever) should always appear first in the list so the AI asks about it.
 
-**Changes:**
-1. **Daily-limit policy split**
-   - Keep limit for normal routine calls.
-   - Allow controlled bypass for admin/demo calls.
-   - Do not let emergency-triggered calls be blocked by routine daily cap.
-2. **Caller detection hardening**
-   - Make service/internal call detection robust (not fragile token equality only).
-3. **Error surface fix**
-   - Return structured error payloads (`code`, `message`, `callsToday`).
-   - UI shows human message (not generic “function non-2xx”).
+### Problem 3: AI doesn't acknowledge responses
+This is a Bolna Dashboard prompt issue. The updated guardrails document already has the acknowledgment rules, but you need to paste the updated prompt into the Bolna Dashboard.
 
----
+## Changes
 
-### Phase 2 — Simplify agent behavior to your exact desired flow
-**Files:**  
-- `supabase/functions/bolna-voice-call/index.ts`  
-- `SENTIO_VOICE_AGENT_GUARDRAILS.md`
+### File 1: `supabase/functions/bolna-voice-call/index.ts`
 
-**Target call structure (simple + efficient):**
-1. **Day check** (“How was your day/how are you feeling?”)
-2. **Medicine adherence**
-3. **Active symptom update (most recent unresolved first)**
-4. **Any current/new problem**
-5. Close warmly
+**A. Fix symptom ordering (lines 407-420)**
+Instead of collecting symptoms into a Set (which loses order), track each symptom with its most recent occurrence date, then sort by most recent first. This ensures "fever" (yesterday) comes before "back pain" (5 days ago).
 
-**Changes:**
-1. Send explicit prebuilt question fields for each step (not inferred templates).
-2. Keep medicine data simple (name-safe, no ambiguous template wording).
-3. Remove contradictory prompt rules and shorten to a strict “minimal protocol”.
-4. Enforce mandatory one-line acknowledgement before next question.
+**B. Improve medicine hallucination protection (lines 547-561)**
+Replace the hardcoded blocklist approach with a smarter validator:
+- Extract all capitalized words and known medicine patterns from the briefing
+- Compare each against the actual medicine list
+- If a word looks like a medicine name (capitalized, not a common English word) and is NOT in the actual list, replace it with the first actual medicine name
+- This catches ALL hallucinations, not just 7 hardcoded ones
 
----
+**C. Remove misleading comment (line 472)**
+Change `// Format medicines with name + purpose (e.g. "Thyroxin (Thyroid)")` to remove the specific medicine name example.
 
-### Phase 3 — Hard emergency interrupt (your key requirement)
-**Files:**  
-- `SENTIO_VOICE_AGENT_GUARDRAILS.md`  
-- `supabase/functions/bolna-voice-call/index.ts`  
-- `supabase/functions/bolna-webhook/index.ts` (safety net)
+### File 2: `supabase/functions/vapi-voice-call/index.ts`
 
-**Changes:**
-1. Add explicit **interrupt rule**: if elder says high-risk terms (example: **left-side chest pain**, breathlessness, fainting, stroke-like signs, suicidal statements), agent must immediately switch to emergency flow.
-2. For non-red-flag pain, still ask severity (1–10) before advice.
-3. Add webhook safety fallback: if transcript contains hard red flags but agent missed escalation, force high-priority alert tagging.
+The Vapi function is missing:
+- Monitoring topics (never fetched or passed)
+- Resolved symptom filtering (passes ALL symptoms)
+- AI briefing generation
+- Medicine hallucination protection
 
----
+Since the Dashboard currently uses Bolna (not Vapi), this is lower priority but should be fixed for consistency. Add:
+- Fetch `monitoring_config` from elder record
+- Filter resolved symptoms
+- Pass monitoring topics in `variableValues`
 
-## Rollout + verification plan
+### Important: Bolna Dashboard Update Required
 
-1. Update and sync prompt on **both** Bolna agents (Hindi + English) using the revised guardrails.
-2. Run 6 scripted call tests:
-   - normal day flow
-   - medicine missed
-   - active symptom follow-up
-   - new concern
-   - explicit left chest pain (must emergency interrupt immediately)
-   - no-symptom short response case
-3. Validate transcripts for:
-   - no template leak text
-   - all required steps covered in routine calls
-   - emergency interrupt within same turn when red flag appears
-4. Re-test Call Now after 3 prior calls to confirm:
-   - admin/demo path works
-   - users receive clear limit reason when applicable
+After these code changes deploy, you MUST copy the updated prompt from `SENTIO_VOICE_AGENT_GUARDRAILS.md` and paste it into your Bolna Dashboard agent configuration. The edge function sends the correct data (medicines, symptoms, monitoring topics), but the Bolna agent prompt is what actually controls what the AI says during the call. If the old prompt is still there, it will keep using hardcoded examples.
 
----
+## Technical Details
 
-## Technical details (implementation-level)
+### Symptom Ordering Fix
+```text
+Before: Set([back_pain, headache, fever]) -- random order
+After:  [fever (1 day ago), back_pain (5 days ago), headache (3 days ago)] -- sorted by recency
+```
 
-- **Root reliability bug:** routine daily cap currently blocks calls and returns non-2xx; UI doesn’t decode meaningful cause.
-- **Root quality bug:** over-constrained long prompt + open generation path causes protocol drift.
-- **Deterministic fix:** move from “agent improvises sequence” to “backend sends explicit step questions + strict interrupt rules”.
-- **Safety model:** dual-layer  
-  1) real-time prompt interrupt logic  
-  2) post-call transcript safety net in webhook for missed escalations.
-- **No major schema migration required** for core fix; can be done in function/prompt/UI layers.
+### Medicine Validation Fix
+```text
+Before: Check against hardcoded list [thyroxin, amlodipine, metformin, aspirin, paracetamol, crocin, dolo]
+After:  Check ANY capitalized word against actual medicine list. If not found AND not a common English word, replace it.
+```
+
+## Summary
+
+| File | Change |
+|------|--------|
+| `supabase/functions/bolna-voice-call/index.ts` | Sort symptoms by recency, universal medicine hallucination detection, remove misleading comment |
+| `supabase/functions/vapi-voice-call/index.ts` | Add monitoring topics, resolved symptom filtering, medicine validation |
+| **Bolna Dashboard** (manual) | Copy updated prompt from `SENTIO_VOICE_AGENT_GUARDRAILS.md` |
+

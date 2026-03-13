@@ -542,6 +542,35 @@ Respond ONLY in valid JSON format:
       }
     }
 
+    // ============ RED FLAG SAFETY NET ============
+    // Even if AI analysis missed it, scan raw transcript for emergency keywords
+    // This catches cases where the agent failed to escalate during the call
+    if (rawTranscript && !isEmergencyCall) {
+      const transcriptLower = rawTranscript.toLowerCase();
+      const redFlagPatterns = [
+        // Hindi emergency keywords
+        'seene mein dard', 'chest pain', 'heart pain', 'heart attack',
+        'sans nahi', 'saans nahi', 'breathing problem', 'cant breathe', "can't breathe", 'difficulty breathing',
+        'behosh', 'gir gaya', 'gir gayi', 'fainting', 'fainted', 'collapse',
+        'khoon', 'blood vomit', 'bleeding',
+        'marna chahta', 'marna chahti', 'jeene ka mann nahi', 'want to die', 'dont want to live',
+        'left side chest', 'baayen taraf dard', 'stroke',
+        // High severity pain
+        'pain 8', 'pain 9', 'pain 10', 'dard 8', 'dard 9', 'dard 10',
+      ];
+      
+      const foundRedFlags = redFlagPatterns.filter(pattern => transcriptLower.includes(pattern));
+      
+      if (foundRedFlags.length > 0 && !(analysis as any).emergencyDetected) {
+        console.warn(`RED FLAG SAFETY NET TRIGGERED: Found [${foundRedFlags.join(', ')}] in transcript but AI did not flag emergency`);
+        (analysis as any).emergencyDetected = true;
+        analysis.alertTriggered = true;
+        analysis.alertReason = `SAFETY NET: Emergency keywords detected in transcript: ${foundRedFlags.slice(0, 3).join(', ')}`;
+        analysis.wellBeingScore = Math.min(analysis.wellBeingScore, 2);
+      }
+    }
+    // ============ END RED FLAG SAFETY NET ============
+
     const prolongedSymptomAlert = (analysis as any).prolongedSymptomAlert || false;
     if (prolongedSymptomAlert && !analysis.alertTriggered) {
       analysis.alertTriggered = true;
