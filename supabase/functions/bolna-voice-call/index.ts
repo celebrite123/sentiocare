@@ -38,35 +38,7 @@ function buildGreeting(firstName: string, isHindi: boolean, daysSinceLastCall: n
   if (isHindi) {
     return `Hello ${firstName} जी! Sentio की तरफ से आपकी daily call है।`;
   } else {
-    if (daysSinceLastCall === null || daysSinceLastCall > 7) {
-      const options = [
-        `Hello ${firstName}, this is Sentio, your health companion.`,
-        `Hi ${firstName}, Sentio here. Good to connect with you.`,
-        `Hello ${firstName}, Sentio calling. Nice to speak with you.`,
-      ];
-      return options[dayHash];
-    } else if (daysSinceLastCall === 0) {
-      const options = [
-        `${firstName}, Sentio again. We're checking in once more today.`,
-        `Hi ${firstName}, Sentio here. Talking again today.`,
-        `${firstName}, Sentio is here with you again today.`,
-      ];
-      return options[dayHash];
-    } else if (daysSinceLastCall === 1) {
-      const options = [
-        `${firstName}, Sentio here. We spoke yesterday.`,
-        `Hi ${firstName}, Sentio calling. Good to talk again after yesterday.`,
-        `${firstName}, Sentio here again. We connected yesterday too.`,
-      ];
-      return options[dayHash];
-    } else {
-      const options = [
-        `${firstName}, Sentio here. It's been ${daysSinceLastCall} days since we spoke.`,
-        `Hi ${firstName}, Sentio calling. It's been a few days.`,
-        `Hello ${firstName}, Sentio here. Been a little while since our last chat.`,
-      ];
-      return options[dayHash];
-    }
+    return `Hello ${firstName}, this is your daily call from Sentio.`;
   }
 }
 
