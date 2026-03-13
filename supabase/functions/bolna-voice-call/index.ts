@@ -122,11 +122,6 @@ function formatMedicines(medicines: any[], isHindi: boolean): string {
   }).filter(Boolean).join(', ');
 }
 
-// Extract just the raw medicine names for strict AI reference
-function getMedicineNamesOnly(medicines: any[]): string {
-  if (!medicines || medicines.length === 0) return '';
-  return medicines.map((m: any) => (m.name || '').trim()).filter(Boolean).join(', ');
-}
 
 // Build natural-language monitoring questions from topic IDs
 function buildMonitoringQuestions(topics: string[], customQuestions: any[], isHindi: boolean): string {
@@ -376,23 +371,13 @@ serve(async (req) => {
       .limit(7);
 
     let daysSinceLastCall: number | null = null;
-    let lastSummary = '';
     if (previousCheckIns && previousCheckIns.length > 0) {
       const lastCheckInDate = previousCheckIns[0]?.created_at;
       if (lastCheckInDate) {
         daysSinceLastCall = Math.floor((now.getTime() - new Date(lastCheckInDate).getTime()) / (1000 * 60 * 60 * 24));
       }
-      lastSummary = previousCheckIns[0]?.conversation_summary || '';
     }
 
-    // Build recent call summaries (last 3) for raw memory
-    const recentCallSummaries = (previousCheckIns || [])
-      .slice(0, 3)
-      .map((c, i) => {
-        const date = new Date(c.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
-        return `[${date}] ${c.conversation_summary || 'No summary'}`;
-      })
-      .join('\n');
 
     // Get active symptoms (exclude resolved)
     const { data: resolvedSymptomsData } = await supabase
@@ -556,9 +541,6 @@ serve(async (req) => {
     const wellbeingQuestion = wellbeingQuestions[dayHash];
 
 
-    const symptomDaysFormatted = Object.entries(symptomDaysMap)
-      .map(([symptom, days]) => `${symptom}:${days}`)
-      .join(', ');
 
     // ============ GENERATE AI BRIEFING ============
     let briefing = '';
@@ -568,10 +550,6 @@ serve(async (req) => {
       try {
         console.log('Generating AI briefing for call...');
         
-        const callHistory = (previousCheckIns || []).map(c => {
-          const date = new Date(c.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
-          return `- ${date}: Score ${c.well_being_score}/10, Sentiment: ${c.sentiment || 'unknown'}, Meds taken: ${c.medicines_taken ?? 'unknown'}, Summary: ${c.conversation_summary || 'No details'}`;
-        }).join('\n');
 
         const briefingLang = isHindi ? 'Hindi (Hinglish is fine)' : 'English';
         
@@ -586,7 +564,7 @@ serve(async (req) => {
 CONTEXT:
 - ${medicineNameConstraint}
 - Active symptoms: ${activeSymptomsList || 'None'}
-- Symptom days: ${symptomDaysFormatted || 'None'}
+- Symptom days: ${Object.entries(symptomDaysMap).map(([s, d]) => `${s}:${d}`).join(', ') || 'None'}
 - Monitoring topics: ${monitoringQuestions || 'None'}
 - Days since last call: ${daysSinceLastCall ?? 'First call ever'}
 - Last 3 calls:
@@ -594,7 +572,7 @@ ${(previousCheckIns || []).slice(0, 3).map(c => `  ${new Date(c.created_at).toLo
 
 RULES:
 • Bullet 1: What happened last call (one sentence).
-• Bullet 2: What to ask today — pick ONE medicine from the ALLOWED list above OR one symptom to follow up. NEVER use a medicine name not in the allowed list.
+• Bullet 2: One thing to watch for today (a symptom, mood, or health pattern from recent calls). Do NOT mention specific medicine names here — the medicine question is asked separately.
 • Bullet 3: One conversation starter if they give brief answers.
 • Max 50 words total. No paragraphs. No explanations.
 • CRITICAL: Do NOT invent or substitute medicine names. Only use names from the ALLOWED list above.
@@ -676,20 +654,6 @@ RULES:
     }
     // ============ END AI BRIEFING ============
 
-    // Build symptom follow-up instruction so AI MUST ask about recent symptoms
-    let symptomFollowup = '';
-    if (activeSymptoms.length > 0) {
-      const topSymptom = activeSymptoms[0];
-      const daysAgo = symptomDaysMap[topSymptom] || 0;
-      const timeDesc = daysAgo === 0 ? 'today' : daysAgo === 1 ? 'yesterday' : `${daysAgo} days ago`;
-      if (isHindi) {
-        symptomFollowup = `MANDATORY: पहले "${topSymptom}" के बारे में पूछें (${timeDesc} बताया था)। दवाई के बारे में पूछने से पहले ये पूछें।`;
-      } else {
-        symptomFollowup = `MANDATORY: Ask about "${topSymptom}" first (reported ${timeDesc}). Ask this BEFORE asking about medicines.`;
-      }
-    }
-
-    const medicineNamesOnly = getMedicineNamesOnly(medicines);
 
     // DEFENSIVE: For emergency calls, clear ALL routine data so the agent
     // cannot improvise medicine checks, symptom follow-ups, or monitoring questions.
@@ -701,13 +665,7 @@ RULES:
       first_question: isEmergency ? "" : firstQuestion,
       briefing: isEmergency ? "" : briefing,
       medicines: isEmergency ? "" : medicineList,
-      medicine_names_only: isEmergency ? "" : medicineNamesOnly,
       medicine_question: isEmergency ? "" : medicineQuestion,
-      active_symptoms: isEmergency ? "" : activeSymptomsList,
-      symptom_followup: isEmergency ? "" : symptomFollowup,
-      symptom_days: isEmergency ? "" : symptomDaysFormatted,
-      last_summary: isEmergency ? "" : lastSummary.substring(0, 150),
-      recent_calls: isEmergency ? "" : recentCallSummaries.substring(0, 500),
       monitoring_topics: isEmergency ? "" : monitoringQuestions,
       new_concern_prompt: isEmergency ? "" : newConcernPrompt,
       wellbeing_question: isEmergency ? "" : wellbeingQuestion,
