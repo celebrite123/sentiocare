@@ -300,8 +300,8 @@ serve(async (req) => {
 
     // Create greeting based on language
     const greeting = isHindi 
-      ? `नमस्ते ${elderName} जी, मैं Sentio हूं। आज आपकी तबीयत कैसी है?`
-      : `Hello ${elderName}, this is Sentio, your health check-in assistant. How are you feeling today?`;
+      ? `Hello ${elderName} जी! Sentio की तरफ से आपकी daily call है।`
+      : `Hello ${elderName}, this is your daily call from Sentio.`;
 
     // Variable values to pass to Vapi assistant
     const variableValues = {
