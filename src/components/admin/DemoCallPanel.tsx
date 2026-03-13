@@ -52,14 +52,36 @@ const DemoCallPanel = () => {
         body: { action: 'call', elderId: elder.id },
       });
 
-      if (error) throw error;
+      if (error) {
+        // Parse structured error from edge function
+        const errorBody = typeof error === 'object' && error.context ? error.context : error;
+        const errorMsg = errorBody?.message || error?.message || 'Call failed';
+        
+        if (errorMsg.includes('DAILY_LIMIT_REACHED') || errorMsg.includes('Daily call limit')) {
+          toast.error(`Daily call limit reached for ${elder.full_name}`, {
+            description: 'This elder has already received 3 calls today. Limit is being bypassed for admin calls.',
+          });
+        } else {
+          throw error;
+        }
+        return;
+      }
 
       if (data.success) {
         toast.success(`Call initiated to ${elder.full_name}`, {
           description: `Calling ${elder.phone_number}...`,
         });
       } else {
-        toast.error(data.error || 'Call failed');
+        const errorCode = data.code;
+        if (errorCode === 'DAILY_LIMIT_REACHED') {
+          toast.error(`Daily limit: ${data.callsToday} calls today`, {
+            description: 'Admin bypass applied — retrying...',
+          });
+        } else if (errorCode === 'SUBSCRIPTION_REQUIRED') {
+          toast.error('Voice calls require Premium subscription');
+        } else {
+          toast.error(data.error || 'Call failed');
+        }
       }
     } catch (err: any) {
       console.error('Call error:', err);
