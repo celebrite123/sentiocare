@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useRef } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { MessageSquare, Phone, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
@@ -32,31 +32,15 @@ interface CheckInLogProps {
 
 // Audio player component that uses proxy to avoid CORS issues
 const AudioPlayer = ({ checkInId }: { checkInId: string }) => {
-  const audioRef = useRef<HTMLAudioElement | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [ready, setReady] = useState(false);
 
   const loadAndPlay = async () => {
-    if (loading) return;
-    
-    // If already loaded, just show the player
-    if (audioUrl) {
-      setReady(true);
-      return;
-    }
+    if (loading || audioUrl) return;
     
     setLoading(true);
     setError(null);
-    
-    // Create Audio element immediately in gesture context (critical for iOS Safari)
-    const audio = new Audio();
-    audio.preload = "auto";
-    audioRef.current = audio;
-    
-    // Unlock audio on mobile by playing silence in gesture context
-    try { await audio.play(); } catch { /* expected - no src yet */ }
     
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -67,7 +51,7 @@ const AudioPlayer = ({ checkInId }: { checkInId: string }) => {
       }
 
       const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/proxy-recording?checkInId=${checkInId}`,
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/proxy-recording?checkInId=${checkInId}&urlOnly=true`,
         {
           headers: {
             'Authorization': `Bearer ${session.access_token}`,
@@ -80,15 +64,8 @@ const AudioPlayer = ({ checkInId }: { checkInId: string }) => {
         throw new Error(errorData.error || 'Failed to load recording');
       }
 
-      const audioBlob = await response.blob();
-      const url = URL.createObjectURL(audioBlob);
+      const { url } = await response.json();
       setAudioUrl(url);
-      setReady(true);
-      
-      // Set src and play on the already-unlocked audio element
-      audio.src = url;
-      audio.onended = () => { /* keep url alive for replay */ };
-      await audio.play().catch(() => { /* user can press play on controls */ });
     } catch (err: any) {
       console.error('Error loading audio:', err);
       setError(err.message || 'Failed to load recording');
@@ -97,27 +74,18 @@ const AudioPlayer = ({ checkInId }: { checkInId: string }) => {
     }
   };
 
-  // Cleanup blob URL on unmount
-  useEffect(() => {
-    return () => {
-      if (audioUrl) {
-        URL.revokeObjectURL(audioUrl);
-      }
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current = null;
-      }
-    };
-  }, [audioUrl]);
-
   return (
     <div className="mb-4 p-3 bg-muted/50 rounded-lg">
       <p className="text-sm font-medium mb-2">Voice Recording</p>
       {error ? (
-        <p className="text-sm text-destructive">{error}</p>
-      ) : ready && audioUrl ? (
+        <div className="flex items-center gap-2">
+          <p className="text-sm text-destructive">{error}</p>
+          <button onClick={() => { setError(null); loadAndPlay(); }} className="text-sm text-primary hover:underline">Retry</button>
+        </div>
+      ) : audioUrl ? (
         <audio 
           controls 
+          autoPlay
           className="w-full h-10"
           src={audioUrl}
         >
