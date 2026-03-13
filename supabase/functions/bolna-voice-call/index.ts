@@ -466,6 +466,22 @@ serve(async (req) => {
       ? "कोई नई तकलीफ़ तो नहीं है?"
       : "Any new health concern today?";
 
+    // Build symptom follow-up question from active symptoms
+    let symptomFollowup = '';
+    if (activeSymptoms.length > 0) {
+      const topSymptom = activeSymptoms[0];
+      const days = symptomDaysMap[topSymptom] || 0;
+      if (isHindi) {
+        symptomFollowup = days > 1
+          ? `पिछली बार आपने ${topSymptom} बताया था। अभी कैसा है?`
+          : `आपने ${topSymptom} बताया था। अभी कैसा है?`;
+      } else {
+        symptomFollowup = days > 1
+          ? `Last time you mentioned ${topSymptom}. How is it now?`
+          : `You mentioned ${topSymptom}. How is it now?`;
+      }
+    }
+
     // Build wellbeing question (rotated) — used when no monitoring topics are configured
     const wellbeingQuestions = isHindi
       ? [
