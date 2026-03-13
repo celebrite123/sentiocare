@@ -493,10 +493,34 @@ serve(async (req) => {
     const firstName = getFirstName(elderName);
     const greeting = buildGreeting(firstName, isHindi, daysSinceLastCall, isEmergency);
     
-    // Format medicines with name + purpose for AI context
+    // Format medicines — plain names only for the agent to reference
     const medicineList = formatMedicines(medicines, isHindi);
     
     const activeSymptomsList = activeSymptoms.length > 0 ? activeSymptoms.slice(0, 2).join(', ') : '';
+
+    // Pre-build the exact medicine question so the agent says it verbatim (no template interpretation)
+    let medicineQuestion = '';
+    if (medicines && medicines.length > 0) {
+      const firstMed = medicines[0];
+      const medName = (firstMed.name || '').trim();
+      const medPurpose = (firstMed.purpose || '').trim();
+      if (medName) {
+        if (isHindi) {
+          medicineQuestion = medPurpose 
+            ? `क्या आपने आज ${medPurpose} की दवाई ली? ${medName} वाली?`
+            : `क्या आपने आज ${medName} ली?`;
+        } else {
+          medicineQuestion = medPurpose
+            ? `Did you take your ${medPurpose} medicine today? The ${medName}?`
+            : `Did you take your ${medName} today?`;
+        }
+      }
+    }
+
+    // Pre-build the first interactive question (asked right after greeting)
+    const firstQuestion = isHindi 
+      ? "आज कैसी तबीयत है?"
+      : "How are you feeling today?";
 
     // Get monitoring config and build natural-language questions
     const monitoringConfig = (elder as any).monitoring_config || { topics: [], custom_questions: [] };
@@ -669,9 +693,11 @@ RULES:
       elder_id: elderId,
       first_name: firstName,
       greeting: greeting,
+      first_question: isEmergency ? "" : firstQuestion,
       briefing: isEmergency ? "" : briefing,
       medicines: isEmergency ? "" : medicineList,
       medicine_names_only: isEmergency ? "" : medicineNamesOnly,
+      medicine_question: isEmergency ? "" : medicineQuestion,
       active_symptoms: isEmergency ? "" : activeSymptomsList,
       symptom_followup: isEmergency ? "" : symptomFollowup,
       symptom_days: isEmergency ? "" : symptomDaysFormatted,
