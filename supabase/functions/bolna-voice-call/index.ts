@@ -209,7 +209,7 @@ serve(async (req) => {
     }
     // ============ END AUTHENTICATION CHECK ============
 
-    const { elderId, elderName, elderPhone, medicines, medicalConditions, preferredLanguage = 'english', isEmergency = false } = await req.json();
+    const { elderId, elderName, elderPhone, medicines, medicalConditions, preferredLanguage = 'english', isEmergency = false, bypassDailyLimit = false } = await req.json();
     
     const BOLNA_API_KEY = Deno.env.get('BOLNA_API_KEY');
     const BOLNA_AGENT_ID_ENGLISH = Deno.env.get('BOLNA_AGENT_ID');
