@@ -598,7 +598,8 @@ Respond ONLY in valid JSON format:
             const jsonMatch = content.match(/\{[\s\S]*\}/);
             if (jsonMatch) {
               analysis = JSON.parse(jsonMatch[0]);
-              console.log("Parsed analysis:", analysis);
+              console.log("Parsed analysis:", JSON.stringify(analysis));
+              console.log("Transcript snippet for debug:", transcript.substring(0, 300));
             }
           }
         }
