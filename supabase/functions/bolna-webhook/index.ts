@@ -250,12 +250,23 @@ async function sendCaregiverDailyConfirmation(
       }
     );
 
+    console.log("Twilio WhatsApp send attempt:", { from: `whatsapp:${TWILIO_WHATSAPP_NUMBER}`, to: `whatsapp:${normalizedPhone}` });
+
+    const resData = await twilioRes.json();
+
     if (twilioRes.ok) {
-      const resData = await twilioRes.json();
-      console.log("Call summary sent via Twilio WhatsApp:", { sid: resData.sid, to: normalizedPhone, status: statusEmoji });
+      console.log("✅ Call summary sent via Twilio WhatsApp:", { sid: resData.sid, to: normalizedPhone, status: statusEmoji });
     } else {
-      const errBody = await twilioRes.text();
-      console.error("Twilio WhatsApp summary FAILED:", twilioRes.status, errBody);
+      const errorCode = resData?.code;
+      const errorMsg = resData?.message || "Unknown error";
+      console.error(`❌ Twilio WhatsApp summary FAILED [${twilioRes.status}]:`, { code: errorCode, message: errorMsg, to: normalizedPhone });
+      
+      // Actionable guidance for common errors
+      if (errorCode === 63007 || errorCode === 63016 || errorMsg.includes("not a valid WhatsApp")) {
+        console.error("🔔 SANDBOX BLOCKER: Caregiver has NOT opted into the Twilio WhatsApp Sandbox. They must text 'join <your-keyword>' to the sandbox number before they can receive messages.");
+      } else if (errorCode === 21608 || errorMsg.includes("unverified")) {
+        console.error("🔔 The 'To' number is unverified. For sandbox, caregiver must opt in first.");
+      }
     }
   } catch (error) {
     console.error("Error sending call summary to caregiver:", error);
