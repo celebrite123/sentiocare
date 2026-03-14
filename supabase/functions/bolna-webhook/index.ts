@@ -171,8 +171,8 @@ async function sendCaregiverDailyConfirmation(
     }
 
     const firstName = elderName?.split(' ')[0] || 'Elder';
-    const score = analysis.wellBeingScore || 0;
-    const medsTaken = analysis.medicinesTaken;
+    const score = typeof analysis.wellBeingScore === 'number' ? analysis.wellBeingScore : (typeof analysis.well_being_score === 'number' ? analysis.well_being_score : 0);
+    const medsTaken = analysis.medicinesTaken ?? analysis.medicines_taken ?? null;
 
     // Color-coded status
     let statusEmoji: string;
