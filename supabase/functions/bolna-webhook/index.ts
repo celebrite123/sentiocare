@@ -534,19 +534,6 @@ PROLONGED SYMPTOM CHECK:
 If a symptom has persisted 5+ days without improvement → Set "prolongedSymptomAlert": true
 ${monitoringInstructions}
 
-MEDICINE ADHERENCE RULES (CRITICAL — read carefully):
-Determine "medicinesTaken" from the elder's response to ANY medicine-related question.
-✅ Set TRUE if elder uses ANY of these (Hindi or English):
-  Hindi: "हाँ ली", "ले ली", "खा ली", "BP ली", "दवाई ली", "गोली ली", "medicine ली", "हाँ खाई", "सब ली", "ले लिया"
-  English: "yes taken", "took my medicine", "had my BP", "already taken", "yes I did", "took it"
-  OR: Any affirmative response (हाँ/yes/ji) when asked about medicines
-  OR: Mentioning taking ANY specific medicine by name (e.g. "BP ki dawai li", "sugar ki goli khai")
-❌ Set FALSE only if elder CLEARLY denies:
-  Hindi: "नहीं ली", "भूल गया", "भूल गयी", "छोड़ दी", "नहीं खाई", "आज नहीं"
-  English: "didn't take", "forgot", "skipped", "missed", "no I haven't"
-⚠️ Set NULL if medicines were not discussed at all.
-DEFAULT BIAS: When in doubt between true and false, default to TRUE. Only set false on CLEAR denial.
-
 EMOTIONAL STATE ANALYSIS:
 Analyze the elder's emotional state from the conversation. Look for:
 - Direct mood statements ("I'm sad", "मन उदास है", "lonely", "अकेला")
@@ -586,7 +573,7 @@ Respond ONLY in valid JSON format:
             model: "google/gemini-2.5-flash",
             messages: [
               { role: "system", content: analysisPrompt },
-              { role: "user", content: `Elder's prescribed medicines: ${elder.medicines?.map((m: any) => m.name).join(', ') || 'unknown'}\n\nAnalyze this call transcript:\n\n${transcript}` },
+              { role: "user", content: `Analyze this call transcript:\n\n${transcript}` },
             ],
           }),
         });
@@ -598,8 +585,7 @@ Respond ONLY in valid JSON format:
             const jsonMatch = content.match(/\{[\s\S]*\}/);
             if (jsonMatch) {
               analysis = JSON.parse(jsonMatch[0]);
-              console.log("Parsed analysis:", JSON.stringify(analysis));
-              console.log("Transcript snippet for debug:", transcript.substring(0, 300));
+              console.log("Parsed analysis:", analysis);
             }
           }
         }
