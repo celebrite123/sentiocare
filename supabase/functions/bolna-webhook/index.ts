@@ -122,7 +122,7 @@ function parseTranscript(rawTranscript: string): Array<{role: string, message: s
   return parsedLogs;
 }
 
-// Send daily check-in confirmation to caregiver via Interakt WhatsApp
+// Send color-coded call summary to caregiver via Twilio WhatsApp
 async function sendCaregiverDailyConfirmation(
   supabase: any,
   elderId: string,
@@ -161,59 +161,104 @@ async function sendCaregiverDailyConfirmation(
       return;
     }
 
-    const INTERAKT_API_KEY = Deno.env.get("INTERAKT_API_KEY");
-    if (!INTERAKT_API_KEY) {
-      console.error("INTERAKT_API_KEY missing — cannot send WhatsApp");
+    const TWILIO_ACCOUNT_SID = Deno.env.get("TWILIO_ACCOUNT_SID");
+    const TWILIO_AUTH_TOKEN = Deno.env.get("TWILIO_AUTH_TOKEN");
+    const TWILIO_WHATSAPP_NUMBER = Deno.env.get("TWILIO_WHATSAPP_NUMBER");
+
+    if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN || !TWILIO_WHATSAPP_NUMBER) {
+      console.error("Twilio WhatsApp credentials missing — cannot send summary");
       return;
     }
 
     const firstName = elderName?.split(' ')[0] || 'Elder';
-    const caregiverFirstName = caregiverName?.split(' ')[0] || '';
-    const score = String(analysis.wellBeingScore || '?');
+    const score = analysis.wellBeingScore || 0;
     const medsTaken = analysis.medicinesTaken;
-    const medsStatus = medsTaken === true ? (isHindi ? 'दवाई ली ✅' : 'Taken ✅') : medsTaken === false ? (isHindi ? 'दवाई नहीं ली ❌' : 'NOT taken ❌') : '';
-    const symptoms = (analysis.symptomsReported || []).length > 0
-      ? (analysis.symptomsReported || []).slice(0, 2).join(', ')
-      : (isHindi ? 'कोई तकलीफ नहीं 😊' : 'No concerns 😊');
 
-    // Normalize phone: strip +, 0 prefix, ensure just digits
-    const cleanPhone = caregiverPhone.replace(/[\s\-\+]/g, '').replace(/^0+/, '');
-    const phoneNumber = cleanPhone.startsWith('91') ? cleanPhone.substring(2) : cleanPhone;
-
-    const interaktRes = await fetch("https://api.interakt.ai/v1/public/message/", {
-      method: "POST",
-      headers: {
-        "Authorization": `Basic ${INTERAKT_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        countryCode: "+91",
-        phoneNumber: phoneNumber,
-        callbackData: `daily_confirmation_${elderId}`,
-        type: "Template",
-        template: {
-          name: "sentio_daily_confirmation",
-          languageCode: isHindi ? "hi" : "en",
-          bodyValues: [
-            caregiverFirstName,
-            firstName,
-            score,
-            medsStatus,
-            symptoms,
-          ],
-        },
-      }),
-    });
-
-    if (interaktRes.ok) {
-      const resData = await interaktRes.json();
-      console.log("Daily check-in confirmation sent via Interakt:", resData);
+    // Color-coded status
+    let statusEmoji: string;
+    let statusLabel: string;
+    if (score >= 7) {
+      statusEmoji = "🟢";
+      statusLabel = isHindi ? "सब ठीक है" : "All Good";
+    } else if (score >= 4) {
+      statusEmoji = "🟡";
+      statusLabel = isHindi ? "ध्यान दें" : "Needs Attention";
     } else {
-      const errBody = await interaktRes.text();
-      console.error("Interakt caregiver confirmation FAILED:", interaktRes.status, errBody);
+      statusEmoji = "🔴";
+      statusLabel = isHindi ? "तुरंत देखें" : "Urgent";
+    }
+
+    // Medicine status
+    const medsStatus = medsTaken === true 
+      ? (isHindi ? "ली ✅" : "Taken ✅") 
+      : medsTaken === false 
+        ? (isHindi ? "नहीं ली ❌" : "NOT taken ❌") 
+        : (isHindi ? "पता नहीं" : "Unknown");
+
+    // Symptoms
+    const symptoms = (analysis.symptomsReported || []).length > 0
+      ? (analysis.symptomsReported || []).slice(0, 3).join(", ")
+      : (isHindi ? "कोई तकलीफ नहीं 😊" : "None 😊");
+
+    // AI summary
+    const summary = analysis.conversationSummary || analysis.summary || "";
+
+    // Build message
+    let message: string;
+    if (isHindi) {
+      message = `${statusEmoji} Sentio Update — ${firstName}\n\n` +
+        `तबीयत: ${score}/10 (${statusLabel})\n` +
+        `दवाई: ${medsStatus}\n` +
+        `तकलीफ: ${symptoms}\n`;
+      if (summary) message += `\nसारांश: ${summary}\n`;
+      if (score <= 3) message += `\n⚠️ कृपया ${firstName} को तुरंत देखें।`;
+    } else {
+      message = `${statusEmoji} Sentio Update — ${firstName}\n\n` +
+        `Wellbeing: ${score}/10 (${statusLabel})\n` +
+        `Medicines: ${medsStatus}\n` +
+        `Symptoms: ${symptoms}\n`;
+      if (summary) message += `\nSummary: ${summary}\n`;
+      if (score <= 3) message += `\n⚠️ Please check on ${firstName} immediately.`;
+    }
+
+    // Normalize phone for Twilio (needs +countrycode format)
+    let normalizedPhone = caregiverPhone.replace(/[\s\-]/g, '');
+    if (!normalizedPhone.startsWith('+')) {
+      // Assume Indian number if no country code
+      if (normalizedPhone.startsWith('0')) {
+        normalizedPhone = '+91' + normalizedPhone.substring(1);
+      } else if (normalizedPhone.startsWith('91') && normalizedPhone.length > 10) {
+        normalizedPhone = '+' + normalizedPhone;
+      } else {
+        normalizedPhone = '+91' + normalizedPhone;
+      }
+    }
+
+    const twilioRes = await fetch(
+      `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Messages.json`,
+      {
+        method: "POST",
+        headers: {
+          "Authorization": `Basic ${btoa(`${TWILIO_ACCOUNT_SID}:${TWILIO_AUTH_TOKEN}`)}`,
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: new URLSearchParams({
+          From: `whatsapp:${TWILIO_WHATSAPP_NUMBER}`,
+          To: `whatsapp:${normalizedPhone}`,
+          Body: message,
+        }),
+      }
+    );
+
+    if (twilioRes.ok) {
+      const resData = await twilioRes.json();
+      console.log("Call summary sent via Twilio WhatsApp:", { sid: resData.sid, to: normalizedPhone, status: statusEmoji });
+    } else {
+      const errBody = await twilioRes.text();
+      console.error("Twilio WhatsApp summary FAILED:", twilioRes.status, errBody);
     }
   } catch (error) {
-    console.error("Error sending daily confirmation to caregiver:", error);
+    console.error("Error sending call summary to caregiver:", error);
   }
 }
 
