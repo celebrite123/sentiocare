@@ -195,9 +195,11 @@ async function sendCaregiverDailyConfirmation(
         ? (isHindi ? "नहीं ली ❌" : "NOT taken ❌") 
         : (isHindi ? "पता नहीं" : "Unknown");
 
-    // Symptoms
-    const symptoms = (analysis.symptomsReported || []).length > 0
-      ? (analysis.symptomsReported || []).slice(0, 3).join(", ")
+    // Symptoms — handle multiple possible field names from AI analysis
+    const rawSymptoms = analysis.symptomsReported || analysis.symptoms_reported || analysis.symptoms || [];
+    const symptomsList = Array.isArray(rawSymptoms) ? rawSymptoms : [];
+    const symptoms = symptomsList.length > 0
+      ? symptomsList.slice(0, 3).join(", ")
       : (isHindi ? "कोई तकलीफ नहीं 😊" : "None 😊");
 
     // AI summary
