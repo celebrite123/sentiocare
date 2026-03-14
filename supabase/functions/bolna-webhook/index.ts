@@ -586,7 +586,7 @@ Respond ONLY in valid JSON format:
             model: "google/gemini-2.5-flash",
             messages: [
               { role: "system", content: analysisPrompt },
-              { role: "user", content: `Analyze this call transcript:\n\n${transcript}` },
+              { role: "user", content: `Elder's prescribed medicines: ${elder.medicines?.map((m: any) => m.name).join(', ') || 'unknown'}\n\nAnalyze this call transcript:\n\n${transcript}` },
             ],
           }),
         });
