@@ -171,8 +171,8 @@ async function sendCaregiverDailyConfirmation(
     }
 
     const firstName = elderName?.split(' ')[0] || 'Elder';
-    const score = analysis.wellBeingScore || 0;
-    const medsTaken = analysis.medicinesTaken;
+    const score = typeof analysis.wellBeingScore === 'number' ? analysis.wellBeingScore : (typeof analysis.well_being_score === 'number' ? analysis.well_being_score : 0);
+    const medsTaken = analysis.medicinesTaken ?? analysis.medicines_taken ?? null;
 
     // Color-coded status
     let statusEmoji: string;
@@ -195,9 +195,11 @@ async function sendCaregiverDailyConfirmation(
         ? (isHindi ? "नहीं ली ❌" : "NOT taken ❌") 
         : (isHindi ? "पता नहीं" : "Unknown");
 
-    // Symptoms
-    const symptoms = (analysis.symptomsReported || []).length > 0
-      ? (analysis.symptomsReported || []).slice(0, 3).join(", ")
+    // Symptoms — handle multiple possible field names from AI analysis
+    const rawSymptoms = analysis.symptomsReported || analysis.symptoms_reported || analysis.symptoms || [];
+    const symptomsList = Array.isArray(rawSymptoms) ? rawSymptoms : [];
+    const symptoms = symptomsList.length > 0
+      ? symptomsList.slice(0, 3).join(", ")
       : (isHindi ? "कोई तकलीफ नहीं 😊" : "None 😊");
 
     // AI summary
@@ -250,12 +252,23 @@ async function sendCaregiverDailyConfirmation(
       }
     );
 
+    console.log("Twilio WhatsApp send attempt:", { from: `whatsapp:${TWILIO_WHATSAPP_NUMBER}`, to: `whatsapp:${normalizedPhone}` });
+
+    const resData = await twilioRes.json();
+
     if (twilioRes.ok) {
-      const resData = await twilioRes.json();
-      console.log("Call summary sent via Twilio WhatsApp:", { sid: resData.sid, to: normalizedPhone, status: statusEmoji });
+      console.log("✅ Call summary sent via Twilio WhatsApp:", { sid: resData.sid, to: normalizedPhone, status: statusEmoji });
     } else {
-      const errBody = await twilioRes.text();
-      console.error("Twilio WhatsApp summary FAILED:", twilioRes.status, errBody);
+      const errorCode = resData?.code;
+      const errorMsg = resData?.message || "Unknown error";
+      console.error(`❌ Twilio WhatsApp summary FAILED [${twilioRes.status}]:`, { code: errorCode, message: errorMsg, to: normalizedPhone });
+      
+      // Actionable guidance for common errors
+      if (errorCode === 63007 || errorCode === 63016 || errorMsg.includes("not a valid WhatsApp")) {
+        console.error("🔔 SANDBOX BLOCKER: Caregiver has NOT opted into the Twilio WhatsApp Sandbox. They must text 'join <your-keyword>' to the sandbox number before they can receive messages.");
+      } else if (errorCode === 21608 || errorMsg.includes("unverified")) {
+        console.error("🔔 The 'To' number is unverified. For sandbox, caregiver must opt in first.");
+      }
     }
   } catch (error) {
     console.error("Error sending call summary to caregiver:", error);
@@ -263,8 +276,13 @@ async function sendCaregiverDailyConfirmation(
 }
 
 serve(async (req) => {
+  const corsHeaders = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  };
+
   if (req.method === "OPTIONS") {
-    return new Response(null, { status: 200 });
+    return new Response(null, { headers: corsHeaders });
   }
 
   try {
