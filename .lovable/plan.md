@@ -1,107 +1,65 @@
 
 
-# Fix: Simplify Voice Agent — Stop "Bahut Acche + Nahi Li" and Clean Up
+# Call Summary on WhatsApp for Families (Green/Yellow/Red)
 
-## Problems (from latest transcripts)
+## What we're building
+After every successful voice check-in call, send a color-coded WhatsApp summary to the caregiver via Twilio WhatsApp Sandbox with:
+- 🟢 **Green** (score 7-10): Elder is doing well
+- 🟡 **Yellow** (score 4-6): Needs attention
+- 🔴 **Red** (score 1-3): Urgent concern
 
-1. **"Bahut acche, aapne dawai nahi li"** — Agent merges YES and NO medicine responses into one nonsensical sentence because the prompt puts both options on the same line
-2. **Double greeting** — `welcome_message` = `{greeting}` AND prompt says "Say {greeting} exactly" → agent speaks greeting twice
-3. **Context bloat** — `last_summary`, `recent_calls`, `symptom_followup`, `medicine_names_only`, `symptom_days` all dumped into userData, polluting the agent's working memory and causing it to read instructions literally
-4. **Briefing echoes medicine question** — The AI briefing sometimes generates "Ask about dsa" which makes the agent double-ask about medicine
+## Current state
+- `sendCaregiverDailyConfirmation()` in `bolna-webhook/index.ts` already sends a summary via **Interakt** using a template
+- It's called at line ~823 after every answered, non-silent call
+- Twilio WhatsApp credentials (`TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_NUMBER`) are already configured as secrets
 
-## Solution: Two files, surgical changes
+## Changes — Single file: `supabase/functions/bolna-webhook/index.ts`
 
-### File 1: `SENTIO_VOICE_AGENT_GUARDRAILS.md` — Full rewrite to ~30 lines
+### Replace `sendCaregiverDailyConfirmation` function (lines 126-218)
 
-Replace the entire agent prompt section with a dead-simple linear flow:
+Replace the Interakt-based implementation with a Twilio WhatsApp message:
 
+1. **Keep** the same caregiver phone lookup logic (notification_settings → emergency_contact fallback)
+2. **Replace** the Interakt API call with a Twilio WhatsApp message using the existing credentials
+3. **Build a rich text message** with:
+   - Color indicator: 🟢/🟡/🔴 based on wellbeing score
+   - Elder name
+   - Wellbeing score (X/10)
+   - Medicine status (✅/❌)
+   - Symptoms if any
+   - AI summary (from analysis)
+   - Appropriate call-to-action based on severity
+
+**Message format example:**
 ```
-You are Sentio. Daily elder health check-in. Warm, caring, under 90 seconds.
+🟢 Sentio Daily Update — Ramesh
 
-BRIEFING: {briefing}
+Wellbeing: 8/10
+Medicines: Taken ✅
+Symptoms: None 😊
 
-EMERGENCY — IMMEDIATE OVERRIDE (at ANY point in the call):
-If elder says: chest pain, breathing difficulty, fainting, behosh, stroke signs, suicidal words, severe bleeding
-→ 1. "Main samajh raha hu. Ye serious hai."
-→ 2. "Turant {caregiver_name} ko call karein" (or "doctor ko call karein")
-→ 3. "Aapke parivaar ko bata raha hu. Fikr mat karein."
-→ 4. End call.
+Summary: Ramesh is feeling well today, took all medicines on time.
 
-IF {is_emergency} = "true":
-→ Ask "Kya hua? Bataiye." → Listen → Acknowledge → If life-threatening, do emergency above → Otherwise reassure and end.
-
-NORMAL CALL — 4 STEPS IN ORDER:
-
-STEP 1: Ask: {first_question}
-  Wait for full answer. Acknowledge what they said in ONE sentence.
-  Example: They say "theek nahi" → You say "accha, theek nahi lag raha"
-  NEVER say "haan theek hai" if they said "theek nahi"
-
-STEP 2: Ask: {medicine_question}   [skip if empty]
-  Wait for answer.
-  ✅ If they say YES / haan / li → Reply ONLY: "बहुत अच्छे"
-  ❌ If they say NO / nahi / nahi li → Reply ONLY: "कोई बात नहीं, कल ज़रूर लीजिए"
-  ⚠️ NEVER combine both. NEVER say "bahut acche" and "nahi li" together.
-
-STEP 3: Ask: {wellbeing_question}
-  Wait. Acknowledge.
-  Then ask: {new_concern_prompt}
-  Wait. If they mention pain → ask "1 se 10 mein kitna dard?" Only say "doctor" if 8+.
-
-STEP 4: One warm closing sentence. End.
-
-RULES:
-- After EVERY question: WAIT → ACKNOWLEDGE → then next question
-- Medicine names: ONLY from {medicines}. Never invent.
-- Say {first_question}, {medicine_question}, {wellbeing_question}, {new_concern_prompt} EXACTLY as given
-- Language: {preferred_language}
-- Use {first_name} only in greeting. After that: "aap" / "you"
-- Do NOT repeat the greeting. It is already spoken as the welcome message.
+Reply HELP for support.
 ```
 
-**Key differences from current prompt:**
-- Removed "Say {greeting} exactly" → fixes double greeting
-- Medicine YES/NO on separate lines with ✅/❌ markers and explicit "NEVER combine" rule
-- Removed `{active_symptoms}`, `{symptom_days}`, `{monitoring_topics}` from the flow → dramatically simplifies branching
-- Removed "max 4 questions" rule that conflicted with "complete all steps"
-- ~30 lines instead of ~80
-- Variables table updated to remove deprecated fields
+For 🔴 Red:
+```
+🔴 Sentio Alert — Ramesh
 
-### File 2: `supabase/functions/bolna-voice-call/index.ts` — Remove 6 noisy userData fields
+Wellbeing: 2/10
+Medicines: NOT taken ❌
+Symptoms: Chest pain, fever
 
-**Remove these fields from the `userData` object (lines 697-720):**
+Summary: Ramesh reported chest pain and has not taken medicines.
 
-| Field to remove | Why |
-|---|---|
-| `medicine_names_only` (line 704) | Redundant with `medicines`, adds noise |
-| `symptom_followup` (line 707) | Contains instruction text the agent reads literally |
-| `symptom_days` (line 708) | Removed from prompt, no longer needed |
-| `last_summary` (line 709) | Raw transcript text, not a real summary — pollutes context |
-| `recent_calls` (line 710) | Dumps full previous transcripts into context |
-| `active_symptoms` (line 706) | Simplified flow doesn't branch on this; wellbeing question covers it |
+⚠️ Please check on Ramesh immediately.
+```
 
-**Keep these fields (unchanged):**
-`elder_id`, `first_name`, `greeting`, `first_question`, `briefing`, `medicines`, `medicine_question`, `monitoring_topics`, `new_concern_prompt`, `wellbeing_question`, `is_emergency`, `emergency_intro`, `has_caregiver`, `caregiver_name`, `caregiver_relation`, `preferred_language`
-
-**Also fix the briefing prompt (lines 584-601):**
-- Remove bullet 2's instruction to "pick ONE medicine... to follow up" — this causes the briefing to echo the medicine question
-- Change bullet 2 to: "One thing to watch for today (a symptom, mood, or health pattern)"
-- This prevents the AI briefing from generating "Ask about dsa" which makes the agent double-ask
-
-**Also remove dead code:**
-- Remove `getMedicineNamesOnly()` function (line 126-129) — no longer called
-- Remove `symptomFollowup` variable construction (lines 679-690) — no longer used
-- Remove `recentCallSummaries` construction (lines 389-395) — no longer used
-- Remove `symptomDaysFormatted` construction (lines 559-561) — no longer used
-
-### After deployment
-
-You **must** copy the updated prompt from `SENTIO_VOICE_AGENT_GUARDRAILS.md` and paste it into the **Bolna Dashboard** for both Hindi and English agents. The code sends correct data, but the dashboard prompt controls what the agent actually says.
-
-## Summary
-
-| File | What changes |
-|------|-------------|
-| `SENTIO_VOICE_AGENT_GUARDRAILS.md` | Full rewrite: ~30 line linear prompt, fix medicine YES/NO, fix double greeting, remove branching complexity |
-| `supabase/functions/bolna-voice-call/index.ts` | Remove 6 noisy userData fields, fix briefing to not echo medicine question, remove dead code |
+### Technical details
+- Use `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_NUMBER` (already set)
+- Send via Twilio REST API: `POST /2010-04-01/Accounts/{SID}/Messages.json`
+- Format: `From: whatsapp:{TWILIO_WHATSAPP_NUMBER}`, `To: whatsapp:+91{phone}`
+- No database changes needed
+- No new secrets needed
 
