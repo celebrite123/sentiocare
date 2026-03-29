@@ -205,22 +205,21 @@ async function sendCaregiverDailyConfirmation(
     // AI summary
     const summary = analysis.conversationSummary || analysis.summary || "";
 
-    // Build message
+    // Build 3-line format message
     let message: string;
+    const aiFlags = summary ? summary.substring(0, 100).replace(/\n/g, ' ') : (isHindi ? 'कोई खास बात नहीं' : 'None');
+    const warning = score <= 3 ? (isHindi ? ' — ⚠️ तुरंत देखें!' : ' — ⚠️ Check immediately!') : '';
+    
     if (isHindi) {
-      message = `${statusEmoji} Sentio Update — ${firstName}\n\n` +
-        `तबीयत: ${score}/10 (${statusLabel})\n` +
-        `दवाई: ${medsStatus}\n` +
-        `तकलीफ: ${symptoms}\n`;
-      if (summary) message += `\nसारांश: ${summary}\n`;
-      if (score <= 3) message += `\n⚠️ कृपया ${firstName} को तुरंत देखें।`;
+      message = `*Sentio Update: ${firstName}*\n` +
+        `${statusEmoji} तबीयत (Mood): ${score}/10 (${statusLabel})\n` +
+        `💊 बातें (Mentions): दवाई ${medsStatus}, तकलीफ: ${symptoms}\n` +
+        `🚩 अलर्ट (Flags): ${aiFlags}${warning}`;
     } else {
-      message = `${statusEmoji} Sentio Update — ${firstName}\n\n` +
-        `Wellbeing: ${score}/10 (${statusLabel})\n` +
-        `Medicines: ${medsStatus}\n` +
-        `Symptoms: ${symptoms}\n`;
-      if (summary) message += `\nSummary: ${summary}\n`;
-      if (score <= 3) message += `\n⚠️ Please check on ${firstName} immediately.`;
+      message = `*Sentio Update: ${firstName}*\n` +
+        `${statusEmoji} Mood: ${score}/10 (${statusLabel})\n` +
+        `💊 Mentions: Meds ${medsStatus}. Symptoms: ${symptoms}\n` +
+        `🚩 Flags: ${aiFlags}${warning}`;
     }
 
     // Normalize phone for Twilio (needs +countrycode format)
@@ -405,8 +404,8 @@ serve(async (req) => {
 
         console.log(`Retry scheduled for ${nextRetryMinutes} minutes from now`);
 
-        if (retryCount === 0 && elderId) {
-          await sendMissedCallNotifications(supabase, elderId);
+        if (retryCount === 1 && elderId) {
+          await sendConsecutiveMissedCallAlert(supabase, elderId);
         }
 
         return new Response(JSON.stringify({ 
@@ -910,101 +909,52 @@ Respond ONLY in valid JSON format:
   }
 });
 
-// Send WhatsApp notifications when elder doesn't answer (via Interakt)
-async function sendMissedCallNotifications(supabase: any, elderId: string) {
-  const { data: elder } = await supabase
-    .from("elders")
-    .select("full_name, preferred_language, whatsapp_number, phone_number")
-    .eq("id", elderId)
-    .single();
+// Send Twilio alert for 2 consecutive missed calls
+async function sendConsecutiveMissedCallAlert(supabase: any, elderId: string) {
+  const { data: elder } = await supabase.from("elders").select("full_name, phone_number").eq("id", elderId).single();
+  const { data: settings } = await supabase.from("notification_settings").select("caregiver_name, caregiver_phone").eq("elder_id", elderId).single();
+  
+  if (!elder || !settings?.caregiver_phone) return;
 
-  const { data: settings } = await supabase
-    .from("notification_settings")
-    .select("caregiver_name, caregiver_phone")
-    .eq("elder_id", elderId)
-    .single();
+  const TWILIO_ACCOUNT_SID = Deno.env.get("TWILIO_ACCOUNT_SID");
+  const TWILIO_AUTH_TOKEN = Deno.env.get("TWILIO_AUTH_TOKEN");
+  const TWILIO_WHATSAPP_NUMBER = Deno.env.get("TWILIO_WHATSAPP_NUMBER");
 
-  if (!elder) return;
+  if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN || !TWILIO_WHATSAPP_NUMBER) return;
 
-  const INTERAKT_API_KEY = Deno.env.get("INTERAKT_API_KEY");
-  if (!INTERAKT_API_KEY) {
-    console.error("INTERAKT_API_KEY missing — cannot send missed call notifications");
-    return;
+  const currentTime = new Date().toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute:'2-digit' });
+  
+  const elderPhone = elder.phone_number?.replace(/[\s\-\+]/g, '') || '';
+  // Add a clickable link using wa.me. If no number, leave it empty.
+  const ctaLink = elderPhone ? `Click to call/text: https://wa.me/${elderPhone}` : '(No Number)';
+
+  const message = `⚠️ Urgent: We missed ${elder.full_name} during their automated check-in twice today at ${currentTime} IST.\n\nPlease check on them:\n${ctaLink}`;
+
+  let normalizedPhone = settings.caregiver_phone.replace(/[\s\-]/g, '');
+  if (!normalizedPhone.startsWith('+')) {
+    normalizedPhone = normalizedPhone.startsWith('0') ? '+91' + normalizedPhone.substring(1) : (normalizedPhone.length > 10 ? '+' + normalizedPhone : '+91' + normalizedPhone);
   }
 
-  const isHindi = elder.preferred_language === 'hindi';
-  const firstName = elder.full_name?.split(' ')[0] || 'जी';
-
-  // Send to elder
-  const elderPhone = elder.whatsapp_number || elder.phone_number;
-  if (elderPhone) {
-    const cleanElderPhone = elderPhone.replace(/[\s\-\+]/g, '').replace(/^0+/, '');
-    const elderPhoneNumber = cleanElderPhone.startsWith('91') ? cleanElderPhone.substring(2) : cleanElderPhone;
-
-    try {
-      const res = await fetch("https://api.interakt.ai/v1/public/message/", {
-        method: "POST",
-        headers: {
-          "Authorization": `Basic ${INTERAKT_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          countryCode: "+91",
-          phoneNumber: elderPhoneNumber,
-          callbackData: `missed_call_elder_${elderId}`,
-          type: "Template",
-          template: {
-            name: "sentio_missed_call",
-            languageCode: isHindi ? "hi" : "en",
-            bodyValues: [firstName, firstName, isHindi ? "10 मिनट" : "10 minutes"],
-          },
-        }),
-      });
-      if (res.ok) {
-        console.log("Missed call notification sent to elder via Interakt");
-      } else {
-        const errBody = await res.text();
-        console.error("Interakt missed call to elder FAILED:", res.status, errBody);
-      }
-    } catch (error) {
-      console.error("Error sending Interakt message to elder:", error);
+  const twilioRes = await fetch(
+    `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Messages.json`,
+    {
+      method: "POST",
+      headers: {
+        "Authorization": `Basic ${btoa(`${TWILIO_ACCOUNT_SID}:${TWILIO_AUTH_TOKEN}`)}`,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({
+        From: `whatsapp:${TWILIO_WHATSAPP_NUMBER}`,
+        To: `whatsapp:${normalizedPhone}`,
+        Body: message,
+      }),
     }
-  }
-
-  // Send to caregiver
-  if (settings?.caregiver_phone) {
-    const caregiverName = settings.caregiver_name?.split(' ')[0] || '';
-    const cleanCaregiverPhone = settings.caregiver_phone.replace(/[\s\-\+]/g, '').replace(/^0+/, '');
-    const caregiverPhoneNumber = cleanCaregiverPhone.startsWith('91') ? cleanCaregiverPhone.substring(2) : cleanCaregiverPhone;
-
-    try {
-      const res = await fetch("https://api.interakt.ai/v1/public/message/", {
-        method: "POST",
-        headers: {
-          "Authorization": `Basic ${INTERAKT_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          countryCode: "+91",
-          phoneNumber: caregiverPhoneNumber,
-          callbackData: `missed_call_caregiver_${elderId}`,
-          type: "Template",
-          template: {
-            name: "sentio_missed_call",
-            languageCode: isHindi ? "hi" : "en",
-            bodyValues: [caregiverName, firstName, isHindi ? "10 मिनट" : "10 minutes"],
-          },
-        }),
-      });
-      if (res.ok) {
-        console.log("Missed call notification sent to caregiver via Interakt");
-      } else {
-        const errBody = await res.text();
-        console.error("Interakt missed call to caregiver FAILED:", res.status, errBody);
-      }
-    } catch (error) {
-      console.error("Error sending Interakt message to caregiver:", error);
-    }
+  );
+  
+  if (twilioRes.ok) {
+    console.log("Sent missed call alert via Twilio to", normalizedPhone);
+  } else {
+    console.error("Twilio missed call alert failed", await twilioRes.text());
   }
 }
 
