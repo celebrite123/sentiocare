@@ -581,7 +581,7 @@ RULES:
             while ((match = capsWordRegex.exec(briefing)) !== null) {
               const word = match[1].trim();
               const wordLower = word.toLowerCase();
-              if (!commonWords.has(wordLower) && !actualNamesLower.some(n => n.includes(wordLower) || wordLower.includes(n))) {
+              if (!commonWords.has(wordLower) && !actualNamesLower.some((n: string) => n.includes(wordLower) || wordLower.includes(n))) {
                 // This capitalized word is NOT in the actual medicine list and NOT a common English word
                 // Check if it could plausibly be a medicine name (ends in common pharma suffixes or is a known pattern)
                 const pharmaSuffixes = ['in', 'ol', 'ide', 'ine', 'ate', 'one', 'ium', 'cin', 'min', 'tin', 'pril', 'tan', 'mab'];
