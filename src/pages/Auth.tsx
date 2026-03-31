@@ -48,6 +48,7 @@ const Auth = () => {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [showWaitlistConfirmation, setShowWaitlistConfirmation] = useState(false);
+  const checkAndRedirectRunning = useRef(false);
 
   useEffect(() => {
     // Check URL for password recovery token
