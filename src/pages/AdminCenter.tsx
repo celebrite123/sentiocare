@@ -224,29 +224,40 @@ const AdminCenter = () => {
           </TabsContent>
 
           <TabsContent value="analytics">
-            <div className="space-y-6">
-              <AdminOverviewCards 
-                overview={analytics.overview}
-                checkInStats={analytics.checkInStats}
-                alertStats={analytics.alertStats}
-              />
-              <CheckInAnalytics 
-                checkInStats={analytics.checkInStats}
-                dailyCheckIns={analytics.trends.dailyCheckIns}
-              />
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <SentimentChart sentimentBreakdown={analytics.sentimentBreakdown} />
-                <LanguageDistribution languageDistribution={analytics.languageDistribution} />
+            {analyticsUnavailable ? (
+              <div className="text-center py-12">
+                <Shield className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                <h2 className="text-xl font-semibold">Unable to load analytics</h2>
+                <p className="text-muted-foreground mt-2">Please try again later</p>
+                <Button onClick={handleRefresh} className="mt-4">
+                  Retry
+                </Button>
               </div>
-              <AlertsOverview 
-                alertStats={analytics.alertStats}
-                unresolvedAlerts={analytics.unresolvedAlerts}
-              />
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <RecentActivity recentCheckIns={analytics.recentCheckIns} />
-                <UsersList users={analytics.users} />
+            ) : (
+              <div className="space-y-6">
+                <AdminOverviewCards 
+                  overview={analytics.overview}
+                  checkInStats={analytics.checkInStats}
+                  alertStats={analytics.alertStats}
+                />
+                <CheckInAnalytics 
+                  checkInStats={analytics.checkInStats}
+                  dailyCheckIns={analytics.trends.dailyCheckIns}
+                />
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  <SentimentChart sentimentBreakdown={analytics.sentimentBreakdown} />
+                  <LanguageDistribution languageDistribution={analytics.languageDistribution} />
+                </div>
+                <AlertsOverview 
+                  alertStats={analytics.alertStats}
+                  unresolvedAlerts={analytics.unresolvedAlerts}
+                />
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  <RecentActivity recentCheckIns={analytics.recentCheckIns} />
+                  <UsersList users={analytics.users} />
+                </div>
               </div>
-            </div>
+            )}
           </TabsContent>
 
           <TabsContent value="b2b">
