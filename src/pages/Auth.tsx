@@ -108,47 +108,64 @@ const Auth = () => {
   }, [navigate, passwordResetMode]);
 
   const checkAndRedirect = async (userId: string) => {
-    // Check if user has a profile
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("subscription_tier, subscription_status")
-      .eq("user_id", userId)
-      .single();
+    // Prevent concurrent runs (race condition between onAuthStateChange and checkSession)
+    if (checkAndRedirectRunning.current) return;
+    checkAndRedirectRunning.current = true;
 
-    // If no profile exists (OAuth signup), create one with trial
-    if (profileError && profileError.code === "PGRST116") {
-      // Get user metadata for name
-      const { data: { user } } = await supabase.auth.getUser();
-      const fullName = user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email?.split("@")[0] || "User";
-      
-      const { error: insertError } = await supabase
+    try {
+      // Check if user has a profile
+      const { data: profile, error: profileError } = await supabase
         .from("profiles")
-        .insert({
-          user_id: userId,
-          full_name: fullName,
-          subscription_status: "waitlisted",
-          waitlist_status: "pending",
-          trial_ends_at: null,
-          terms_accepted_at: new Date().toISOString(),
-          privacy_accepted_at: new Date().toISOString(),
-        });
+        .select("subscription_tier, subscription_status")
+        .eq("user_id", userId)
+        .single();
 
-      if (insertError) {
-        console.error("Failed to create profile:", insertError);
+      // If no profile exists (OAuth signup), create one as waitlisted
+      if (profileError && profileError.code === "PGRST116") {
+        const { data: { user } } = await supabase.auth.getUser();
+        const userName = user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email?.split("@")[0] || "User";
+        
+        const { error: upsertError } = await supabase
+          .from("profiles")
+          .upsert({
+            user_id: userId,
+            full_name: userName,
+            subscription_status: "waitlisted",
+            waitlist_status: "pending",
+            trial_ends_at: null,
+            terms_accepted_at: new Date().toISOString(),
+            privacy_accepted_at: new Date().toISOString(),
+          }, { onConflict: "user_id" });
+
+        if (upsertError) {
+          console.error("Failed to create profile:", upsertError);
+        }
+
+        // Verify profile was actually created
+        const { data: verifyProfile } = await supabase
+          .from("profiles")
+          .select("id")
+          .eq("user_id", userId)
+          .single();
+
+        if (!verifyProfile) {
+          console.error("Profile creation could not be verified for user:", userId);
+        }
+        
+        navigate("/select-plan");
+        return;
       }
-      
-      // New user goes to waitlist page
-      navigate("/select-plan");
-      return;
-    }
 
-    // If waitlisted, go to waitlist page
-    if (profile?.subscription_status === "waitlisted") {
-      navigate("/select-plan");
-    } else if (!profile || !profile.subscription_tier) {
-      navigate("/select-plan");
-    } else {
-      navigate("/elders");
+      // If waitlisted, go to waitlist page
+      if (profile?.subscription_status === "waitlisted") {
+        navigate("/select-plan");
+      } else if (!profile || !profile.subscription_tier) {
+        navigate("/select-plan");
+      } else {
+        navigate("/elders");
+      }
+    } finally {
+      checkAndRedirectRunning.current = false;
     }
   };
 
