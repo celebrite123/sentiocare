@@ -420,38 +420,38 @@ const Auth = () => {
           <Card>
             <CardHeader className="pb-2">
               <div className="mx-auto w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-3">
-                <Clock className="h-8 w-8 text-primary" />
+                <Mail className="h-8 w-8 text-primary" />
               </div>
-              <CardTitle className="text-xl">You're on the Waitlist! 🎉</CardTitle>
+              <CardTitle className="text-xl">Verify Your Email ✉️</CardTitle>
               <CardDescription>
-                Thank you for signing up, <span className="font-medium text-foreground">{fullName}</span>. We're reviewing your application.
+                We've sent a verification link to
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              <div className="bg-muted/50 rounded-lg p-3">
+                <p className="text-sm font-medium text-foreground">{email}</p>
+              </div>
+
               <div className="space-y-3 text-left">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary text-sm font-bold shrink-0">✓</div>
-                  <span className="text-sm">Account created successfully</span>
+                <div className="flex items-start gap-3">
+                  <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-primary text-xs font-bold shrink-0 mt-0.5">1</div>
+                  <span className="text-sm">Open your inbox and find the email from Sentio</span>
                 </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                    <Clock className="h-4 w-4 text-primary" />
-                  </div>
-                  <span className="text-sm">Waiting for approval (usually within 24 hours)</span>
+                <div className="flex items-start gap-3">
+                  <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-primary text-xs font-bold shrink-0 mt-0.5">2</div>
+                  <span className="text-sm">Click the verification link in the email</span>
                 </div>
-                <div className="flex items-center gap-3 opacity-40">
-                  <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-sm shrink-0">3</div>
-                  <span className="text-sm">5-day free trial begins after approval</span>
+                <div className="flex items-start gap-3">
+                  <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-primary text-xs font-bold shrink-0 mt-0.5">3</div>
+                  <span className="text-sm">Come back here and sign in to complete your registration</span>
                 </div>
               </div>
 
               <Separator />
 
-              <div className="bg-muted/50 rounded-lg p-3">
-                <p className="text-sm text-muted-foreground">
-                  📧 Please check your email (<span className="font-medium text-foreground">{email}</span>) to verify your account. We'll notify you once you're approved.
-                </p>
-              </div>
+              <p className="text-xs text-muted-foreground">
+                Don't see the email? Check your spam folder. The link expires in 24 hours.
+              </p>
 
               <Button
                 variant="outline"
