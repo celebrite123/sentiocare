@@ -26,15 +26,16 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { cn } from "@/lib/utils";
+import { b2bPath } from "@/lib/domain";
 import sentioLogo from "@/assets/sentio-logo-new.png";
 
 const navItems = [
-  { href: "/b2b/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/b2b/upload", label: "Upload", icon: Upload },
-  { href: "/b2b/patients", label: "Patients", icon: Users },
-  { href: "/b2b/alerts", label: "Alerts", icon: AlertTriangle },
-  { href: "/b2b/reports", label: "Reports", icon: BarChart3 },
-  { href: "/b2b/staff", label: "Staff", icon: Users, adminOnly: true },
+  { path: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { path: "/upload", label: "Upload", icon: Upload },
+  { path: "/patients", label: "Patients", icon: Users },
+  { path: "/alerts", label: "Alerts", icon: AlertTriangle },
+  { path: "/reports", label: "Reports", icon: BarChart3 },
+  { path: "/staff", label: "Staff", icon: Users, adminOnly: true },
 ];
 
 interface B2BNavbarProps {
@@ -50,7 +51,7 @@ export const B2BNavbar = ({ alertCount = 0 }: B2BNavbarProps) => {
 
   const handleSignOut = async () => {
     await signOut();
-    navigate("/b2b/login");
+    navigate(b2bPath("/login"));
   };
 
   const getInitials = (name: string) => {
@@ -67,7 +68,7 @@ export const B2BNavbar = ({ alertCount = 0 }: B2BNavbarProps) => {
       <div className="container flex h-16 items-center justify-between">
         {/* Logo & Org Name */}
         <div className="flex items-center gap-4">
-          <Link to="/b2b/dashboard" className="flex items-center gap-3">
+          <Link to={b2bPath("/dashboard")} className="flex items-center gap-3">
             <img src={sentioLogo} alt="Sentio" className="h-9 w-auto" />
             <div className="hidden sm:flex items-center gap-2">
               <div className="h-6 w-px bg-border" />
@@ -82,10 +83,11 @@ export const B2BNavbar = ({ alertCount = 0 }: B2BNavbarProps) => {
         {/* Desktop Navigation */}
         <nav className="hidden md:flex items-center gap-1">
           {navItems.map((item) => {
-            const isActive = location.pathname === item.href;
+            const href = b2bPath(item.path);
+            const isActive = location.pathname === href;
             const Icon = item.icon;
             return (
-              <Link key={item.href} to={item.href}>
+              <Link key={item.path} to={href}>
                 <Button
                   variant={isActive ? "secondary" : "ghost"}
                   size="sm"
@@ -114,7 +116,7 @@ export const B2BNavbar = ({ alertCount = 0 }: B2BNavbarProps) => {
             variant="ghost"
             size="icon"
             className="relative"
-            onClick={() => navigate("/b2b/alerts")}
+            onClick={() => navigate(b2bPath("/alerts"))}
           >
             <Bell className="h-5 w-5" />
             {alertCount > 0 && (
@@ -149,7 +151,7 @@ export const B2BNavbar = ({ alertCount = 0 }: B2BNavbarProps) => {
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
               {member?.role === "admin" && (
-                <DropdownMenuItem onClick={() => navigate("/b2b/settings")}>
+                <DropdownMenuItem onClick={() => navigate(b2bPath("/settings"))}>
                   <Settings className="mr-2 h-4 w-4" />
                   Settings
                 </DropdownMenuItem>
@@ -178,12 +180,13 @@ export const B2BNavbar = ({ alertCount = 0 }: B2BNavbarProps) => {
         <nav className="md:hidden border-t bg-background p-4">
           <div className="flex flex-col gap-2">
             {navItems.map((item) => {
-              const isActive = location.pathname === item.href;
+              const href = b2bPath(item.path);
+              const isActive = location.pathname === href;
               const Icon = item.icon;
               return (
                 <Link
-                  key={item.href}
-                  to={item.href}
+                  key={item.path}
+                  to={href}
                   onClick={() => setMobileMenuOpen(false)}
                 >
                   <Button

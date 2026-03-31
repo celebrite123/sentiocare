@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, AlertCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { b2bPath } from "@/lib/domain";
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import sentioLogo from "@/assets/sentio-logo-new.png";
@@ -57,7 +58,7 @@ export default function B2BLogin() {
       }
 
       toast.success(`Welcome back, ${membership.name}!`);
-      navigate("/b2b/dashboard");
+      navigate(b2bPath("/dashboard"));
     } catch (err: any) {
       console.error('Login error:', err);
       setError(err.message || "An unexpected error occurred");

@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { b2bPath } from "@/lib/domain";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { B2BLayout } from "@/components/b2b/B2BLayout";
 import { RiskBadge, type RiskStatus } from "@/components/b2b/RiskBadge";
@@ -332,7 +333,7 @@ const PatientDetail = () => {
       <B2BLayout>
         <div className="text-center py-12">
           <p className="text-muted-foreground">Patient not found</p>
-          <Button variant="outline" onClick={() => navigate("/b2b/patients")} className="mt-4">
+          <Button variant="outline" onClick={() => navigate(b2bPath("/patients"))} className="mt-4">
             Back to Patients
           </Button>
         </div>

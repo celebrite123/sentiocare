@@ -2,6 +2,7 @@ import { Navigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { Loader2 } from "lucide-react";
+import { b2bPath } from "@/lib/domain";
 
 interface B2BRouteProps {
   children: React.ReactNode;
@@ -22,11 +23,11 @@ export const B2BRoute = ({ children, requiredRole, requiredPermission }: B2BRout
   }
 
   if (!user) {
-    return <Navigate to="/b2b/login" replace />;
+    return <Navigate to={b2bPath('/login')} replace />;
   }
 
   if (!organization || !membership) {
-    return <Navigate to="/b2b/login" replace />;
+    return <Navigate to={b2bPath('/login')} replace />;
   }
 
   // Check role requirement
@@ -36,13 +37,13 @@ export const B2BRoute = ({ children, requiredRole, requiredPermission }: B2BRout
     const requiredLevel = roleHierarchy[requiredRole] || 0;
     
     if (userRoleLevel < requiredLevel) {
-      return <Navigate to="/b2b/dashboard" replace />;
+      return <Navigate to={b2bPath('/dashboard')} replace />;
     }
   }
 
   // Check permission requirement
   if (requiredPermission && !membership[requiredPermission]) {
-    return <Navigate to="/b2b/dashboard" replace />;
+    return <Navigate to={b2bPath('/dashboard')} replace />;
   }
 
   return <>{children}</>;

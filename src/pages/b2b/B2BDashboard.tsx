@@ -7,6 +7,7 @@ import { useNavigate } from "react-router-dom";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Upload, AlertTriangle, Users, Download, PhoneCall, BarChart3, TrendingUp } from "lucide-react";
+import { b2bPath } from "@/lib/domain";
 import { RiskBadge } from "@/components/b2b/RiskBadge";
 import { PendingCallbacks } from "@/components/b2b/PendingCallbacks";
 import { Progress } from "@/components/ui/progress";
@@ -124,7 +125,7 @@ export default function B2BDashboard() {
               <Download className="h-4 w-4 sm:mr-2" />
               <span className="hidden sm:inline">Export</span>
             </Button>
-            <Button size="sm" className="flex-1 sm:flex-none" onClick={() => navigate('/b2b/upload')}>
+            <Button size="sm" className="flex-1 sm:flex-none" onClick={() => navigate(b2bPath('/upload'))}>
               <Upload className="h-4 w-4 sm:mr-2" />
               <span className="hidden sm:inline">Upload</span>
             </Button>
@@ -173,7 +174,7 @@ export default function B2BDashboard() {
                 <AlertTriangle className="h-5 w-5 text-destructive" />
                 Recent Alerts
               </CardTitle>
-              <Button variant="ghost" size="sm" onClick={() => navigate('/b2b/alerts')}>
+              <Button variant="ghost" size="sm" onClick={() => navigate(b2bPath('/alerts'))}>
                 View All
               </Button>
             </CardHeader>
@@ -241,13 +242,13 @@ export default function B2BDashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent className="grid gap-3">
-            <Button variant="outline" className="justify-start" onClick={() => navigate('/b2b/upload')}>
+            <Button variant="outline" className="justify-start" onClick={() => navigate(b2bPath('/upload'))}>
               <Upload className="h-4 w-4 mr-2" /> Upload New Patients
             </Button>
-            <Button variant="outline" className="justify-start" onClick={() => navigate('/b2b/patients')}>
+            <Button variant="outline" className="justify-start" onClick={() => navigate(b2bPath('/patients'))}>
               <Users className="h-4 w-4 mr-2" /> View All Patients
             </Button>
-            <Button variant="outline" className="justify-start" onClick={() => navigate('/b2b/alerts')}>
+            <Button variant="outline" className="justify-start" onClick={() => navigate(b2bPath('/alerts'))}>
               <AlertTriangle className="h-4 w-4 mr-2" /> Manage Alerts
             </Button>
           </CardContent>

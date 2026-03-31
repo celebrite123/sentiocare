@@ -6,6 +6,7 @@ import { BulkActionsBar } from "@/components/b2b/BulkActionsBar";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { b2bPath } from "@/lib/domain";
 import { RefreshCw, Download } from "lucide-react";
 import { toast } from "sonner";
 
@@ -195,7 +196,7 @@ export default function PatientList() {
         <PatientTable
           patients={patients}
           loading={loading}
-          onViewPatient={(id) => navigate(`/b2b/patients/${id}`)}
+          onViewPatient={(id) => navigate(b2bPath(`/patients/${id}`))}
           onCallPatient={(phone) => window.open(`tel:${phone}`)}
           selectedPatients={selectedPatients}
           onSelectionChange={setSelectedPatients}
