@@ -36,7 +36,7 @@ const Navbar = () => {
   const isActive = (path: string) => location.pathname === path;
   const isLanding = location.pathname === "/";
   
-  const getDashboardPath = () => isB2BStaff ? "/b2b/dashboard" : "/elders";
+  const getDashboardPath = () => isB2BStaff ? b2bPath("/dashboard") : "/elders";
   const getDashboardLabel = () => isB2BStaff ? "Hospital Dashboard" : "Dashboard";
 
   return (

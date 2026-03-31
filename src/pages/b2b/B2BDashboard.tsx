@@ -242,13 +242,13 @@ export default function B2BDashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent className="grid gap-3">
-            <Button variant="outline" className="justify-start" onClick={() => navigate('/b2b/upload')}>
+            <Button variant="outline" className="justify-start" onClick={() => navigate(b2bPath('/upload'))}>
               <Upload className="h-4 w-4 mr-2" /> Upload New Patients
             </Button>
-            <Button variant="outline" className="justify-start" onClick={() => navigate('/b2b/patients')}>
+            <Button variant="outline" className="justify-start" onClick={() => navigate(b2bPath('/patients'))}>
               <Users className="h-4 w-4 mr-2" /> View All Patients
             </Button>
-            <Button variant="outline" className="justify-start" onClick={() => navigate('/b2b/alerts')}>
+            <Button variant="outline" className="justify-start" onClick={() => navigate(b2bPath('/alerts'))}>
               <AlertTriangle className="h-4 w-4 mr-2" /> Manage Alerts
             </Button>
           </CardContent>

@@ -333,7 +333,7 @@ const PatientDetail = () => {
       <B2BLayout>
         <div className="text-center py-12">
           <p className="text-muted-foreground">Patient not found</p>
-          <Button variant="outline" onClick={() => navigate("/b2b/patients")} className="mt-4">
+          <Button variant="outline" onClick={() => navigate(b2bPath("/patients"))} className="mt-4">
             Back to Patients
           </Button>
         </div>

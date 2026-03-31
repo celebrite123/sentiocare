@@ -196,7 +196,7 @@ export default function PatientList() {
         <PatientTable
           patients={patients}
           loading={loading}
-          onViewPatient={(id) => navigate(`/b2b/patients/${id}`)}
+          onViewPatient={(id) => navigate(b2bPath(`/patients/${id}`))}
           onCallPatient={(phone) => window.open(`tel:${phone}`)}
           selectedPatients={selectedPatients}
           onSelectionChange={setSelectedPatients}
