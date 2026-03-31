@@ -58,7 +58,7 @@ export default function B2BLogin() {
       }
 
       toast.success(`Welcome back, ${membership.name}!`);
-      navigate("/b2b/dashboard");
+      navigate(b2bPath("/dashboard"));
     } catch (err: any) {
       console.error('Login error:', err);
       setError(err.message || "An unexpected error occurred");
