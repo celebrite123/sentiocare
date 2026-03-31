@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { b2bPath } from "@/lib/domain";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { B2BLayout } from "@/components/b2b/B2BLayout";
 import { RiskBadge, type RiskStatus } from "@/components/b2b/RiskBadge";
