@@ -73,7 +73,7 @@ export function useDemoAudio({ language, messages, demoType, onMessageComplete, 
     }
   }, []);
 
-  const getOrCreateAudio = useCallback(async (index: number, message: DemoMessage): Promise<string> => {
+  const getOrCreateAudio = useCallback(async (index: number, message: DemoMessage): Promise<string | null> => {
     const cacheKey = getCacheKey(index, message.role);
     
     // Return cached audio if available
@@ -99,9 +99,11 @@ export function useDemoAudio({ language, messages, demoType, onMessageComplete, 
       return storageUrl;
     }
 
-    // Generate with ElevenLabs TTS as final fallback and cache
+    // Generate with ElevenLabs TTS as final fallback (returns null if unavailable)
     const ttsUrl = await generateTTSAudio(message.text, message.role);
-    audioCache.set(cacheKey, ttsUrl);
+    if (ttsUrl) {
+      audioCache.set(cacheKey, ttsUrl);
+    }
     return ttsUrl;
   }, [getCacheKey, getPublicUrl, getStorageUrl, checkAudioExists, generateTTSAudio]);
 
