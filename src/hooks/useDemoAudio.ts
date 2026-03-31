@@ -37,25 +37,31 @@ export function useDemoAudio({ language, messages, demoType, onMessageComplete, 
     return `${SUPABASE_URL}/storage/v1/object/public/demo-audio/${demoType}-${language}-${role}-${index + 1}.mp3`;
   }, [language, demoType]);
 
-  const generateTTSAudio = useCallback(async (text: string, role: string): Promise<string> => {
-    const response = await fetch(
-      `${SUPABASE_URL}/functions/v1/elevenlabs-demo-tts`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ text, language, role }),
-        signal: abortControllerRef.current?.signal,
+  const generateTTSAudio = useCallback(async (text: string, role: string): Promise<string | null> => {
+    try {
+      const response = await fetch(
+        `${SUPABASE_URL}/functions/v1/elevenlabs-demo-tts`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ text, language, role }),
+          signal: abortControllerRef.current?.signal,
+        }
+      );
+
+      if (!response.ok) {
+        console.warn('TTS unavailable, falling back to text-only mode');
+        return null;
       }
-    );
 
-    if (!response.ok) {
-      throw new Error('Failed to generate TTS audio');
+      const audioBlob = await response.blob();
+      return URL.createObjectURL(audioBlob);
+    } catch (error) {
+      console.warn('TTS generation failed, using text-only fallback');
+      return null;
     }
-
-    const audioBlob = await response.blob();
-    return URL.createObjectURL(audioBlob);
   }, [language]);
 
   const checkAudioExists = useCallback(async (url: string): Promise<boolean> => {
@@ -67,7 +73,7 @@ export function useDemoAudio({ language, messages, demoType, onMessageComplete, 
     }
   }, []);
 
-  const getOrCreateAudio = useCallback(async (index: number, message: DemoMessage): Promise<string> => {
+  const getOrCreateAudio = useCallback(async (index: number, message: DemoMessage): Promise<string | null> => {
     const cacheKey = getCacheKey(index, message.role);
     
     // Return cached audio if available
@@ -93,9 +99,11 @@ export function useDemoAudio({ language, messages, demoType, onMessageComplete, 
       return storageUrl;
     }
 
-    // Generate with ElevenLabs TTS as final fallback and cache
+    // Generate with ElevenLabs TTS as final fallback (returns null if unavailable)
     const ttsUrl = await generateTTSAudio(message.text, message.role);
-    audioCache.set(cacheKey, ttsUrl);
+    if (ttsUrl) {
+      audioCache.set(cacheKey, ttsUrl);
+    }
     return ttsUrl;
   }, [getCacheKey, getPublicUrl, getStorageUrl, checkAudioExists, generateTTSAudio]);
 
@@ -143,19 +151,28 @@ export function useDemoAudio({ language, messages, demoType, onMessageComplete, 
         const message = messages[i];
         setCurrentIndex(i);
 
-        // Get cached audio (or generate if not cached)
+        // Get cached audio (or null if unavailable)
         const audioUrl = await getOrCreateAudio(i, message);
 
         if (abortControllerRef.current?.signal.aborted) break;
 
-        try {
-          await playAudio(audioUrl);
-          onMessageComplete(i + 1);
-          await new Promise(resolve => setTimeout(resolve, 300));
-        } catch (error) {
-          console.error('Audio playback error:', error);
-          onMessageComplete(i + 1);
+        if (audioUrl) {
+          try {
+            await playAudio(audioUrl);
+          } catch (error) {
+            console.warn('Audio playback error, using timed fallback:', error);
+            // Fallback: wait based on text length
+            const readTime = Math.max(1500, message.text.length * 60);
+            await new Promise(resolve => setTimeout(resolve, readTime));
+          }
+        } else {
+          // Text-only mode: simulate reading time based on text length
+          const readTime = Math.max(1500, message.text.length * 60);
+          await new Promise(resolve => setTimeout(resolve, readTime));
         }
+
+        onMessageComplete(i + 1);
+        await new Promise(resolve => setTimeout(resolve, 300));
       }
 
       onComplete();
