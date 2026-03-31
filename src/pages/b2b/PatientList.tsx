@@ -6,6 +6,7 @@ import { BulkActionsBar } from "@/components/b2b/BulkActionsBar";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { b2bPath } from "@/lib/domain";
 import { RefreshCw, Download } from "lucide-react";
 import { toast } from "sonner";
 
