@@ -174,7 +174,7 @@ export default function B2BDashboard() {
                 <AlertTriangle className="h-5 w-5 text-destructive" />
                 Recent Alerts
               </CardTitle>
-              <Button variant="ghost" size="sm" onClick={() => navigate('/b2b/alerts')}>
+              <Button variant="ghost" size="sm" onClick={() => navigate(b2bPath('/alerts'))}>
                 View All
               </Button>
             </CardHeader>
