@@ -1,8 +1,8 @@
 /**
  * Domain detection utility for routing between B2C and B2B hospital portal.
  * 
- * hospital.sentio.in.net → B2B hospital portal
- * sentio.in.net (and everything else) → B2C consumer app
+ * hospital.sentio.in.net → B2B hospital portal (top-level routes)
+ * sentio.in.net (and everything else) → B2C consumer app (routes under /b2b/)
  */
 
 const HOSPITAL_HOSTNAMES = [
@@ -13,7 +13,6 @@ const HOSPITAL_HOSTNAMES = [
 export function isHospitalPortal(): boolean {
   const hostname = window.location.hostname;
   
-  // Check for hospital subdomain
   if (HOSPITAL_HOSTNAMES.includes(hostname)) {
     return true;
   }
@@ -25,4 +24,21 @@ export function isHospitalPortal(): boolean {
   }
   
   return false;
+}
+
+/**
+ * Returns the correct path prefix for B2B routes.
+ * On hospital subdomain: "" (top-level)
+ * On main domain: "/b2b"
+ */
+export function b2bPrefix(): string {
+  return isHospitalPortal() ? '' : '/b2b';
+}
+
+/**
+ * Build a B2B path that works on both domains.
+ * b2bPath('/dashboard') → '/dashboard' on hospital subdomain, '/b2b/dashboard' on main domain
+ */
+export function b2bPath(path: string): string {
+  return `${b2bPrefix()}${path}`;
 }
