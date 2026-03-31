@@ -37,25 +37,31 @@ export function useDemoAudio({ language, messages, demoType, onMessageComplete, 
     return `${SUPABASE_URL}/storage/v1/object/public/demo-audio/${demoType}-${language}-${role}-${index + 1}.mp3`;
   }, [language, demoType]);
 
-  const generateTTSAudio = useCallback(async (text: string, role: string): Promise<string> => {
-    const response = await fetch(
-      `${SUPABASE_URL}/functions/v1/elevenlabs-demo-tts`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ text, language, role }),
-        signal: abortControllerRef.current?.signal,
+  const generateTTSAudio = useCallback(async (text: string, role: string): Promise<string | null> => {
+    try {
+      const response = await fetch(
+        `${SUPABASE_URL}/functions/v1/elevenlabs-demo-tts`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ text, language, role }),
+          signal: abortControllerRef.current?.signal,
+        }
+      );
+
+      if (!response.ok) {
+        console.warn('TTS unavailable, falling back to text-only mode');
+        return null;
       }
-    );
 
-    if (!response.ok) {
-      throw new Error('Failed to generate TTS audio');
+      const audioBlob = await response.blob();
+      return URL.createObjectURL(audioBlob);
+    } catch (error) {
+      console.warn('TTS generation failed, using text-only fallback');
+      return null;
     }
-
-    const audioBlob = await response.blob();
-    return URL.createObjectURL(audioBlob);
   }, [language]);
 
   const checkAudioExists = useCallback(async (url: string): Promise<boolean> => {
