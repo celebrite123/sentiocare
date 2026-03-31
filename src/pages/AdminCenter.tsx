@@ -216,7 +216,9 @@ const AdminCenter = () => {
           </TabsContent>
 
           <TabsContent value="pilot">
-            {analytics.pilotMetrics ? (
+            {analyticsUnavailable ? (
+              <div className="text-center py-12 text-muted-foreground">Analytics unavailable — please refresh</div>
+            ) : analytics.pilotMetrics ? (
               <PilotMetrics data={analytics.pilotMetrics} />
             ) : (
               <div className="text-center py-12 text-muted-foreground">No pilot metrics data available yet</div>
