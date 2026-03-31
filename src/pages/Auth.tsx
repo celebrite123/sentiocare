@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Check, Circle, Clock } from "lucide-react";
+import { Loader2, Check, Circle, Clock, Mail } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import sentioLogo from "@/assets/sentio-logo-new.png";
 
@@ -48,6 +48,7 @@ const Auth = () => {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [showWaitlistConfirmation, setShowWaitlistConfirmation] = useState(false);
+  const checkAndRedirectRunning = useRef(false);
 
   useEffect(() => {
     // Check URL for password recovery token
@@ -107,47 +108,64 @@ const Auth = () => {
   }, [navigate, passwordResetMode]);
 
   const checkAndRedirect = async (userId: string) => {
-    // Check if user has a profile
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("subscription_tier, subscription_status")
-      .eq("user_id", userId)
-      .single();
+    // Prevent concurrent runs (race condition between onAuthStateChange and checkSession)
+    if (checkAndRedirectRunning.current) return;
+    checkAndRedirectRunning.current = true;
 
-    // If no profile exists (OAuth signup), create one with trial
-    if (profileError && profileError.code === "PGRST116") {
-      // Get user metadata for name
-      const { data: { user } } = await supabase.auth.getUser();
-      const fullName = user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email?.split("@")[0] || "User";
-      
-      const { error: insertError } = await supabase
+    try {
+      // Check if user has a profile
+      const { data: profile, error: profileError } = await supabase
         .from("profiles")
-        .insert({
-          user_id: userId,
-          full_name: fullName,
-          subscription_status: "waitlisted",
-          waitlist_status: "pending",
-          trial_ends_at: null,
-          terms_accepted_at: new Date().toISOString(),
-          privacy_accepted_at: new Date().toISOString(),
-        });
+        .select("subscription_tier, subscription_status")
+        .eq("user_id", userId)
+        .single();
 
-      if (insertError) {
-        console.error("Failed to create profile:", insertError);
+      // If no profile exists (OAuth signup), create one as waitlisted
+      if (profileError && profileError.code === "PGRST116") {
+        const { data: { user } } = await supabase.auth.getUser();
+        const userName = user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email?.split("@")[0] || "User";
+        
+        const { error: upsertError } = await supabase
+          .from("profiles")
+          .upsert({
+            user_id: userId,
+            full_name: userName,
+            subscription_status: "waitlisted",
+            waitlist_status: "pending",
+            trial_ends_at: null,
+            terms_accepted_at: new Date().toISOString(),
+            privacy_accepted_at: new Date().toISOString(),
+          }, { onConflict: "user_id" });
+
+        if (upsertError) {
+          console.error("Failed to create profile:", upsertError);
+        }
+
+        // Verify profile was actually created
+        const { data: verifyProfile } = await supabase
+          .from("profiles")
+          .select("id")
+          .eq("user_id", userId)
+          .single();
+
+        if (!verifyProfile) {
+          console.error("Profile creation could not be verified for user:", userId);
+        }
+        
+        navigate("/select-plan");
+        return;
       }
-      
-      // New user goes to waitlist page
-      navigate("/select-plan");
-      return;
-    }
 
-    // If waitlisted, go to waitlist page
-    if (profile?.subscription_status === "waitlisted") {
-      navigate("/select-plan");
-    } else if (!profile || !profile.subscription_tier) {
-      navigate("/select-plan");
-    } else {
-      navigate("/elders");
+      // If waitlisted, go to waitlist page
+      if (profile?.subscription_status === "waitlisted") {
+        navigate("/select-plan");
+      } else if (!profile || !profile.subscription_tier) {
+        navigate("/select-plan");
+      } else {
+        navigate("/elders");
+      }
+    } finally {
+      checkAndRedirectRunning.current = false;
     }
   };
 
@@ -402,38 +420,38 @@ const Auth = () => {
           <Card>
             <CardHeader className="pb-2">
               <div className="mx-auto w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-3">
-                <Clock className="h-8 w-8 text-primary" />
+                <Mail className="h-8 w-8 text-primary" />
               </div>
-              <CardTitle className="text-xl">You're on the Waitlist! 🎉</CardTitle>
+              <CardTitle className="text-xl">Verify Your Email ✉️</CardTitle>
               <CardDescription>
-                Thank you for signing up, <span className="font-medium text-foreground">{fullName}</span>. We're reviewing your application.
+                We've sent a verification link to
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              <div className="bg-muted/50 rounded-lg p-3">
+                <p className="text-sm font-medium text-foreground">{email}</p>
+              </div>
+
               <div className="space-y-3 text-left">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary text-sm font-bold shrink-0">✓</div>
-                  <span className="text-sm">Account created successfully</span>
+                <div className="flex items-start gap-3">
+                  <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-primary text-xs font-bold shrink-0 mt-0.5">1</div>
+                  <span className="text-sm">Open your inbox and find the email from Sentio</span>
                 </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                    <Clock className="h-4 w-4 text-primary" />
-                  </div>
-                  <span className="text-sm">Waiting for approval (usually within 24 hours)</span>
+                <div className="flex items-start gap-3">
+                  <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-primary text-xs font-bold shrink-0 mt-0.5">2</div>
+                  <span className="text-sm">Click the verification link in the email</span>
                 </div>
-                <div className="flex items-center gap-3 opacity-40">
-                  <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-sm shrink-0">3</div>
-                  <span className="text-sm">5-day free trial begins after approval</span>
+                <div className="flex items-start gap-3">
+                  <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-primary text-xs font-bold shrink-0 mt-0.5">3</div>
+                  <span className="text-sm">Come back here and sign in to complete your registration</span>
                 </div>
               </div>
 
               <Separator />
 
-              <div className="bg-muted/50 rounded-lg p-3">
-                <p className="text-sm text-muted-foreground">
-                  📧 Please check your email (<span className="font-medium text-foreground">{email}</span>) to verify your account. We'll notify you once you're approved.
-                </p>
-              </div>
+              <p className="text-xs text-muted-foreground">
+                Don't see the email? Check your spam folder. The link expires in 24 hours.
+              </p>
 
               <Button
                 variant="outline"
