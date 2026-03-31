@@ -7,6 +7,7 @@ import { useNavigate } from "react-router-dom";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Upload, AlertTriangle, Users, Download, PhoneCall, BarChart3, TrendingUp } from "lucide-react";
+import { b2bPath } from "@/lib/domain";
 import { RiskBadge } from "@/components/b2b/RiskBadge";
 import { PendingCallbacks } from "@/components/b2b/PendingCallbacks";
 import { Progress } from "@/components/ui/progress";
