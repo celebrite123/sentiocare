@@ -13,6 +13,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAdminRole } from "@/hooks/useAdminRole";
 import { useB2BMembership } from "@/hooks/useB2BMembership";
+import { b2bPath } from "@/lib/domain";
 import AlertsPanel from "./AlertsPanel";
 import sentioLogo from "@/assets/sentio-logo-new.png";
 
