@@ -159,23 +159,7 @@ const AdminCenter = () => {
     );
   }
 
-  if (!analytics) {
-    return (
-      <div className="min-h-screen bg-background">
-        <Navbar />
-        <div className="container mx-auto px-4 py-8">
-          <div className="text-center py-12">
-            <Shield className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <h2 className="text-xl font-semibold">Unable to load analytics</h2>
-            <p className="text-muted-foreground mt-2">Please try again later</p>
-            <Button onClick={handleRefresh} className="mt-4">
-              Retry
-            </Button>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const analyticsUnavailable = !analytics;
 
   return (
     <div className="min-h-screen bg-background">
