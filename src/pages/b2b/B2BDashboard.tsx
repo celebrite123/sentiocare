@@ -125,7 +125,7 @@ export default function B2BDashboard() {
               <Download className="h-4 w-4 sm:mr-2" />
               <span className="hidden sm:inline">Export</span>
             </Button>
-            <Button size="sm" className="flex-1 sm:flex-none" onClick={() => navigate('/b2b/upload')}>
+            <Button size="sm" className="flex-1 sm:flex-none" onClick={() => navigate(b2bPath('/upload'))}>
               <Upload className="h-4 w-4 sm:mr-2" />
               <span className="hidden sm:inline">Upload</span>
             </Button>
