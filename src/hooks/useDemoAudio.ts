@@ -151,19 +151,28 @@ export function useDemoAudio({ language, messages, demoType, onMessageComplete, 
         const message = messages[i];
         setCurrentIndex(i);
 
-        // Get cached audio (or generate if not cached)
+        // Get cached audio (or null if unavailable)
         const audioUrl = await getOrCreateAudio(i, message);
 
         if (abortControllerRef.current?.signal.aborted) break;
 
-        try {
-          await playAudio(audioUrl);
-          onMessageComplete(i + 1);
-          await new Promise(resolve => setTimeout(resolve, 300));
-        } catch (error) {
-          console.error('Audio playback error:', error);
-          onMessageComplete(i + 1);
+        if (audioUrl) {
+          try {
+            await playAudio(audioUrl);
+          } catch (error) {
+            console.warn('Audio playback error, using timed fallback:', error);
+            // Fallback: wait based on text length
+            const readTime = Math.max(1500, message.text.length * 60);
+            await new Promise(resolve => setTimeout(resolve, readTime));
+          }
+        } else {
+          // Text-only mode: simulate reading time based on text length
+          const readTime = Math.max(1500, message.text.length * 60);
+          await new Promise(resolve => setTimeout(resolve, readTime));
         }
+
+        onMessageComplete(i + 1);
+        await new Promise(resolve => setTimeout(resolve, 300));
       }
 
       onComplete();
