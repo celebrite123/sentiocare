@@ -111,7 +111,11 @@ const WaitlistManager = () => {
     );
   }
 
-  const pending = users.filter(u => (u as any).subscription_status === "waitlisted" || u.waitlist_status === "pending");
+  const pending = users.filter(u => {
+    const subStatus = (u as any).subscription_status;
+    if (subStatus === "active" || subStatus === "expired") return false;
+    return subStatus === "waitlisted" || u.waitlist_status === "pending";
+  });
   const approved = users.filter(u => u.waitlist_status === "approved");
   const rejected = users.filter(u => u.waitlist_status === "rejected");
 

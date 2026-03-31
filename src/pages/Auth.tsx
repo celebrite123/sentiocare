@@ -324,9 +324,9 @@ const Auth = () => {
 
       if (authData.user) {
         // Create profile as waitlisted (no trial until approved)
-        const { error: profileError } = await supabase
+      const { error: profileError } = await supabase
           .from("profiles")
-          .insert({
+          .upsert({
             user_id: authData.user.id,
             full_name: fullName,
             phone_number: phoneNumber || null,
@@ -335,7 +335,7 @@ const Auth = () => {
             trial_ends_at: null,
             terms_accepted_at: new Date().toISOString(),
             privacy_accepted_at: new Date().toISOString(),
-          });
+          }, { onConflict: "user_id" });
 
         if (profileError) throw profileError;
 
