@@ -202,18 +202,25 @@ const Auth = () => {
   const handleGoogleSignIn = async () => {
     setGoogleLoading(true);
     try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-          redirectTo: `${window.location.origin}/auth`,
-        },
+      const result = await lovable.auth.signInWithOAuth("google", {
+        redirect_uri: window.location.origin,
       });
-      
-      if (error) throw error;
+
+      if (result.error) {
+        throw result.error;
+      }
+
+      if (result.redirected) {
+        // Browser will redirect to Google - just return
+        return;
+      }
+
+      // Tokens received and session set - user is authenticated
+      // The onAuthStateChange listener will handle redirect
     } catch (error: any) {
       toast({
         title: "Google sign in failed",
-        description: error.message,
+        description: error.message || "Something went wrong. Please try again.",
         variant: "destructive",
       });
       setGoogleLoading(false);
