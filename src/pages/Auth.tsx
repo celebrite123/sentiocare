@@ -126,6 +126,7 @@ const Auth = () => {
         const { data: { user } } = await supabase.auth.getUser();
         const userName = user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email?.split("@")[0] || "User";
         
+        // Try upsert first (works with unique constraint on user_id)
         const { error: upsertError } = await supabase
           .from("profiles")
           .upsert({
@@ -139,7 +140,29 @@ const Auth = () => {
           }, { onConflict: "user_id" });
 
         if (upsertError) {
-          console.error("Failed to create profile:", upsertError);
+          console.error("Upsert failed, trying direct insert:", upsertError);
+          // Fallback: try plain insert
+          const { error: insertError } = await supabase
+            .from("profiles")
+            .insert({
+              user_id: userId,
+              full_name: userName,
+              subscription_status: "waitlisted",
+              waitlist_status: "pending",
+              trial_ends_at: null,
+              terms_accepted_at: new Date().toISOString(),
+              privacy_accepted_at: new Date().toISOString(),
+            });
+
+          if (insertError) {
+            console.error("Profile insert also failed:", insertError);
+            toast({
+              title: "Account setup issue",
+              description: "Please try signing in again. If the problem persists, contact support.",
+              variant: "destructive",
+            });
+            return;
+          }
         }
 
         // Verify profile was actually created
@@ -151,6 +174,12 @@ const Auth = () => {
 
         if (!verifyProfile) {
           console.error("Profile creation could not be verified for user:", userId);
+          toast({
+            title: "Account setup issue",
+            description: "Your profile could not be created. Please try again or contact support.",
+            variant: "destructive",
+          });
+          return;
         }
         
         navigate("/select-plan");
