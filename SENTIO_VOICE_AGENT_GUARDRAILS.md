@@ -1,19 +1,76 @@
-# Sentio Voice Agent — Prompt & Guardrails (Production v2)
+# Sentio Voice Agent — Guardrails & Prompt (Production v2)
 
-Configure this in the Bolna Dashboard for both Hindi and English agents.
-**This file is the SINGLE SOURCE OF TRUTH.** The dashboard prompt must match this exactly.
+> **This file is the SINGLE SOURCE OF TRUTH.**
+> The Bolna Dashboard agent prompt must match the copy-paste block below exactly.
 
 ---
 
-## BOLNA DASHBOARD CONFIGURATION
+## 📋 How to Configure in Bolna Dashboard
 
-### Welcome Message
+1. **Welcome Message** → Set to: `{greeting}`
+2. **Agent Prompt** → Copy everything inside the block below titled **"COPY-PASTE PROMPT"**
+3. Do NOT modify the prompt in the dashboard without updating this file first
 
-Set to: `{greeting}`
+---
 
-### Agent Prompt (Copy-Paste Ready)
+## 🔧 Variables Sent by `bolna-voice-call`
 
-```
+| Variable | Description | Example |
+|---|---|---|
+| `{first_name}` | Elder's first name | "Ramesh" |
+| `{greeting}` | Pre-built greeting (used as welcome_message) | "Hello Ramesh जी! Sentio की तरफ से आपकी daily call है।" |
+| `{first_question}` | First interactive question | "आज कैसी तबीयत है?" |
+| `{briefing}` | 3-bullet AI briefing from last 7 calls | "• Last call: said fine..." |
+| `{medicines}` | Medicine names with purposes | "diabetes ki dawai (Glycoma)" |
+| `{medicine_question}` | Pre-built medicine question (say verbatim) | "क्या आपने आज diabetes की दवाई ली?" |
+| `{wellbeing_question}` | Rotated wellbeing question | "रात को नींद कैसी आई?" |
+| `{new_concern_prompt}` | Question about new issues | "कोई नई तकलीफ़ तो नहीं है?" |
+| `{symptom_followup}` | Follow-up on previous symptom (empty if none) | "पिछली बार आपने leg pain बताया था। अभी कैसा है?" |
+| `{preferred_language}` | "english" or "hindi" | "hindi" |
+| `{is_emergency}` | Emergency flag | "true" / "false" |
+| `{emergency_intro}` | Emergency intro statement | "ये एक emergency call है..." |
+| `{has_caregiver}` | Caregiver exists | "true" / "false" |
+| `{caregiver_name}` | Caregiver name | "Priya" |
+| `{caregiver_relation}` | Relationship | "daughter" |
+
+### ⚠️ Removed Variables (do NOT use)
+- `{active_symptoms}` — replaced by `{symptom_followup}` (pre-formatted question)
+- `{last_summary}` — removed to prevent waffling; context is in `{briefing}`
+
+---
+
+## 🚨 Emergency Keyword Safety Net (Backend)
+
+The `bolna-webhook` edge function runs a **deterministic keyword scan** on every transcript as a safety net. Even if the AI agent misses an emergency, the backend will:
+- Force `emergencyDetected = true`
+- Cap well-being score at ≤ 2
+- Create a **critical** alert
+- Trigger caregiver notification
+
+Keywords covered: `gir gaya`, `fell`, `stairs`, `madad`, `help`, `bahut dard`, `tez dard`, `chest pain`, `sans nahi`, `behosh`, `bleeding`, `khoon`, `uth nahi pa raha`, `chal nahi pa raha`, and 50+ more variants.
+
+---
+
+## 📜 Production Incident Log
+
+### 2026-04-02: Emergency miss — "मैं सीढ़ी से गिर गया हूं"
+- Agent continued to ask medicine question instead of triggering emergency
+- Root cause: Emergency keyword list did not include "गिर गया" / "fell" / "stairs"
+- Fix: Added comprehensive fall/help keywords to emergency override
+
+### 2026-04-03: Emergency miss — "मुझे बहुत दर्द हो रहा है, मैं गिर गया हूं"
+- Agent said "I'll note it and update family" instead of emergency script
+- Root cause: Pain handling routed to severity scoring instead of immediate escalation
+- Fix: Falls and "help" bypass severity scoring entirely — instant emergency
+
+---
+
+## ✅ COPY-PASTE PROMPT
+
+Copy everything below this line into the Bolna Dashboard **Agent Prompt** field:
+
+---
+
 You are Sentio, a warm and caring female voice AI making a daily health check-in call.
 Keep every response to 2 sentences maximum. Never ask two questions in one turn.
 Never echo back what the elder said.
@@ -104,44 +161,3 @@ HARD RULES:
 - If any variable is empty or null, skip that step entirely
 - Never speak more than 2 sentences per turn
 - EMERGENCY KEYWORDS OVERRIDE EVERYTHING — no exceptions
-```
-
----
-
-## VARIABLES REFERENCE
-
-| Variable | Sent by `bolna-voice-call` | Description | Example |
-|---|---|---|---|
-| `first_name` | ✅ | Elder's first name | "Ramesh" |
-| `greeting` | ✅ | Pre-built greeting (spoken as welcome_message) | "Hello Ramesh जी! Sentio की तरफ से आपकी daily call है।" |
-| `first_question` | ✅ | First interactive question | "आज कैसी तबीयत है?" |
-| `briefing` | ✅ | 3-bullet AI briefing from last 7 calls | "• Last call: said fine..." |
-| `medicines` | ✅ | Medicine names with purposes | "diabetes ki dawai (Glycoma)" |
-| `medicine_question` | ✅ | Pre-built medicine question (say verbatim) | "क्या आपने आज diabetes की दवाई ली?" |
-| `wellbeing_question` | ✅ | Rotated wellbeing question | "रात को नींद कैसी आई?" |
-| `new_concern_prompt` | ✅ | Question about new issues | "कोई नई तकलीफ़ तो नहीं है?" |
-| `symptom_followup` | ✅ | Follow-up on previous symptom (empty if none) | "पिछली बार आपने leg pain बताया था। अभी कैसा है?" |
-| `preferred_language` | ✅ | "english" or "hindi" | "hindi" |
-| `is_emergency` | ✅ | Emergency flag | "true" / "false" |
-| `emergency_intro` | ✅ | Emergency intro statement | "ये एक emergency call है..." |
-| `has_caregiver` | ✅ | Caregiver exists | "true" / "false" |
-| `caregiver_name` | ✅ | Caregiver name | "Priya" |
-| `caregiver_relation` | ✅ | Relationship | "daughter" |
-
-### ⚠️ REMOVED VARIABLES (do NOT use in prompt)
-- `{active_symptoms}` — replaced by `{symptom_followup}` (pre-formatted question)
-- `{last_summary}` — removed to prevent waffling; context is in `{briefing}`
-
----
-
-## PRODUCTION INCIDENT LOG
-
-### 2026-04-02: Emergency miss — "मैं सीढ़ी से गिर गया हूं"
-- Agent continued to ask medicine question instead of triggering emergency
-- Root cause: Emergency keyword list did not include "गिर गया" / "fell" / "stairs"
-- Fix: Added comprehensive fall/help keywords to emergency override
-
-### 2026-04-03: Emergency miss — "मुझे बहुत दर्द हो रहा है, मैं गिर गया हूं"
-- Agent said "I'll note it and update family" instead of emergency script
-- Root cause: Pain handling routed to severity scoring instead of immediate escalation
-- Fix: Falls and "help" bypass severity scoring entirely — instant emergency
