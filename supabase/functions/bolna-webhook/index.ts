@@ -604,31 +604,77 @@ Respond ONLY in valid JSON format:
       }
     }
 
-    // ============ RED FLAG SAFETY NET ============
-    // Even if AI analysis missed it, scan raw transcript for emergency keywords
-    // This catches cases where the agent failed to escalate during the call
-    if (rawTranscript && !isEmergencyCall) {
+    // ============ RED FLAG SAFETY NET (HARDENED v2 — 2026-04-03) ============
+    // Deterministic emergency detection that catches what the live agent missed.
+    // This is a CRITICAL safety layer — expand aggressively, never shrink.
+    if (rawTranscript) {
       const transcriptLower = rawTranscript.toLowerCase();
       const redFlagPatterns = [
-        // Hindi emergency keywords
+        // === CHEST / HEART ===
         'seene mein dard', 'chest pain', 'heart pain', 'heart attack',
-        'sans nahi', 'saans nahi', 'breathing problem', 'cant breathe', "can't breathe", 'difficulty breathing',
-        'behosh', 'gir gaya', 'gir gayi', 'fainting', 'fainted', 'collapse',
-        'khoon', 'blood vomit', 'bleeding',
-        'marna chahta', 'marna chahti', 'jeene ka mann nahi', 'want to die', 'dont want to live',
-        'left side chest', 'baayen taraf dard', 'stroke',
-        // High severity pain
+        'left side chest', 'baayen taraf dard', 'dil mein dard',
+        'छाती में दर्द', 'सीने में दर्द', 'दिल में दर्द',
+        // === BREATHING ===
+        'sans nahi', 'saans nahi', 'breathing problem', 'cant breathe', "can't breathe",
+        'difficulty breathing', 'breathing nahi', 'dam ghut',
+        'सांस नहीं', 'दम घुट',
+        // === FALLS (production incidents 2026-04-02, 2026-04-03) ===
+        'gir gaya', 'gir gayi', 'gir pada', 'gir padi',
+        'fell down', 'fell from', 'i fell', 'fallen down', 'fall down',
+        'slipped', 'stairs', 'stair fall', 'seedhi se gir',
+        'गिर गया', 'गिर गई', 'गिर पड़ा', 'गिर पड़ी',
+        'सीढ़ी से गिर', 'फिसल गया', 'फिसल गई',
+        // === HELP / DISTRESS ===
+        'help me', 'i need help', 'save me', 'please help', 'help karo',
+        'madad', 'madad karo', 'bachao',
+        'मदद', 'मदद करो', 'बचाओ',
+        // === SEVERE PAIN ===
+        'bahut dard', 'tez dard', 'bardasht nahi', 'unbearable pain', 'severe pain', 'very bad pain',
+        'बहुत दर्द', 'तेज़ दर्द', 'बर्दाश्त नहीं',
+        'uth nahi pa raha', 'chal nahi pa raha',
+        'उठ नहीं पा रहा', 'चल नहीं पा रहा',
+        // === CONSCIOUSNESS ===
+        'behosh', 'fainting', 'fainted', 'collapse', 'unconscious',
+        'बेहोश', 'चक्कर',
+        'stroke',
+        // === BLEEDING ===
+        'khoon', 'blood vomit', 'bleeding', 'खून', 'खून आ रहा',
+        // === SUICIDAL ===
+        'marna chahta', 'marna chahti', 'jeene ka mann nahi',
+        'want to die', 'dont want to live', "don't want to live",
+        'मरना चाहता', 'मरना चाहती', 'जीने का मन नहीं',
+        // === HIGH SEVERITY PAIN SCORES ===
         'pain 8', 'pain 9', 'pain 10', 'dard 8', 'dard 9', 'dard 10',
+        // === ACCIDENT ===
+        'accident', 'emergency',
       ];
       
       const foundRedFlags = redFlagPatterns.filter(pattern => transcriptLower.includes(pattern));
       
-      if (foundRedFlags.length > 0 && !(analysis as any).emergencyDetected) {
-        console.warn(`RED FLAG SAFETY NET TRIGGERED: Found [${foundRedFlags.join(', ')}] in transcript but AI did not flag emergency`);
+      if (foundRedFlags.length > 0) {
+        const alreadyFlagged = (analysis as any).emergencyDetected === true;
+        console.warn(`RED FLAG SAFETY NET: Found [${foundRedFlags.join(', ')}] in transcript. AI flagged=${alreadyFlagged}`);
+        
+        // ALWAYS force emergency — even if AI already flagged, ensure severity is correct
         (analysis as any).emergencyDetected = true;
         analysis.alertTriggered = true;
-        analysis.alertReason = `SAFETY NET: Emergency keywords detected in transcript: ${foundRedFlags.slice(0, 3).join(', ')}`;
         analysis.wellBeingScore = Math.min(analysis.wellBeingScore, 2);
+        
+        if (!alreadyFlagged) {
+          // AI missed it — this is the safety net saving us
+          analysis.alertReason = `SAFETY NET: Emergency keywords detected in transcript: ${foundRedFlags.slice(0, 5).join(', ')}`;
+          console.error(`🚨 SAFETY NET OVERRIDE: AI agent did NOT detect emergency but transcript contains: ${foundRedFlags.join(', ')}`);
+        }
+        
+        // Log for observability
+        console.log('EMERGENCY_SAFETY_NET_AUDIT', JSON.stringify({
+          elderId,
+          executionId: actualExecutionId,
+          matchedKeywords: foundRedFlags,
+          aiDetected: alreadyFlagged,
+          safetyNetOverride: !alreadyFlagged,
+          timestamp: new Date().toISOString(),
+        }));
       }
     }
     // ============ END RED FLAG SAFETY NET ============
