@@ -35,6 +35,17 @@ const PasswordRequirements = ({ password }: { password: string }) => {
   );
 };
 
+// Only allow same-origin relative paths for post-auth redirects.
+const getSafeNextPath = (): string | null => {
+  try {
+    const raw = new URLSearchParams(window.location.search).get("next");
+    if (raw && raw.startsWith("/") && !raw.startsWith("//")) return raw;
+  } catch {
+    // ignore
+  }
+  return null;
+};
+
 const Auth = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -182,12 +193,15 @@ const Auth = () => {
           return;
         }
         
-        navigate("/select-plan");
+        const nextPath = getSafeNextPath();
+        navigate(nextPath ?? "/select-plan");
         return;
       }
 
-      // If waitlisted, go to waitlist page
-      if (profile?.subscription_status === "waitlisted") {
+      const nextPath = getSafeNextPath();
+      if (nextPath) {
+        navigate(nextPath);
+      } else if (profile?.subscription_status === "waitlisted") {
         navigate("/select-plan");
       } else if (!profile || !profile.subscription_tier) {
         navigate("/select-plan");
@@ -202,8 +216,13 @@ const Auth = () => {
   const handleGoogleSignIn = async () => {
     setGoogleLoading(true);
     try {
+      const nextPath = getSafeNextPath();
+      const redirectBase = window.location.origin;
+      const redirectUri = nextPath
+        ? `${redirectBase}/auth?next=${encodeURIComponent(nextPath)}`
+        : redirectBase;
       const result = await lovable.auth.signInWithOAuth("google", {
-        redirect_uri: window.location.origin,
+        redirect_uri: redirectUri,
       });
 
       if (result.error) {
