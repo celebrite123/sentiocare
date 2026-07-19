@@ -1,0 +1,126 @@
+{
+  "version": 1,
+  "sdk_version": "0.23.0",
+  "path": "/functions/v1/mcp",
+  "auth": {
+    "type": "oauth",
+    "issuer": "https://hcdwbpbvuvbrozttahfz.supabase.co/auth/v1",
+    "accepted_audiences": [
+      "authenticated"
+    ]
+  },
+  "mcp": {
+    "server": {
+      "name": "sentio-mcp",
+      "version": "0.1.0",
+      "title": "Sentio AI"
+    },
+    "tools": [
+      {
+        "name": "list_elders",
+        "title": "List elders",
+        "description": "List all elders (elderly patients) the signed-in Sentio user has access to, with age, phone, language, and medical conditions.",
+        "annotations": {
+          "readOnlyHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {}
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "get_elder_details",
+        "title": "Get elder details",
+        "description": "Get a full profile for one elder: demographics, medical conditions, current medicines, and the most recent check-in summary.",
+        "annotations": {
+          "readOnlyHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "elder_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Elder UUID from list_elders."
+            }
+          },
+          "required": [
+            "elder_id"
+          ]
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "list_recent_checkins",
+        "title": "List recent check-ins",
+        "description": "List recent AI voice/WhatsApp check-ins for one elder, most recent first. Returns sentiment, well-being score, medicines taken, symptoms and summary.",
+        "annotations": {
+          "readOnlyHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "elder_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Elder UUID from list_elders."
+            },
+            "limit": {
+              "default": 10,
+              "description": "How many check-ins to return (1-30).",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 30
+            }
+          },
+          "required": [
+            "elder_id"
+          ]
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "list_alerts",
+        "title": "List alerts",
+        "description": "List health/emergency alerts for elders the signed-in user has access to. Filter by elder or by unresolved status.",
+        "annotations": {
+          "readOnlyHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "elder_id": {
+              "description": "Optional elder UUID to filter by.",
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "only_unresolved": {
+              "default": true,
+              "description": "If true, only return alerts that have not been resolved.",
+              "type": "boolean"
+            },
+            "limit": {
+              "default": 20,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50
+            }
+          }
+        },
+        "outputSchema": null
+      }
+    ]
+  }
+}
