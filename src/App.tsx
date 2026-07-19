@@ -34,6 +34,7 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 const AdminCenter = lazy(() => import("./pages/AdminCenter"));
 const Blog = lazy(() => import("./pages/Blog"));
 const BlogPost = lazy(() => import("./pages/BlogPost"));
+const OAuthConsent = lazy(() => import("./pages/OAuthConsent"));
 
 // B2B App shell (for both subdomain and legacy /b2b/ routes)
 const B2BApp = lazy(() => import("./B2BApp"));
