@@ -98,7 +98,7 @@ const Dashboard = () => {
   });
 
   // Check if trial has expired (was on trial but trial is no longer active)
-  const isTrialExpired = !isTrialActive && status === "trial";
+  const isTrialExpired = !isTrialActive && status === "trial" && !isWaitlisted;
 
   useEffect(() => {
     if (elderId) {
