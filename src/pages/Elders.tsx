@@ -25,14 +25,14 @@ interface Elder {
 const Elders = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { tier, isTrialActive, canAddElder, maxElders, elderCount, refetch, status, loading: subscriptionLoading } = useSubscription();
+  const { tier, isTrialActive, canAddElder, maxElders, elderCount, refetch, status, isWaitlisted, loading: subscriptionLoading } = useSubscription();
   const [elders, setElders] = useState<Elder[]>([]);
   const [loading, setLoading] = useState(true);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentModalDismissed, setPaymentModalDismissed] = useState(false);
   
-  // Show payment modal if trial expired (not trial and status is expired or trial)
-  const isTrialExpired = !isTrialActive && status === "trial";
+  // Show payment modal if trial expired (never for waitlisted users)
+  const isTrialExpired = !isTrialActive && status === "trial" && !isWaitlisted;
 
   useEffect(() => {
     if (user) {
