@@ -12,6 +12,13 @@ serve(async (req) => {
   }
 
   try {
+    // SECURITY: Service-role only endpoint (internal cron/webhook use)
+    const _authHeader = req.headers.get('Authorization') || '';
+    const _token = _authHeader.replace('Bearer ', '').trim();
+    const _srk = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
+    if (!_token || !_srk || _token !== _srk) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const bolnaApiKey = Deno.env.get("BOLNA_API_KEY")!;

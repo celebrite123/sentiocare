@@ -24,6 +24,13 @@ serve(async (req) => {
   }
 
   try {
+    // SECURITY: Service-role only endpoint (internal cron/webhook use)
+    const _authHeader = req.headers.get('Authorization') || '';
+    const _token = _authHeader.replace('Bearer ', '').trim();
+    const _srk = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
+    if (!_token || !_srk || _token !== _srk) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
     const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
     if (!RESEND_API_KEY) {
       throw new Error("RESEND_API_KEY not configured");
