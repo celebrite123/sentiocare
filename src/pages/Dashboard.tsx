@@ -69,7 +69,7 @@ const MAX_EMERGENCY_CALLS_PER_MONTH = 5;
 const Dashboard = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const { canUseVoice, isTrialActive, trialDaysLeft, tier, status, loading: subscriptionLoading, refetch } = useSubscription();
+  const { canUseVoice, isTrialActive, trialDaysLeft, tier, status, isWaitlisted, loading: subscriptionLoading, refetch } = useSubscription();
   const [searchParams] = useSearchParams();
   const elderId = searchParams.get("elder") || searchParams.get("elderId");
   const [elder, setElder] = useState<Elder | null>(null);
