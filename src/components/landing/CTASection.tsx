@@ -6,7 +6,7 @@ const CTASection = () => {
   const navigate = useNavigate();
 
   return (
-    <section className="py-24">
+    <section className="py-16 md:py-24">
       <div className="container mx-auto px-4">
         <div className="relative overflow-hidden rounded-[2rem] bg-gradient-to-br from-primary via-primary to-accent p-10 md:p-16 text-center shadow-elegant">
           <div className="absolute -top-24 -right-24 w-96 h-96 rounded-full bg-secondary/25 blur-3xl" aria-hidden="true" />
