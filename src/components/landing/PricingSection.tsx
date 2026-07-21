@@ -18,7 +18,7 @@ const PricingSection = () => {
   const navigate = useNavigate();
 
   return (
-    <section className="py-24 bg-muted/40" id="pricing-section">
+    <section className="py-16 md:py-24 bg-muted/40" id="pricing-section">
       <div className="container mx-auto px-4">
         <div className="max-w-2xl mx-auto text-center mb-12">
           <p className="text-xs tracking-[0.2em] uppercase text-primary/70 mb-4">Pricing</p>

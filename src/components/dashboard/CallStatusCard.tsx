@@ -156,10 +156,10 @@ const CallStatusCard = ({ elderId }: CallStatusCardProps) => {
         {statusInfo.icon}
       </CardHeader>
       <CardContent className="space-y-2">
-        <div className="flex items-center gap-2">
-          <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>
-          <span className="text-xs text-muted-foreground">
-            {latestCall.call_type === "emergency" ? "🚨 Emergency" : "📅 Scheduled"}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <Badge variant={statusInfo.variant} className="text-xs">{statusInfo.label}</Badge>
+          <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+            {latestCall.call_type === "emergency" ? "🚨" : "📅"}
           </span>
         </div>
         

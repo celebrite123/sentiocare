@@ -40,7 +40,7 @@ const DashboardHeader = ({ elderName, alertCount = 0, onAlertsClick }: Dashboard
             <img src={sentioLogo} alt="Sentio" className="h-9 w-auto shrink-0" />
             <div className="hidden sm:flex items-center gap-2 pl-3 border-l border-border min-w-0">
               <span className="text-xs uppercase tracking-wider text-muted-foreground">Monitoring</span>
-              <span className="font-serif text-lg text-foreground truncate max-w-[200px]">{elderName}</span>
+              <span className="text-base font-semibold text-foreground truncate max-w-[200px]">{elderName}</span>
             </div>
           </div>
 

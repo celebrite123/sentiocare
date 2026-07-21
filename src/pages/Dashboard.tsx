@@ -455,8 +455,8 @@ const Dashboard = () => {
                   {format(new Date(), "EEEE, d MMM")}
                 </span>
               </div>
-              <h1 className="font-serif text-3xl sm:text-4xl leading-tight text-foreground">
-                How is <span className="italic text-primary">{elder.full_name.split(" ")[0]}</span> today?
+              <h1 className="text-2xl sm:text-3xl font-semibold leading-tight text-foreground tracking-tight">
+                How is <span className="text-primary">{elder.full_name.split(" ")[0]}</span> today?
               </h1>
               <p className="text-muted-foreground mt-2 max-w-md">
                 {stats.todayCheckIn.status === "completed"
@@ -542,9 +542,9 @@ const Dashboard = () => {
                 <span className={`w-2 h-2 rounded-full ${tone.dot}`} />
                 <p className="text-xs uppercase tracking-wider text-muted-foreground">Wellbeing</p>
               </div>
-              <div className={`font-serif text-6xl ${tone.text} leading-none`}>
+              <div className={`text-5xl font-semibold ${tone.text} leading-none tracking-tight`}>
                 {stats.wellBeingScore ?? "—"}
-                {stats.wellBeingScore != null && <span className="text-2xl text-muted-foreground/60">/10</span>}
+                {stats.wellBeingScore != null && <span className="text-xl text-muted-foreground/60 font-normal">/10</span>}
               </div>
               <p className={`text-sm mt-3 ${tone.text}`}>{tone.label}</p>
             </div>
@@ -559,7 +559,7 @@ const Dashboard = () => {
               <Activity className="h-4 w-4 text-primary" />
             </CardHeader>
             <CardContent>
-              <div className={`font-serif text-2xl ${stats.todayCheckIn.status === "completed" ? "text-primary" : "text-muted-foreground"}`}>
+              <div className={`text-xl font-semibold ${stats.todayCheckIn.status === "completed" ? "text-primary" : "text-muted-foreground"}`}>
                 {stats.todayCheckIn.status === "completed" ? "Done" : "Pending"}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
@@ -574,7 +574,7 @@ const Dashboard = () => {
               <Pill className="h-4 w-4 text-primary" />
             </CardHeader>
             <CardContent>
-              <div className="font-serif text-2xl text-foreground">
+              <div className="text-xl font-semibold text-foreground">
                 {stats.medicineStatus.taken}<span className="text-muted-foreground/50">/{stats.medicineStatus.total}</span>
               </div>
               <p className="text-xs text-muted-foreground mt-1">
@@ -592,7 +592,7 @@ const Dashboard = () => {
               <Bell className={`h-4 w-4 ${stats.alertCount > 0 ? "text-destructive" : "text-muted-foreground"}`} />
             </CardHeader>
             <CardContent>
-              <div className={`font-serif text-2xl ${stats.alertCount > 0 ? "text-destructive" : "text-foreground"}`}>
+              <div className={`text-xl font-semibold ${stats.alertCount > 0 ? "text-destructive" : "text-foreground"}`}>
                 {stats.alertCount}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
