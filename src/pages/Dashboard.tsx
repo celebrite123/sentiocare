@@ -396,270 +396,220 @@ const Dashboard = () => {
     setShowPaymentModal(false);
   };
 
+  // Wellbeing color + label helpers (semantic tokens only)
+  const wellbeingTone = (score: number | null) => {
+    if (score == null) return { label: "No data yet", ring: "border-muted", text: "text-muted-foreground", dot: "bg-muted-foreground/40" };
+    if (score >= 7) return { label: "Feeling great", ring: "border-primary/30", text: "text-primary", dot: "bg-primary" };
+    if (score >= 4) return { label: "Could be better", ring: "border-warning/40", text: "text-warning", dot: "bg-warning" };
+    return { label: "Needs attention", ring: "border-destructive/40", text: "text-destructive", dot: "bg-destructive" };
+  };
+  const tone = wellbeingTone(stats.wellBeingScore);
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-muted/20 to-background">
-      <TrialExpiredModal 
-        open={showPaymentModal} 
+    <div className="min-h-screen bg-background">
+      <TrialExpiredModal
+        open={showPaymentModal}
         onSuccess={handlePaymentSuccess}
         onDismiss={handleModalDismiss}
       />
-      <DashboardHeader 
-        elderName={elder.full_name} 
+      <DashboardHeader
+        elderName={elder.full_name}
         alertCount={stats.alertCount}
         onAlertsClick={() => setAlertsOpen(true)}
       />
 
-      <main className="container mx-auto px-4 py-6 sm:py-8">
-          <RenewalReminderBanner />
-          
-          {/* Trial Banner */}
-          {isTrialActive && (
-            <div className="mb-6 p-4 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <Sparkles className="h-5 w-5 text-primary" />
-                <div>
-                  <p className="font-medium">Free Trial Active</p>
-                  <p className="text-sm text-muted-foreground">
-                    {trialDaysLeft} days left - All Premium features unlocked
-                  </p>
-                </div>
+      <main className="container mx-auto px-4 py-8 sm:py-10 max-w-6xl">
+        <RenewalReminderBanner />
+
+        {/* Trial banner */}
+        {isTrialActive && (
+          <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 rounded-2xl bg-primary/[0.06] border border-primary/15">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center">
+                <Sparkles className="h-4 w-4 text-primary" />
               </div>
-              <Button size="sm" onClick={() => navigate("/select-plan")}>
-                Choose Plan
-              </Button>
+              <div>
+                <p className="text-sm font-medium text-foreground">Free trial active</p>
+                <p className="text-xs text-muted-foreground">
+                  {trialDaysLeft} {trialDaysLeft === 1 ? "day" : "days"} left — all Premium features unlocked
+                </p>
+              </div>
             </div>
-          )}
-
-          {/* Tier Badge - Fixed to show Premium Trial during trial */}
-          <div className="mb-4 flex items-center gap-2">
-            <Badge variant={canUseVoice ? "default" : "secondary"}>
-              {isTrialActive ? "Premium Trial" : tier === "premium" ? "Premium" : "Basic"} Plan
-            </Badge>
-            {!canUseVoice && !isTrialActive && (
-              <Badge variant="outline" className="text-muted-foreground">
-                <Lock className="h-3 w-3 mr-1" />
-                Voice calls locked
-              </Badge>
-            )}
-          </div>
-
-          {/* Action Buttons - Emergency Only */}
-          <div className="mb-6 flex flex-col sm:flex-row flex-wrap justify-center gap-2 sm:gap-3">
-            {canUseVoice ? (
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button
-                    size="lg"
-                    variant="destructive"
-                    className="gap-2"
-                    disabled={calling || !hasEmergencyCallsRemaining}
-                  >
-                    {calling ? (
-                      <Loader2 className="h-5 w-5 animate-spin" />
-                    ) : (
-                      <AlertTriangle className="h-5 w-5" />
-                    )}
-                    {calling ? "Calling..." : `Emergency Call (${emergencyCallStatus.remaining}/${MAX_EMERGENCY_CALLS_PER_MONTH})`}
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle className="flex items-center gap-2 text-destructive">
-                      <AlertTriangle className="h-5 w-5" />
-                      Emergency Call to {elder.full_name}
-                    </AlertDialogTitle>
-                    <AlertDialogDescription className="space-y-3">
-                      <p>
-                        This will immediately initiate an AI voice call to check on {elder.full_name}'s well-being.
-                      </p>
-                      <div className="bg-muted p-3 rounded-lg">
-                        <p className="font-medium text-foreground">Emergency Call Limits:</p>
-                        <p className="text-sm mt-1">
-                          <span className="font-semibold">{emergencyCallStatus.remaining}</span> of {MAX_EMERGENCY_CALLS_PER_MONTH} calls remaining this month
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Resets in {emergencyCallStatus.resetsIn} days
-                        </p>
-                      </div>
-                      <p className="text-sm text-muted-foreground">
-                        Use only for genuine emergencies when you cannot reach your loved one.
-                      </p>
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction
-                      onClick={initiateEmergencyCall}
-                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                    >
-                      <Phone className="h-4 w-4 mr-2" />
-                      Confirm Emergency Call
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            ) : (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    size="lg"
-                    className="gap-2"
-                    variant="outline"
-                    onClick={() => navigate("/select-plan")}
-                  >
-                    <Lock className="h-5 w-5" />
-                    Emergency Calls
-                    <Badge variant="secondary" className="ml-2">Premium</Badge>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Upgrade to Premium for emergency voice calls</p>
-                </TooltipContent>
-              </Tooltip>
-            )}
-            
-            <Button
-              onClick={() => navigate(`/elders/${elderId}/health-book`)}
-              variant="outline"
-              size="lg"
-              className="gap-2 w-full sm:w-auto"
-            >
-              <BookHeart className="h-5 w-5" />
-              Health Book
-            </Button>
-            
-            <Button
-              onClick={() => navigate(`/elders/${elderId}/settings`)}
-              variant="outline"
-              size="lg"
-              className="gap-2 w-full sm:w-auto"
-            >
-              <Settings className="h-5 w-5" />
-              Settings
+            <Button size="sm" variant="outline" className="rounded-full" onClick={() => navigate("/select-plan")}>
+              Choose plan
             </Button>
           </div>
+        )}
 
-          {/* Stats Cards */}
-          <div className="grid gap-3 sm:gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 mb-6 sm:mb-8">
-            <Card className="border-primary/20">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Today's Check-in</CardTitle>
-                <Activity className="h-4 w-4 text-primary" />
-              </CardHeader>
-              <CardContent>
-                <div
-                  className={`text-lg sm:text-2xl font-bold ${
-                    stats.todayCheckIn.status === "completed"
-                      ? "text-accent"
-                      : "text-muted-foreground"
-                  }`}
+        {/* Editorial hero */}
+        <section className="relative mb-8 overflow-hidden rounded-3xl border border-border bg-gradient-to-br from-card via-card to-muted/50 p-6 sm:p-8">
+          <div className="absolute -top-16 -right-16 w-64 h-64 bg-primary/[0.05] rounded-full blur-3xl" aria-hidden="true" />
+
+          <div className="relative grid gap-6 md:grid-cols-[1.4fr_1fr] items-center">
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <Badge variant="outline" className="border-primary/25 text-primary bg-primary/[0.06] rounded-full">
+                  {isTrialActive ? "Premium Trial" : tier === "premium" ? "Premium" : "Basic"}
+                </Badge>
+                <span className="text-xs uppercase tracking-wider text-muted-foreground">
+                  {format(new Date(), "EEEE, d MMM")}
+                </span>
+              </div>
+              <h1 className="font-serif text-3xl sm:text-4xl leading-tight text-foreground">
+                How is <span className="italic text-primary">{elder.full_name.split(" ")[0]}</span> today?
+              </h1>
+              <p className="text-muted-foreground mt-2 max-w-md">
+                {stats.todayCheckIn.status === "completed"
+                  ? `Latest check-in ${format(new Date(stats.todayCheckIn.lastTime!), "h:mm a")} — ${tone.label.toLowerCase()}.`
+                  : "No check-in yet today. We'll call at the next scheduled time."}
+              </p>
+
+              <div className="mt-6 flex flex-wrap gap-2">
+                {canUseVoice ? (
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        variant="destructive"
+                        className="rounded-full gap-2"
+                        disabled={calling || !hasEmergencyCallsRemaining}
+                      >
+                        {calling ? <Loader2 className="h-4 w-4 animate-spin" /> : <AlertTriangle className="h-4 w-4" />}
+                        {calling ? "Calling..." : `Emergency call (${emergencyCallStatus.remaining}/${MAX_EMERGENCY_CALLS_PER_MONTH})`}
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+                          <AlertTriangle className="h-5 w-5" />
+                          Emergency call to {elder.full_name}
+                        </AlertDialogTitle>
+                        <AlertDialogDescription asChild>
+                          <div className="space-y-3">
+                            <p>This will immediately initiate an AI voice call to check on {elder.full_name}'s well-being.</p>
+                            <div className="bg-muted p-3 rounded-lg">
+                              <p className="font-medium text-foreground">Emergency call limits</p>
+                              <p className="text-sm mt-1">
+                                <span className="font-semibold">{emergencyCallStatus.remaining}</span> of {MAX_EMERGENCY_CALLS_PER_MONTH} calls remaining this month
+                              </p>
+                              <p className="text-xs text-muted-foreground mt-1">Resets in {emergencyCallStatus.resetsIn} days</p>
+                            </div>
+                            <p className="text-sm text-muted-foreground">Use only for genuine emergencies when you cannot reach your loved one.</p>
+                          </div>
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={initiateEmergencyCall}
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                          <Phone className="h-4 w-4 mr-2" /> Confirm emergency call
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                ) : (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="outline" className="rounded-full gap-2" onClick={() => navigate("/select-plan")}>
+                        <Lock className="h-4 w-4" /> Emergency calls
+                        <Badge variant="secondary" className="ml-1">Premium</Badge>
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Upgrade to Premium for emergency voice calls</TooltipContent>
+                  </Tooltip>
+                )}
+                <Button
+                  variant="outline"
+                  className="rounded-full gap-2"
+                  onClick={() => navigate(`/elders/${elderId}/health-book`)}
                 >
-                  {stats.todayCheckIn.status === "completed" ? "Done" : "Pending"}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  {stats.todayCheckIn.lastTime
-                    ? `Last: ${format(new Date(stats.todayCheckIn.lastTime), "h:mm a")}`
-                    : "No check-in today"}
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card className="border-accent/20">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Medicine Status</CardTitle>
-                <Pill className="h-4 w-4 text-accent" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-lg sm:text-2xl font-bold text-accent">
-                  {stats.medicineStatus.taken}/{stats.medicineStatus.total}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  {stats.medicineStatus.taken >= stats.medicineStatus.total
-                    ? "All medicines on time"
-                    : "Medicines pending"}
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card className={`border-l-4 ${
-              stats.wellBeingScore && stats.wellBeingScore >= 7 
-                ? "border-l-accent" 
-                : stats.wellBeingScore && stats.wellBeingScore >= 4 
-                  ? "border-l-warning" 
-                  : stats.wellBeingScore 
-                    ? "border-l-destructive" 
-                    : "border-l-muted"
-            }`}>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Well-being Score</CardTitle>
-                <Heart className={`h-4 w-4 ${
-                  stats.wellBeingScore && stats.wellBeingScore >= 7 
-                    ? "text-accent" 
-                    : stats.wellBeingScore && stats.wellBeingScore >= 4 
-                      ? "text-warning" 
-                      : stats.wellBeingScore 
-                        ? "text-destructive" 
-                        : "text-muted-foreground"
-                }`} />
-              </CardHeader>
-              <CardContent>
-                <div className={`text-lg sm:text-2xl font-bold ${
-                  stats.wellBeingScore && stats.wellBeingScore >= 7 
-                    ? "text-accent" 
-                    : stats.wellBeingScore && stats.wellBeingScore >= 4 
-                      ? "text-warning" 
-                      : stats.wellBeingScore 
-                        ? "text-destructive" 
-                        : "text-muted-foreground"
-                }`}>
-                  {stats.wellBeingScore ? `${stats.wellBeingScore}/10` : "—"}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  {stats.wellBeingScore
-                    ? stats.wellBeingScore >= 7
-                      ? "Feeling great"
-                      : stats.wellBeingScore >= 4
-                        ? "Could be better"
-                        : "Needs attention"
-                    : "No data yet"}
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card 
-              className={`cursor-pointer hover:shadow-md transition-shadow ${stats.alertCount > 0 ? "border-destructive/40" : "border-muted"}`}
-              onClick={() => setAlertsOpen(true)}
-            >
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Alerts</CardTitle>
-                <Bell
-                  className={`h-4 w-4 ${
-                    stats.alertCount > 0 ? "text-destructive" : "text-muted-foreground"
-                  }`}
-                />
-              </CardHeader>
-              <CardContent>
-                <div
-                  className={`text-lg sm:text-2xl font-bold ${
-                    stats.alertCount > 0 ? "text-destructive" : ""
-                  }`}
+                  <BookHeart className="h-4 w-4" /> Health book
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="rounded-full gap-2"
+                  onClick={() => navigate(`/elders/${elderId}/settings`)}
                 >
-                  {stats.alertCount}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  {stats.alertCount > 0
-                    ? "Click to view details"
-                    : "No concerns detected"}
-                </p>
-              </CardContent>
-            </Card>
+                  <Settings className="h-4 w-4" /> Settings
+                </Button>
+              </div>
+            </div>
 
-            {/* Call Status Card */}
+            {/* Wellbeing scorecard */}
+            <div className={`bg-card rounded-2xl border-2 ${tone.ring} p-6 text-center shadow-sm`}>
+              <div className="flex items-center justify-center gap-2 mb-3">
+                <span className={`w-2 h-2 rounded-full ${tone.dot}`} />
+                <p className="text-xs uppercase tracking-wider text-muted-foreground">Wellbeing</p>
+              </div>
+              <div className={`font-serif text-6xl ${tone.text} leading-none`}>
+                {stats.wellBeingScore ?? "—"}
+                {stats.wellBeingScore != null && <span className="text-2xl text-muted-foreground/60">/10</span>}
+              </div>
+              <p className={`text-sm mt-3 ${tone.text}`}>{tone.label}</p>
+            </div>
+          </div>
+        </section>
+
+        {/* Quick stats — clean grid */}
+        <div className="grid gap-4 grid-cols-2 lg:grid-cols-4 mb-8">
+          <Card className="rounded-2xl border-border">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Today's check-in</CardTitle>
+              <Activity className="h-4 w-4 text-primary" />
+            </CardHeader>
+            <CardContent>
+              <div className={`font-serif text-2xl ${stats.todayCheckIn.status === "completed" ? "text-primary" : "text-muted-foreground"}`}>
+                {stats.todayCheckIn.status === "completed" ? "Done" : "Pending"}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                {stats.todayCheckIn.lastTime ? `Last · ${format(new Date(stats.todayCheckIn.lastTime), "h:mm a")}` : "No check-in today"}
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="rounded-2xl border-border">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Medicines</CardTitle>
+              <Pill className="h-4 w-4 text-primary" />
+            </CardHeader>
+            <CardContent>
+              <div className="font-serif text-2xl text-foreground">
+                {stats.medicineStatus.taken}<span className="text-muted-foreground/50">/{stats.medicineStatus.total}</span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                {stats.medicineStatus.taken >= stats.medicineStatus.total ? "All on time" : "Some pending"}
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card
+            className={`rounded-2xl cursor-pointer transition-shadow hover:shadow-md ${stats.alertCount > 0 ? "border-destructive/40" : "border-border"}`}
+            onClick={() => setAlertsOpen(true)}
+          >
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Alerts</CardTitle>
+              <Bell className={`h-4 w-4 ${stats.alertCount > 0 ? "text-destructive" : "text-muted-foreground"}`} />
+            </CardHeader>
+            <CardContent>
+              <div className={`font-serif text-2xl ${stats.alertCount > 0 ? "text-destructive" : "text-foreground"}`}>
+                {stats.alertCount}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                {stats.alertCount > 0 ? "Tap to view" : "All clear"}
+              </p>
+            </CardContent>
+          </Card>
+
+          <div className="rounded-2xl">
             <CallStatusCard elderId={elderId} />
-            
-            {/* Call Reliability Card */}
-            <CallReliabilityCard elderId={elderId} />
           </div>
+        </div>
+
+        <div className="mb-8">
+          <CallReliabilityCard elderId={elderId} />
+        </div>
+
 
           {/* Metrics and Insights */}
           <div className="grid gap-6 md:grid-cols-2 mb-8">
