@@ -83,7 +83,7 @@ const AdminOverviewCards = ({ overview, checkInStats, alertStats }: AdminOvervie
       title: "Active Trials",
       value: overview.activeTrials,
       icon: Clock,
-      description: "5-day trials",
+      description: "30-day trials",
       color: "text-indigo-500",
     },
   ];

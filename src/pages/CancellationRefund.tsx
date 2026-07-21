@@ -65,7 +65,7 @@ const CancellationRefund = () => {
 
           <h3 className="text-xl font-semibold mt-8 mb-3 text-foreground">1. Free Trial Period</h3>
           <p>
-            All new users receive a <strong>5-day free trial</strong> of our Premium features. 
+            All new users receive a <strong>30-day free trial</strong> of our Premium features. 
             During the trial period:
           </p>
           <ul className="list-disc pl-6 space-y-2">

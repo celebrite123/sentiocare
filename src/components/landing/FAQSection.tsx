@@ -28,7 +28,7 @@ const faqs = [
   },
   {
     question: "Can I try before I pay?",
-    answer: "Yes! Join our waitlist and once approved, you'll get a 5-day free trial with full access to all features. No credit card required upfront.",
+    answer: "Yes! Join our waitlist and once approved, you'll get a 30-day free trial with full access to all features. No credit card required upfront.",
   },
   {
     question: "Is my family's health data secure?",
