@@ -42,7 +42,6 @@ const Auth = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
   const [resetMode, setResetMode] = useState(false);
   const [passwordResetMode, setPasswordResetMode] = useState(false);
   const [newPasswordForReset, setNewPasswordForReset] = useState("");
