@@ -37,32 +37,11 @@ export function useDemoAudio({ language, messages, demoType, onMessageComplete, 
     return `${SUPABASE_URL}/storage/v1/object/public/demo-audio/${demoType}-${language}-${role}-${index + 1}.mp3`;
   }, [language, demoType]);
 
-  const generateTTSAudio = useCallback(async (text: string, role: string): Promise<string | null> => {
-    try {
-      const response = await fetch(
-        `${SUPABASE_URL}/functions/v1/elevenlabs-demo-tts`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ text, language, role }),
-          signal: abortControllerRef.current?.signal,
-        }
-      );
-
-      if (!response.ok) {
-        console.warn('TTS unavailable, falling back to text-only mode');
-        return null;
-      }
-
-      const audioBlob = await response.blob();
-      return URL.createObjectURL(audioBlob);
-    } catch (error) {
-      console.warn('TTS generation failed, using text-only fallback');
-      return null;
-    }
-  }, [language]);
+  const generateTTSAudio = useCallback(async (_text: string, _role: string): Promise<string | null> => {
+    // TTS generation disabled — rely on pre-recorded MP3s in /public or storage.
+    // Missing files fall through to timed text-only playback silently.
+    return null;
+  }, []);
 
   const checkAudioExists = useCallback(async (url: string): Promise<boolean> => {
     try {

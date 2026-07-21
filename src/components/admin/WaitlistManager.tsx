@@ -55,7 +55,7 @@ const WaitlistManager = () => {
     setActionLoading(profileId);
     try {
       const now = new Date();
-      const trialEnds = new Date(now.getTime() + 5 * 24 * 60 * 60 * 1000);
+      const trialEnds = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 
       const { error } = await supabase
         .from("profiles")
@@ -71,7 +71,7 @@ const WaitlistManager = () => {
 
       if (error) throw error;
 
-      toast.success("User approved! 5-day trial started.");
+      toast.success("User approved! 30-day free trial started.");
       fetchWaitlist();
     } catch (err) {
       console.error("Error approving user:", err);

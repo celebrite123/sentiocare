@@ -72,7 +72,7 @@ const HeroSection = () => {
                 <div className="w-8 h-8 rounded-full bg-secondary/10 flex items-center justify-center">
                   <Heart className="h-4 w-4 text-secondary" />
                 </div>
-                <span className="text-sm font-medium text-foreground/80">5-Day Free Trial</span>
+                <span className="text-sm font-medium text-foreground/80">30-Day Free Trial</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-full bg-accent/10 flex items-center justify-center">

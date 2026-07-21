@@ -67,7 +67,7 @@ const PricingSection = () => {
               Join Waitlist
             </Button>
             <p className="text-center text-xs text-foreground/50 mt-3">
-              Limited spots • 5-day free trial on approval
+              Limited spots • 30-day free trial on approval
             </p>
           </Card>
         </div>
@@ -91,7 +91,7 @@ const PricingSection = () => {
 
         <div className="text-center mt-8">
           <p className="text-sm text-foreground/65">
-            Join waitlist → Get approved → 5-day free trial → Subscribe
+            Join waitlist → Get approved → 30-day free trial → Subscribe
           </p>
         </div>
       </div>

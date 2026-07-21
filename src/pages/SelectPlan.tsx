@@ -56,7 +56,7 @@ const SelectPlan = () => {
                 </div>
                 <div className="flex items-center gap-3 opacity-40">
                   <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-sm">3</div>
-                  <span className="text-sm">5-day free trial starts</span>
+                  <span className="text-sm">30-day free trial starts</span>
                 </div>
               </CardContent>
             </Card>
