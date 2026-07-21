@@ -574,7 +574,7 @@ const Dashboard = () => {
               <Pill className="h-4 w-4 text-primary" />
             </CardHeader>
             <CardContent>
-              <div className="font-serif text-2xl text-foreground">
+              <div className="text-xl font-semibold text-foreground">
                 {stats.medicineStatus.taken}<span className="text-muted-foreground/50">/{stats.medicineStatus.total}</span>
               </div>
               <p className="text-xs text-muted-foreground mt-1">
