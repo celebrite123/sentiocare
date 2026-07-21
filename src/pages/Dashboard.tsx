@@ -542,9 +542,9 @@ const Dashboard = () => {
                 <span className={`w-2 h-2 rounded-full ${tone.dot}`} />
                 <p className="text-xs uppercase tracking-wider text-muted-foreground">Wellbeing</p>
               </div>
-              <div className={`font-serif text-6xl ${tone.text} leading-none`}>
+              <div className={`text-5xl font-semibold ${tone.text} leading-none tracking-tight`}>
                 {stats.wellBeingScore ?? "—"}
-                {stats.wellBeingScore != null && <span className="text-2xl text-muted-foreground/60">/10</span>}
+                {stats.wellBeingScore != null && <span className="text-xl text-muted-foreground/60 font-normal">/10</span>}
               </div>
               <p className={`text-sm mt-3 ${tone.text}`}>{tone.label}</p>
             </div>
