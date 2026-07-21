@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Play, Phone, ShieldCheck, Sparkles } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import GoogleSignInButton from "@/components/GoogleSignInButton";
 import heroElderlyCouple from "@/assets/hero-elderly-couple.png";
 
 const HeroSection = () => {
