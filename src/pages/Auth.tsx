@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { lovable } from "@/integrations/lovable/index";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,8 +10,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Check, Circle, Clock, Mail } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
+import GoogleSignInButton from "@/components/GoogleSignInButton";
 import sentioLogo from "@/assets/sentio-logo-new.png";
-import { resolvePostLoginPath, getSafeNextPath } from "@/lib/postLoginRoute";
+import { resolvePostLoginPath } from "@/lib/postLoginRoute";
 
 // Password requirements indicator component
 const PasswordRequirements = ({ password }: { password: string }) => {
