@@ -1,7 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Play, Phone, ShieldCheck, Sparkles } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import GoogleSignInButton from "@/components/GoogleSignInButton";
 import heroElderlyCouple from "@/assets/hero-elderly-couple.png";
 
 const HeroSection = () => {
@@ -42,11 +41,6 @@ const HeroSection = () => {
                 Join the waitlist
                 <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
               </Button>
-              <GoogleSignInButton
-                size="lg"
-                className="text-base h-14 px-8 rounded-full border-foreground/15 hover:bg-foreground/[0.03] hover:border-foreground/25"
-                label="Sign in with Google"
-              />
               <Button
                 size="lg"
                 variant="outline"
