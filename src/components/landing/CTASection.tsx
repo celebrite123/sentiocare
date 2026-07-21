@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import GoogleSignInButton from "@/components/GoogleSignInButton";
 
 const CTASection = () => {
   const navigate = useNavigate();
