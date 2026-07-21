@@ -30,39 +30,51 @@ const SelectPlan = () => {
     return (
       <>
         <Navbar />
-        <div className="min-h-screen bg-muted/30 pt-16">
-          <div className="container mx-auto px-4 py-16 max-w-lg text-center">
-            <div className="mb-6">
-              <div className="mx-auto w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
-                <Clock className="h-8 w-8 text-primary" />
+        <div className="min-h-screen bg-background">
+          <div className="container mx-auto px-4 py-16 max-w-xl">
+            <div className="text-center mb-8">
+              <div className="mx-auto w-16 h-16 rounded-full bg-primary/[0.08] flex items-center justify-center mb-5">
+                <Clock className="h-7 w-7 text-primary" />
               </div>
-              <h1 className="text-2xl font-bold mb-2">You're on the Waitlist!</h1>
-              <p className="text-muted-foreground">
-                Thank you for signing up for Sentio AI. We're reviewing your application and will notify you once you're approved.
+              <p className="text-xs tracking-[0.2em] uppercase text-primary/70 mb-3">Application received</p>
+              <h1 className="font-serif text-4xl md:text-5xl text-foreground leading-tight mb-3">
+                You're on the <span className="italic text-primary">waitlist.</span>
+              </h1>
+              <p className="text-muted-foreground max-w-md mx-auto">
+                Thank you for signing up for Sentio. We approve new families every few days and will email you the moment you're in.
               </p>
             </div>
 
-            <Card className="text-left">
-              <CardContent className="pt-6 space-y-3">
+            <Card className="rounded-2xl border-border">
+              <CardContent className="pt-6 space-y-4">
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center text-green-600 text-sm font-bold">✓</div>
-                  <span className="text-sm">Account created</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                    <Clock className="h-4 w-4 text-primary" />
+                  <div className="w-9 h-9 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-semibold">✓</div>
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Account created</p>
+                    <p className="text-xs text-muted-foreground">You'll sign in here once approved</p>
                   </div>
-                  <span className="text-sm">Waiting for approval</span>
                 </div>
-                <div className="flex items-center gap-3 opacity-40">
-                  <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-sm">3</div>
-                  <span className="text-sm">30-day free trial starts</span>
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-full bg-primary/[0.08] flex items-center justify-center">
+                    <Clock className="h-4 w-4 text-primary animate-pulse" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Waiting for approval</p>
+                    <p className="text-xs text-muted-foreground">Usually within 24–72 hours</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 opacity-50">
+                  <div className="w-9 h-9 rounded-full bg-muted flex items-center justify-center text-sm text-muted-foreground">3</div>
+                  <div>
+                    <p className="text-sm font-medium text-foreground">30-day free trial starts</p>
+                    <p className="text-xs text-muted-foreground">All Premium features unlocked</p>
+                  </div>
                 </div>
               </CardContent>
             </Card>
 
-            <p className="text-xs text-muted-foreground mt-6">
-              We'll send you an email once your account is approved. Usually within 24 hours.
+            <p className="text-xs text-muted-foreground text-center mt-6">
+              Questions? Email <a href="mailto:hello@sentio.in.net" className="text-primary hover:underline">hello@sentio.in.net</a>
             </p>
           </div>
         </div>
@@ -75,20 +87,23 @@ const SelectPlan = () => {
     return (
       <>
         <Navbar />
-        <div className="min-h-screen bg-muted/30 pt-16">
-          <div className="container mx-auto px-4 py-16 max-w-lg text-center">
-            <div className="mx-auto w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mb-4">
-              <PartyPopper className="h-8 w-8 text-green-600" />
+        <div className="min-h-screen bg-background">
+          <div className="container mx-auto px-4 py-16 max-w-xl text-center">
+            <div className="mx-auto w-16 h-16 rounded-full bg-primary/[0.08] flex items-center justify-center mb-5">
+              <PartyPopper className="h-7 w-7 text-primary" />
             </div>
-            <h1 className="text-2xl font-bold mb-2">Your Trial is Active!</h1>
-            <Badge variant="default" className="bg-primary mb-4">
-              {trialDaysLeft} days left
+            <p className="text-xs tracking-[0.2em] uppercase text-primary/70 mb-3">You're in</p>
+            <h1 className="font-serif text-4xl md:text-5xl text-foreground leading-tight mb-3">
+              Your trial is <span className="italic text-primary">active.</span>
+            </h1>
+            <Badge variant="outline" className="border-primary/25 text-primary bg-primary/[0.06] mb-4">
+              {trialDaysLeft} {trialDaysLeft === 1 ? "day" : "days"} left
             </Badge>
-            <p className="text-muted-foreground mb-6">
-              You have full access to all Premium features during your trial.
+            <p className="text-muted-foreground mb-8">
+              All Premium features unlocked. Add your first parent to start daily check-ins.
             </p>
-            <Button onClick={() => navigate("/elders/add")} className="w-full max-w-xs">
-              Add Your First Elder
+            <Button onClick={() => navigate("/elders/add")} className="rounded-full h-12 px-8 shadow-elegant">
+              Add your first elder
             </Button>
           </div>
         </div>

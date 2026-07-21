@@ -1,6 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { ArrowRight, Play, Shield, Heart, Phone } from "lucide-react";
+import { ArrowRight, Play, Phone, ShieldCheck, Sparkles } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import heroElderlyCouple from "@/assets/hero-elderly-couple.png";
 
@@ -8,120 +7,109 @@ const HeroSection = () => {
   const navigate = useNavigate();
 
   return (
-    <section className="relative min-h-[90vh] flex items-center overflow-hidden">
-      {/* Subtle dot pattern background */}
-      <div className="absolute inset-0 dot-pattern opacity-50" />
-      
-      {/* Gradient orbs */}
-      <div className="absolute top-20 right-1/4 w-[500px] h-[500px] bg-primary/5 rounded-full blur-3xl" />
-      <div className="absolute bottom-20 left-1/4 w-[400px] h-[400px] bg-secondary/10 rounded-full blur-3xl" />
-      
-      <div className="container mx-auto px-4 py-16 relative z-10">
-        <div className="grid lg:grid-cols-2 gap-12 items-center">
-          {/* Left Content */}
-          <div className="space-y-6 text-center lg:text-left">
-            <div className="animate-fade-in">
-              <Badge variant="secondary" className="bg-secondary/10 text-secondary border-0 px-4 py-1.5 text-sm font-medium">
-                🇮🇳 Made in India • Limited Spots Available
-              </Badge>
+    <section className="relative overflow-hidden bg-background">
+      {/* Editorial cream gradient wash */}
+      <div className="absolute inset-0 bg-gradient-to-b from-background via-background to-muted/40" aria-hidden="true" />
+      <div className="absolute -top-32 -right-32 w-[560px] h-[560px] bg-primary/[0.06] rounded-full blur-3xl" aria-hidden="true" />
+      <div className="absolute -bottom-40 -left-40 w-[520px] h-[520px] bg-secondary/[0.10] rounded-full blur-3xl" aria-hidden="true" />
+
+      <div className="container relative mx-auto px-4 pt-14 pb-20 md:pt-24 md:pb-28">
+        <div className="grid lg:grid-cols-[1.05fr_1fr] gap-12 lg:gap-16 items-center">
+          {/* Left — editorial column */}
+          <div className="space-y-8 text-center lg:text-left">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/[0.06] border border-primary/15 text-primary text-xs font-medium tracking-wide uppercase">
+              <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+              Doctor-designed · Made in India
             </div>
-            
-            <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight animate-fade-in animation-delay-100">
-              <span className="text-foreground">Your Parents Are Safe.</span>
+
+            <h1 className="font-serif text-[2.75rem] sm:text-6xl lg:text-[4.5rem] leading-[0.98] tracking-tight text-foreground">
+              Your parents are never
               <br />
-              <span className="bg-gradient-to-r from-secondary via-primary to-accent bg-clip-text text-transparent">
-                We Check Every Day.
-              </span>
+              <span className="italic text-primary">alone on the call.</span>
             </h1>
-            
-            <p className="text-lg md:text-xl text-muted-foreground max-w-xl animate-fade-in animation-delay-200 leading-relaxed">
-              AI calls your elderly parents daily in <strong>Hindi & English</strong>. 
-              Instant WhatsApp alerts if something's wrong. No app. No wearable. Just peace of mind — <strong>₹699/month</strong>.
+
+            <p className="text-lg md:text-xl text-muted-foreground max-w-xl mx-auto lg:mx-0 leading-relaxed">
+              Sentio calls your elderly parents every day in Hindi &amp; English, tracks their medicines and mood, and sends the family a WhatsApp summary. No app. No wearable. Just quiet peace of mind.
             </p>
 
-            {/* CTA Buttons */}
-            <div className="flex flex-col sm:flex-row gap-3 justify-center lg:justify-start pt-4 animate-fade-in animation-delay-300">
+            <div className="flex flex-col sm:flex-row gap-3 justify-center lg:justify-start pt-2">
               <Button
                 size="lg"
-                className="bg-primary hover:bg-primary/90 text-primary-foreground text-base h-12 px-6 rounded-full group shadow-lg shadow-primary/25"
+                className="bg-primary hover:bg-primary/90 text-primary-foreground text-base h-14 px-8 rounded-full group shadow-elegant"
                 onClick={() => navigate("/auth")}
               >
-                Join Waitlist
+                Join the waitlist
                 <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
               </Button>
-              <Button 
-                size="lg" 
-                variant="outline" 
-                className="text-base h-12 px-6 rounded-full group border-secondary/50 hover:bg-secondary/10 hover:border-secondary"
-                onClick={() => document.getElementById('demo')?.scrollIntoView({ behavior: 'smooth' })}
+              <Button
+                size="lg"
+                variant="outline"
+                className="text-base h-14 px-8 rounded-full border-foreground/15 hover:bg-foreground/[0.03] hover:border-foreground/25"
+                onClick={() => document.getElementById("demo")?.scrollIntoView({ behavior: "smooth" })}
               >
                 <Play className="mr-2 h-4 w-4 text-secondary" />
-                Watch Demo
+                Hear a real call
               </Button>
             </div>
 
-            {/* Trust indicators */}
-            <div className="flex flex-wrap justify-center lg:justify-start gap-4 sm:gap-6 pt-6 animate-fade-in animation-delay-400">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                  <Shield className="h-4 w-4 text-primary" />
-                </div>
-                <span className="text-sm font-medium text-foreground/80">HIPAA Compliant</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-full bg-secondary/10 flex items-center justify-center">
-                  <Heart className="h-4 w-4 text-secondary" />
-                </div>
-                <span className="text-sm font-medium text-foreground/80">30-Day Free Trial</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-full bg-accent/10 flex items-center justify-center">
-                  <Phone className="h-4 w-4 text-accent" />
-                </div>
-                <span className="text-sm font-medium text-foreground/80">24/7 Support</span>
-              </div>
+            <div className="flex flex-wrap justify-center lg:justify-start gap-x-6 gap-y-2 pt-3 text-sm text-muted-foreground">
+              <span className="inline-flex items-center gap-1.5">
+                <ShieldCheck className="h-4 w-4 text-primary" /> DPDP-compliant
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <Sparkles className="h-4 w-4 text-secondary" /> 30-day free trial
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <Phone className="h-4 w-4 text-primary" /> Hindi + English
+              </span>
             </div>
           </div>
 
-          {/* Right Content - Hero Image */}
-          <div className="relative animate-fade-in animation-delay-200">
-            <div className="relative">
-              {/* Decorative background elements */}
-              <div className="absolute -top-8 -left-8 w-72 h-72 bg-primary/10 rounded-full blur-2xl hidden lg:block" />
-              <div className="absolute -bottom-8 -right-8 w-64 h-64 bg-secondary/15 rounded-full blur-2xl hidden lg:block" />
-              
-              {/* Main image container */}
-              <div className="relative z-10 rounded-3xl overflow-hidden shadow-2xl shadow-primary/10 border border-primary/10 max-w-sm mx-auto lg:max-w-none">
-                <img 
-                  src={heroElderlyCouple} 
-                  alt="Happy elderly Indian couple using smartphone for health check-ins"
-                  className="w-full h-auto object-cover"
-                  width={600}
-                  height={400}
-                  fetchPriority="high"
-                />
-              </div>
-              
-              {/* Floating badge */}
-              <div className="absolute -bottom-4 -left-4 z-20 bg-card border border-border rounded-2xl p-4 shadow-lg animate-float hidden sm:block">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-whatsapp/10 flex items-center justify-center">
-                    <Heart className="h-5 w-5 text-whatsapp" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-foreground/70">Today's Status</p>
-                    <p className="text-sm font-semibold text-foreground">All is Well ✓</p>
-                  </div>
-                </div>
+          {/* Right — portrait + call card */}
+          <div className="relative mx-auto w-full max-w-md lg:max-w-none">
+            <div className="absolute -top-6 -left-6 w-40 h-40 rounded-full bg-secondary/25 blur-2xl" aria-hidden="true" />
+            <div className="absolute -bottom-6 -right-6 w-56 h-56 rounded-full bg-primary/15 blur-2xl" aria-hidden="true" />
+
+            <div className="relative rounded-[2rem] overflow-hidden border border-foreground/10 shadow-elegant bg-card">
+              <img
+                src={heroElderlyCouple}
+                alt="An elderly Indian couple smiling on a warm morning call"
+                className="w-full h-auto object-cover aspect-[4/5]"
+                width={640}
+                height={800}
+                fetchPriority="high"
+              />
+              {/* editorial gold rule */}
+              <div className="absolute top-6 left-6 right-6 flex items-center gap-3 text-[10px] tracking-[0.2em] uppercase text-white/90">
+                <span className="h-px flex-1 bg-white/50" />
+                Today · 8:30 AM
+                <span className="h-px flex-1 bg-white/50" />
               </div>
             </div>
-          </div>
-        </div>
 
-        {/* Scroll indicator */}
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 animate-scroll-hint hidden md:block">
-          <div className="w-6 h-10 border-2 border-primary/30 rounded-full flex justify-center pt-2">
-            <div className="w-1 h-2 bg-primary/50 rounded-full" />
+            {/* Floating call card */}
+            <div className="absolute -bottom-6 left-4 sm:-left-6 right-4 sm:right-auto sm:w-80 rounded-2xl bg-card border border-border shadow-lg p-4 animate-float">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center shrink-0">
+                  <Phone className="h-4 w-4" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs text-muted-foreground">AI check-in · connected</p>
+                  <p className="text-sm font-semibold text-foreground truncate">
+                    "आज दवाई ली? कैसा महसूस हो रहा है?"
+                  </p>
+                </div>
+              </div>
+              <div className="mt-3 flex items-center gap-1 h-6" aria-hidden="true">
+                {[6, 14, 10, 18, 8, 22, 12, 16, 9, 20, 11, 15].map((h, i) => (
+                  <span
+                    key={i}
+                    className="w-1 rounded-full bg-primary/70 animate-wave"
+                    style={{ height: `${h}px`, animationDelay: `${i * 60}ms` }}
+                  />
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       </div>

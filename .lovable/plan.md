@@ -1,174 +1,81 @@
+# Redesign: Landing Page + Family Dashboard
 
-## What I found
+Since this is production, we ship visual/UX changes only — no schema, RLS, edge function, or auth-logic rewrites. All backend behavior (waitlist, trial, calls, webhooks) stays intact.
 
-I checked the last two completed voice calls plus the saved check-ins/alerts.
+## 1. Brand direction (locked)
 
-### Last 2 transcripts
-1. **2026-04-03**
-   - User: “मैं ... गिर गया हूं मुझे बहुत दर्द हो रहा है”
-   - Bot replied: “ठीक है, मैं इसे note कर रही हूं और family को update करूंगी.”
-   - This should have been an immediate emergency script, not a soft note.
+- **Palette — Emerald Prestige**: deep emerald `#064e3b`, forest `#0d7a5f`, warm gold accent `#c9a84c`, cream surface `#f5f0e0`, ink `#0b1f18`. Feels clinical + human + premium, not "generic blue SaaS".
+- **Typography — Instrument Serif + Work Sans**: serif for hero/section headlines (editorial, human, caring), Work Sans for body/UI (clean, trustworthy).
+- **Motion**: subtle only — fade/slide on scroll, gentle hover lift on cards. No parallax gimmicks.
+- **Tokens**: update `src/index.css` and `tailwind.config.ts` with new HSL semantic tokens (`--background`, `--foreground`, `--primary`, `--accent`, `--card`, `--muted`, `--border`, plus `--gradient-hero`, `--shadow-elegant`). All new components use tokens — zero hardcoded colors.
 
-2. **2026-04-02**
-   - User: “मैं सीढ़ी से गिर गया हूं”
-   - Bot replied: “क्या आपने आज dsa ली?”
-   - This is a clear emergency miss.
+## 2. Landing page (`src/pages/Index.tsx` + section components)
 
-### Important conclusion
-The system **did escalate after the call**:
-- both calls created **critical emergency alerts** in the backend
-- so the failure is **not only TTS/STT**
-- STT is noisy, but the saved transcript still clearly contains **fall / stairs / severe pain**
-- the real gap is: **the live Bolna agent did not interrupt the flow immediately**
+Layout: split emotional hero → full-width narrative bands.
 
-## Why this is happening
+Sections, in order:
+1. **Sticky nav** — logo left, `Features / How it works / Pricing / FAQ` center, `Sign in` (ghost) + `Join waitlist` (primary) right. Mobile: hamburger sheet.
+2. **Hero (split)** — Left: serif headline "Your parents are never alone on the call.", subhead, primary CTA `Join the waitlist`, secondary `See how it works`, trust row ("DPDP compliant · Hindi + English · Doctor-designed"). Right: warm portrait of elder on phone + floating "AI check-in" call card mock with live waveform.
+3. **Social proof strip** — quiet line of press/partner/pilot logos or "Trusted by X families across India".
+4. **How it works** — 3 numbered steps (Add your parent → We call daily → You get a WhatsApp summary) with illustrated cards.
+5. **Feature bento** — 6 tiles: Daily voice check-ins, Medicine adherence, Emergency escalation, WhatsApp summaries for family, Symptom tracking, Multi-language.
+6. **Live demo teaser** — the existing voice demo, restyled into a cream card with proper play state (uses existing `useDemoAudio` fallback, no ElevenLabs call).
+7. **Pricing** — single card "1 month free, then ₹X/month". Copy already says 30 days — just restyle.
+8. **Trust & safety** — DPDP, data deletion, doctor-reviewed protocol, no ads.
+9. **FAQ** — accordion, 6–8 questions.
+10. **Final CTA band** — emerald background, gold accent, `Join the waitlist`.
+11. **Footer** — links, legal, contact, socials.
 
-### 1. The live agent prompt is drifting from the code
-Your current dashboard prompt uses variables like:
-- `{active_symptoms}`
+Every button audited: correct href, correct handler, correct disabled/loading state, mobile tap target ≥ 44px, keyboard-focusable.
 
-But the actual `bolna-voice-call` function sends:
-- `symptom_followup`
-- `first_question`
-- `medicine_question`
-- `wellbeing_question`
-- `new_concern_prompt`
+## 3. Family dashboard (`src/pages/Dashboard.tsx` + `src/components/dashboard/*`)
 
-That mismatch makes the runtime behavior less predictable in production.
+Keep all data hooks and logic. Only restyle + reflow.
 
-### 2. Emergency handling is too prompt-dependent
-Right now, immediate escalation depends on the agent obeying natural-language instructions inside the provider prompt.
+- **Top bar**: logo, elder switcher (if multiple), notification bell, avatar menu.
+- **Hero status card**: today's wellbeing score (large, color-coded green/amber/red using emerald/gold/rose tokens), last check-in time, next scheduled call, quick "Call now" button.
+- **Grid below**:
+  - **Adherence card** — 7-day medicine bar sparkline.
+  - **Wellbeing trend** — 30-day line chart (existing Recharts).
+  - **Active symptoms** — chips with days-active.
+  - **Recent check-ins** — list with play button (uses fixed streaming audio).
+  - **Alerts** — colored strip, most recent first.
+- **Empty states**: friendly serif headline + illustration when no elders / no check-ins yet.
+- **Waitlisted users**: dashboard shows a calm "You're on the waitlist" hero card instead of the trial-expired modal (already fixed, verify).
 
-That is fragile when:
-- ASR paraphrases the sentence
-- the model prioritizes step flow over interrupt rules
-- the transcript says “सीढ़ी से गिर गया हूं”, “मुझे बहुत दर्द हो रहा है”, “help”, “I need help”, etc. in slightly different wording
+Mobile: single column, cards stack, sticky "Call now" FAB.
 
-### 3. Backend safety net is only post-call
-`bolna-webhook` correctly detects red flags **after** the call and creates alerts, but that does not protect the elder **during** the conversation.
+## 4. Post-login smart routing
 
-### 4. Keyword coverage is still incomplete
-The backend red-flag safety net catches some phrases, but it should be expanded for real-world speech variants like:
-- fall / fell / fallen / fell down / slipped / stairs / stair fall
-- help / help me / I need help / save me
-- गिर गया / गिर गई / सीढ़ी से गिर गया / गिर पड़ा
-- बहुत दर्द / तेज़ दर्द / उठ नहीं पा रहा / चल नहीं पा रहा
+New helper `src/lib/postLoginRoute.ts` used by `Auth.tsx` and `ProtectedRoute.tsx`:
 
-## Plan to fix this safely
-
-### 1. Make one production source of truth for the B2C voice prompt
-- Replace the drifting dashboard prompt with a hardened prompt aligned to the variables the code actually sends
-- Remove unsupported or stale references like `{active_symptoms}`
-- Keep the prompt in repo docs as the canonical version, then sync the provider config from that
-
-### 2. Harden the emergency branch so it always wins
-Update the prompt so that **any mention of fall/help/severe distress** immediately overrides normal flow.
-
-Emergency triggers should include:
-- chest pain / breathing difficulty / fainting / unconscious
-- fell / fell down / stairs fall / slipped
-- help me / I need help / emergency
-- गिर गया / गिर गई / सीढ़ी से गिर गया / मदद / बहुत दर्द / तेज़ दर्द
-
-And the behavior should be:
 ```text
-- Stop current step immediately
-- Do not ask medicine
-- Do not ask pain score first
-- Do not continue routine questions
-- Say emergency script
-- End / hand off
+if !emailConfirmed        → /auth (verify email screen)
+else if isWaitlisted      → /select-plan (waitlist status view)
+else if no elders yet     → /elders (onboarding)
+else                      → /dashboard
 ```
 
-### 3. Remove ambiguous “non-emergency pain” handling for fall cases
-Right now the flow allows:
-- pain severity questions
-- “I’ll note it and update family”
+`/select-plan` becomes the canonical status page for waitlisted + trial users, showing: current state (Waitlisted / Trial – N days left / Active), what happens next, and (for waitlisted) a "You'll get an email when approved" panel. No trial-expired modal for waitlisted.
 
-That is unsafe when the user says they fell or needs help.
+## 5. QA checklist (must pass before I hand back)
 
-New rule:
-- **fall/help/breathing/chest pain/fainting** = instant emergency
-- no severity scoring before escalation
-- no medicine step afterward
+- Every landing CTA navigates correctly (Sign in → `/auth`, Join waitlist → `/auth?mode=signup`, See how it works → scroll).
+- Dashboard renders for: waitlisted user, trial user w/ 0 elders, trial user w/ elders + check-ins, expired user.
+- No hardcoded colors in new components (`rg "text-white|bg-black|#[0-9a-f]{3,6}" src/components/landing src/components/dashboard`).
+- Mobile (375px) + desktop (1440px) screenshots via Playwright for landing and dashboard.
+- Lighthouse-ish sanity: single H1, meta title/description updated, alt text on images.
+- No changes to edge functions, migrations, RLS, or Supabase client.
 
-### 4. Strengthen backend safety net in `bolna-webhook`
-Even though the main issue is live-call behavior, the backend should be stricter too.
+## Technical notes
 
-Update `bolna-webhook` to:
-- expand red-flag phrase list
-- force `emergencyDetected = true` for fall/help phrases
-- force `severity = critical`
-- force caregiver notification/callback for those phrases
-- log exactly which phrase triggered the emergency decision
+- Files touched (non-exhaustive): `src/index.css`, `tailwind.config.ts`, `src/pages/Index.tsx`, `src/pages/Dashboard.tsx`, `src/pages/Auth.tsx`, `src/pages/SelectPlan.tsx`, `src/components/ProtectedRoute.tsx`, new `src/components/landing/*` (Nav, Hero, HowItWorks, FeatureBento, DemoTeaser, Pricing, Trust, FAQ, FinalCTA, Footer), refactored `src/components/dashboard/*` presentation.
+- New assets: 1–2 hero images generated via imagegen (elder-on-phone warm portrait, abstract emerald/gold texture), stored in `src/assets/`.
+- No new dependencies.
+- Favicon stays as-is (already fixed).
 
-This protects against model misses and ASR variation.
+## Out of scope (intentionally)
 
-### 5. Add regression tests using the exact bad transcripts
-Create deterministic tests around the two real failing examples:
-- “मैं सीढ़ी से गिर गया हूं”
-- “मुझे बहुत दर्द हो रहा है, मैं गिर गया हूं”
-- “I fell down”
-- “I need help”
-- “help me, I fell”
-- Hindi mixed variants
+- B2B hospital portal, admin center, voice prompts, edge functions, database schema, payment logic, notification logic.
 
-Expected result:
-- emergency detected
-- critical alert
-- caregiver notify path triggered
-
-### 6. Add safer observability for production
-For each voice check-in, capture:
-- whether emergency keyword safety net fired
-- which keyword/phrase matched
-- whether alert was created
-- whether caregiver notification was attempted
-
-That makes future misses diagnosable fast.
-
-### 7. Optional but recommended: add a real handoff path
-If the provider supports it, upgrade emergency handling from “say message and end” to:
-- immediate caregiver callback trigger
-- or warm transfer / nurse handoff
-
-That is the strongest production-safe behavior.
-
-## Technical details
-
-### Files/areas to update
-- `supabase/functions/bolna-webhook/index.ts`
-  - expand deterministic emergency phrase matching
-  - force critical escalation on fall/help phrases
-- `supabase/functions/bolna-voice-call/index.ts`
-  - keep payload/prompt variables aligned
-  - optionally pass a stronger normalized emergency instruction set
-- `SENTIO_VOICE_AGENT_GUARDRAILS.md`
-  - rewrite to match actual runtime variables and emergency behavior
-- Bolna dashboard agent prompt
-  - must be synced to the hardened version, because this behavior currently lives there
-
-### Specific mismatch I would fix first
-Your current dashboard prompt references `{active_symptoms}`, but `bolna-voice-call` sends `symptom_followup` instead. That inconsistency should be removed before production rollout.
-
-### What success looks like
-For any utterance like:
-- “I fell down”
-- “I need help”
-- “मैं गिर गया हूं”
-- “मैं सीढ़ी से गिर गया हूं”
-- “मुझे बहुत दर्द हो रहा है”
-the agent should:
-1. stop routine flow instantly
-2. speak the emergency escalation script
-3. not ask medicine / wellbeing / new concern
-4. trigger critical backend escalation
-
-### Rollout order
-1. Harden prompt
-2. Expand backend safety net
-3. Add transcript regression tests
-4. Verify against the two exact failing transcripts
-5. Then use in production
-
-This is the safest path because the current system already catches emergencies **after** the call, but it is still unsafe **during** the call, which is the part that must be fixed first.
+Ship order: tokens → landing → routing → dashboard, each verified before moving on.

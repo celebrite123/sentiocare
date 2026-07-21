@@ -1,152 +1,77 @@
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Phone, MessageCircle, Bell, Brain, Heart, Shield, Settings2, Activity, Sparkles } from "lucide-react";
-import elderPhoneCall from "@/assets/elder-phone-call.png";
-import caregiverPeaceOfMind from "@/assets/caregiver-peace-of-mind.png";
+import { Phone, MessageCircle, Bell, Brain, Heart, ShieldCheck, Settings2, Activity } from "lucide-react";
 
 const features = [
   {
     icon: Phone,
-    title: "AI Voice Calls",
-    description: "Natural conversations in Hindi & English. Your parents feel like they're talking to a caring family member.",
-    color: "primary",
-    isNew: false,
-  },
-  {
-    icon: MessageCircle,
-    title: "WhatsApp Check-ins",
-    description: "Familiar messaging for daily health updates. Seniors respond at their own pace, on their schedule.",
-    color: "whatsapp",
-    isNew: false,
-  },
-  {
-    icon: Settings2,
-    title: "Custom Health Monitoring",
-    description: "Track what matters most—blood pressure, meals, sleep, or your own custom questions tailored to your loved one.",
-    color: "secondary",
-    isNew: true,
-  },
-  {
-    icon: Brain,
-    title: "AI Health Insights",
-    description: "Smart analysis of conversations to detect subtle mood and health changes over time.",
-    color: "primary",
-    isNew: false,
-  },
-  {
-    icon: Activity,
-    title: "Symptom Tracking",
-    description: "Automatic detection and follow-up on reported symptoms. Celebrate improvements, catch concerns early.",
-    color: "accent",
-    isNew: true,
-  },
-  {
-    icon: Bell,
-    title: "Instant Caregiver Alerts",
-    description: "Multi-channel notifications via WhatsApp, SMS, and email when something needs your attention.",
-    color: "secondary",
-    isNew: false,
+    title: "Daily AI voice calls",
+    description: "A patient, natural voice in Hindi or English — like a caring family member checking in.",
+    span: "md:col-span-2 md:row-span-2",
+    tall: true,
   },
   {
     icon: Heart,
-    title: "Medicine Reminders",
-    description: "Ensure medications are taken on time. Track adherence and get alerts for missed doses.",
-    color: "primary",
-    isNew: false,
+    title: "Medicine adherence",
+    description: "Track every dose. Nudge for missed pills. Weekly reports for the family.",
   },
   {
-    icon: Shield,
-    title: "Privacy First",
-    description: "HIPAA-compliant data handling. Your family's health information stays secure and private.",
-    color: "accent",
-    isNew: false,
+    icon: Activity,
+    title: "Symptom follow-ups",
+    description: "Symptoms mentioned yesterday become gentle questions today.",
+  },
+  {
+    icon: MessageCircle,
+    title: "WhatsApp summaries",
+    description: "🟢 🟡 🔴 daily digests to the whole family — no app to install.",
+  },
+  {
+    icon: Bell,
+    title: "Instant escalation",
+    description: "Falls, chest pain, or distress trigger an immediate caregiver alert.",
+  },
+  {
+    icon: Brain,
+    title: "AI health insights",
+    description: "30-day mood and wellbeing trends surface changes before they become emergencies.",
+  },
+  {
+    icon: Settings2,
+    title: "Custom monitoring",
+    description: "Add your own questions — BP, meals, sleep, physio, anything.",
+  },
+  {
+    icon: ShieldCheck,
+    title: "Private &amp; DPDP-safe",
+    description: "Data stays yours. Delete anything, anytime. No ads. Ever.",
   },
 ];
 
 const FeaturesSection = () => {
-  const getColorClasses = (color: string) => {
-    switch (color) {
-      case "primary":
-        return "bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground";
-      case "secondary":
-        return "bg-secondary/10 text-secondary group-hover:bg-secondary group-hover:text-secondary-foreground";
-      case "accent":
-        return "bg-accent/10 text-accent group-hover:bg-accent group-hover:text-accent-foreground";
-      case "whatsapp":
-        return "bg-whatsapp/10 text-whatsapp group-hover:bg-whatsapp group-hover:text-white";
-      default:
-        return "bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground";
-    }
-  };
-
   return (
-    <section className="py-20 bg-muted/30">
+    <section className="py-24 bg-background">
       <div className="container mx-auto px-4">
-        {/* Section Header with Illustration */}
-        <div className="grid lg:grid-cols-2 gap-12 items-center mb-16">
-          <div className="order-2 lg:order-1">
-            <Badge variant="secondary" className="mb-4 bg-secondary/10 text-secondary border-0 px-3 py-1">
-              <Sparkles className="h-3 w-3 mr-1" />
-              Personalized Care
-            </Badge>
-            <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">
-              What We Do For You
-            </h2>
-            <p className="text-foreground/70 text-lg max-w-2xl">
-              Comprehensive care features designed for Indian families. Now with <strong>custom health monitoring</strong>—track exactly what matters for your loved one.
-            </p>
-          </div>
-          <div className="order-1 lg:order-2 flex justify-center lg:justify-end gap-4">
-            <div className="relative">
-              <div className="absolute inset-0 bg-primary/10 rounded-2xl blur-xl" />
-              <img 
-                src={elderPhoneCall} 
-                alt="Elder receiving care call"
-                className="relative w-48 h-48 object-cover rounded-2xl shadow-lg border border-primary/10"
-                width={192}
-                height={192}
-                loading="lazy"
-              />
-            </div>
-            <div className="relative mt-8">
-              <div className="absolute inset-0 bg-secondary/10 rounded-2xl blur-xl" />
-              <img 
-                src={caregiverPeaceOfMind} 
-                alt="Caregiver feeling at peace"
-                className="relative w-48 h-48 object-cover rounded-2xl shadow-lg border border-secondary/10"
-                width={192}
-                height={192}
-                loading="lazy"
-              />
-            </div>
-          </div>
+        <div className="max-w-2xl mb-14">
+          <p className="text-xs tracking-[0.2em] uppercase text-primary/70 mb-4">What Sentio does</p>
+          <h2 className="font-serif text-4xl md:text-5xl text-foreground leading-[1.05]">
+            Everything a good caregiver would.
+            <span className="italic text-primary"> Every single day.</span>
+          </h2>
         </div>
 
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5 max-w-6xl mx-auto">
-          {features.map((feature, index) => (
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 max-w-6xl">
+          {features.map((f, i) => (
             <Card
-              key={index}
-              className={`group p-5 bg-card border transition-all duration-300 hover:shadow-xl relative ${
-                feature.isNew 
-                  ? "border-secondary/50 shadow-md shadow-secondary/5" 
-                  : "border-border hover:border-primary/30"
-              }`}
+              key={i}
+              className={`group relative p-6 bg-card border border-border rounded-2xl transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:border-primary/30 ${f.span ?? ""}`}
             >
-              {feature.isNew && (
-                <div className="absolute -top-2 -right-2">
-                  <Badge className="bg-secondary text-foreground font-semibold text-[10px] px-2 py-0.5 shadow-lg">
-                    NEW
-                  </Badge>
-                </div>
-              )}
-              <div className={`w-11 h-11 rounded-xl flex items-center justify-center mb-3 transition-all duration-300 ${getColorClasses(feature.color)}`}>
-                <feature.icon className="h-5 w-5" />
+              <div className={`w-11 h-11 rounded-xl bg-primary/[0.08] text-primary flex items-center justify-center mb-4 group-hover:bg-primary group-hover:text-primary-foreground transition-colors`}>
+                <f.icon className="h-5 w-5" />
               </div>
-              <h3 className="text-base font-semibold text-foreground mb-1.5">
-                {feature.title}
+              <h3 className={`font-serif text-foreground mb-2 ${f.tall ? "text-3xl" : "text-xl"}`}>
+                {f.title}
               </h3>
-              <p className="text-foreground/70 text-sm leading-relaxed">
-                {feature.description}
+              <p className={`text-muted-foreground leading-relaxed ${f.tall ? "text-base" : "text-sm"}`}>
+                {f.description}
               </p>
             </Card>
           ))}

@@ -143,12 +143,15 @@ const Navbar = () => {
                   </DropdownMenu>
                 </>
               ) : (
-                <div className="flex items-center gap-2">
-                  <Button variant="ghost" onClick={() => navigate("/auth")}>
-                    Log In
+                <div className="hidden sm:flex items-center gap-2">
+                  <Button variant="ghost" onClick={() => navigate("/auth")} className="rounded-full">
+                    Sign in
                   </Button>
-                  <Button onClick={() => navigate("/auth")} className="bg-primary hover:bg-primary/90">
-                    Sign Up
+                  <Button
+                    onClick={() => navigate("/auth")}
+                    className="rounded-full bg-primary hover:bg-primary/90 shadow-elegant"
+                  >
+                    Join waitlist
                   </Button>
                 </div>
               )}
@@ -195,11 +198,11 @@ const Navbar = () => {
                   </Button>
                 ) : (
                   <>
-                    <Button variant="ghost" className="justify-start" onClick={() => { navigate("/auth"); setMobileMenuOpen(false); }}>
-                      Log In
+                    <Button variant="ghost" className="justify-start rounded-full" onClick={() => { navigate("/auth"); setMobileMenuOpen(false); }}>
+                      Sign in
                     </Button>
-                    <Button className="justify-start bg-primary hover:bg-primary/90" onClick={() => { navigate("/auth"); setMobileMenuOpen(false); }}>
-                      Sign Up
+                    <Button className="justify-start rounded-full bg-primary hover:bg-primary/90" onClick={() => { navigate("/auth"); setMobileMenuOpen(false); }}>
+                      Join waitlist
                     </Button>
                   </>
                 )}

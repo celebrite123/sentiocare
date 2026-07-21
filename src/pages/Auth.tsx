@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, Check, Circle, Clock, Mail } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import sentioLogo from "@/assets/sentio-logo-new.png";
+import { resolvePostLoginPath, getSafeNextPath } from "@/lib/postLoginRoute";
 
 // Password requirements indicator component
 const PasswordRequirements = ({ password }: { password: string }) => {
@@ -35,16 +36,7 @@ const PasswordRequirements = ({ password }: { password: string }) => {
   );
 };
 
-// Only allow same-origin relative paths for post-auth redirects.
-const getSafeNextPath = (): string | null => {
-  try {
-    const raw = new URLSearchParams(window.location.search).get("next");
-    if (raw && raw.startsWith("/") && !raw.startsWith("//")) return raw;
-  } catch {
-    // ignore
-  }
-  return null;
-};
+// getSafeNextPath is imported from @/lib/postLoginRoute
 
 const Auth = () => {
   const navigate = useNavigate();
@@ -120,42 +112,33 @@ const Auth = () => {
   }, [navigate, passwordResetMode]);
 
   const checkAndRedirect = async (userId: string) => {
-    // Prevent concurrent runs (race condition between onAuthStateChange and checkSession)
     if (checkAndRedirectRunning.current) return;
     checkAndRedirectRunning.current = true;
 
     try {
-      // Check if user has a profile
-      const { data: profile, error: profileError } = await supabase
+      // Ensure a profile row exists (OAuth first sign-in)
+      const { data: existing, error: profileError } = await supabase
         .from("profiles")
-        .select("subscription_tier, subscription_status")
+        .select("id")
         .eq("user_id", userId)
-        .single();
+        .maybeSingle();
 
-      // If no profile exists (OAuth signup), create one as waitlisted
-      if (profileError && profileError.code === "PGRST116") {
+      if (profileError && profileError.code !== "PGRST116") {
+        console.error("Profile lookup failed:", profileError);
+      }
+
+      if (!existing) {
         const { data: { user } } = await supabase.auth.getUser();
-        const userName = user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email?.split("@")[0] || "User";
-        
-        // Try upsert first (works with unique constraint on user_id)
+        const userName =
+          user?.user_metadata?.full_name ||
+          user?.user_metadata?.name ||
+          user?.email?.split("@")[0] ||
+          "User";
+
         const { error: upsertError } = await supabase
           .from("profiles")
-          .upsert({
-            user_id: userId,
-            full_name: userName,
-            subscription_status: "waitlisted",
-            waitlist_status: "pending",
-            trial_ends_at: null,
-            terms_accepted_at: new Date().toISOString(),
-            privacy_accepted_at: new Date().toISOString(),
-          }, { onConflict: "user_id" });
-
-        if (upsertError) {
-          console.error("Upsert failed, trying direct insert:", upsertError);
-          // Fallback: try plain insert
-          const { error: insertError } = await supabase
-            .from("profiles")
-            .insert({
+          .upsert(
+            {
               user_id: userId,
               full_name: userName,
               subscription_status: "waitlisted",
@@ -163,51 +146,23 @@ const Auth = () => {
               trial_ends_at: null,
               terms_accepted_at: new Date().toISOString(),
               privacy_accepted_at: new Date().toISOString(),
-            });
+            },
+            { onConflict: "user_id" }
+          );
 
-          if (insertError) {
-            console.error("Profile insert also failed:", insertError);
-            toast({
-              title: "Account setup issue",
-              description: "Please try signing in again. If the problem persists, contact support.",
-              variant: "destructive",
-            });
-            return;
-          }
-        }
-
-        // Verify profile was actually created
-        const { data: verifyProfile } = await supabase
-          .from("profiles")
-          .select("id")
-          .eq("user_id", userId)
-          .single();
-
-        if (!verifyProfile) {
-          console.error("Profile creation could not be verified for user:", userId);
+        if (upsertError) {
+          console.error("Profile upsert failed:", upsertError);
           toast({
             title: "Account setup issue",
-            description: "Your profile could not be created. Please try again or contact support.",
+            description: "Please try signing in again. If the problem persists, contact support.",
             variant: "destructive",
           });
           return;
         }
-        
-        const nextPath = getSafeNextPath();
-        navigate(nextPath ?? "/select-plan");
-        return;
       }
 
-      const nextPath = getSafeNextPath();
-      if (nextPath) {
-        navigate(nextPath);
-      } else if (profile?.subscription_status === "waitlisted") {
-        navigate("/select-plan");
-      } else if (!profile || !profile.subscription_tier) {
-        navigate("/select-plan");
-      } else {
-        navigate("/elders");
-      }
+      const destination = await resolvePostLoginPath(userId);
+      navigate(destination);
     } finally {
       checkAndRedirectRunning.current = false;
     }
