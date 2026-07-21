@@ -455,8 +455,8 @@ const Dashboard = () => {
                   {format(new Date(), "EEEE, d MMM")}
                 </span>
               </div>
-              <h1 className="font-serif text-3xl sm:text-4xl leading-tight text-foreground">
-                How is <span className="italic text-primary">{elder.full_name.split(" ")[0]}</span> today?
+              <h1 className="text-2xl sm:text-3xl font-semibold leading-tight text-foreground tracking-tight">
+                How is <span className="text-primary">{elder.full_name.split(" ")[0]}</span> today?
               </h1>
               <p className="text-muted-foreground mt-2 max-w-md">
                 {stats.todayCheckIn.status === "completed"
