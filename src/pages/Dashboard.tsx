@@ -559,7 +559,7 @@ const Dashboard = () => {
               <Activity className="h-4 w-4 text-primary" />
             </CardHeader>
             <CardContent>
-              <div className={`font-serif text-2xl ${stats.todayCheckIn.status === "completed" ? "text-primary" : "text-muted-foreground"}`}>
+              <div className={`text-xl font-semibold ${stats.todayCheckIn.status === "completed" ? "text-primary" : "text-muted-foreground"}`}>
                 {stats.todayCheckIn.status === "completed" ? "Done" : "Pending"}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
