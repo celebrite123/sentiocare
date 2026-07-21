@@ -71,7 +71,7 @@ const WaitlistManager = () => {
 
       if (error) throw error;
 
-      toast.success("User approved! 5-day trial started.");
+      toast.success("User approved! 30-day free trial started.");
       fetchWaitlist();
     } catch (err) {
       console.error("Error approving user:", err);
