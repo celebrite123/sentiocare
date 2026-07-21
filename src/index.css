@@ -2,12 +2,13 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Design System - Sentio AI Brand Colors
-   Primary: Teal (from caregiver figure) - Trust, calm, healthcare
-   Secondary: Warm Orange/Amber (from elder figure) - Warmth, care, energy
-   Foreground: Dark Slate Blue - Professionalism, stability
+/* ============================================================
+   Sentio AI — Design System
+   Brand: Emerald Prestige + Warm Gold
+   Primary #064e3b (deep emerald)  •  Accent #0d7a5f (forest)
+   Secondary #c9a84c (warm gold)   •  Surface: warm cream
    All colors MUST be HSL.
-*/
+   ============================================================ */
 
 @layer base {
   :root {
@@ -17,115 +18,121 @@
     --safe-area-inset-left: env(safe-area-inset-left);
     --safe-area-inset-right: env(safe-area-inset-right);
 
-    --background: 180 15% 98%;
-    --foreground: 200 25% 25%;
+    /* Surfaces */
+    --background: 40 33% 97%;            /* warm cream #faf7f0 */
+    --foreground: 158 30% 11%;           /* deep ink green */
 
     --card: 0 0% 100%;
-    --card-foreground: 200 25% 25%;
+    --card-foreground: 158 30% 11%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 200 25% 25%;
+    --popover-foreground: 158 30% 11%;
 
-    /* Primary: Teal from logo */
-    --primary: 183 45% 42%;
-    --primary-foreground: 0 0% 100%;
+    /* Primary: deep emerald (#064e3b) */
+    --primary: 160 85% 16%;
+    --primary-foreground: 40 33% 97%;
 
-    /* Secondary: Warm Orange/Amber from logo */
-    --secondary: 36 91% 55%;
-    --secondary-foreground: 0 0% 100%;
+    /* Accent: forest (#0d7a5f) — used for hover/complementary */
+    --accent: 160 80% 26%;
+    --accent-foreground: 40 33% 97%;
 
-    --muted: 180 10% 96%;
-    --muted-foreground: 200 20% 35%;
+    /* Secondary: warm gold (#c9a84c) */
+    --secondary: 43 54% 54%;
+    --secondary-foreground: 158 30% 11%;
 
-    /* Accent: Darker Teal for better contrast */
-    --accent: 183 45% 38%;
-    --accent-foreground: 0 0% 100%;
+    --muted: 42 22% 93%;
+    --muted-foreground: 158 15% 34%;
 
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 0 0% 100%;
+    --destructive: 358 68% 48%;
+    --destructive-foreground: 40 33% 97%;
 
-    --border: 180 10% 90%;
-    --input: 180 10% 90%;
-    --ring: 183 45% 42%;
+    --border: 42 20% 87%;
+    --input: 42 20% 87%;
+    --ring: 160 85% 16%;
 
-    --radius: 0.75rem;
+    --radius: 0.875rem;
 
-    --success: 160 84% 39%;
-    --success-foreground: 0 0% 100%;
-    
-    --warning: 38 92% 50%;
-    --warning-foreground: 0 0% 100%;
-    
-    --info: 183 45% 42%;
-    --info-foreground: 0 0% 100%;
+    --success: 160 70% 32%;
+    --success-foreground: 40 33% 97%;
 
-    /* WhatsApp colors */
-    --whatsapp: 142 70% 45%;
-    --whatsapp-light: 142 70% 95%;
-    --whatsapp-bubble: 142 70% 90%;
+    --warning: 38 92% 48%;
+    --warning-foreground: 158 30% 11%;
 
-    /* Brand Gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(183 45% 42%), hsl(183 45% 35%));
-    --gradient-secondary: linear-gradient(135deg, hsl(36 91% 55%), hsl(36 91% 65%));
-    --gradient-hero: linear-gradient(135deg, hsl(36 91% 55%) 0%, hsl(183 45% 42%) 100%);
-    --gradient-subtle: linear-gradient(180deg, hsl(180 15% 98%) 0%, hsl(180 10% 96%) 100%);
-    
-    --shadow-sm: 0 1px 2px 0 hsl(200 25% 25% / 0.03);
-    --shadow-md: 0 4px 6px -1px hsl(200 25% 25% / 0.07);
-    --shadow-lg: 0 10px 15px -3px hsl(200 25% 25% / 0.08);
-    --shadow-xl: 0 20px 25px -5px hsl(200 25% 25% / 0.1);
+    --info: 160 85% 16%;
+    --info-foreground: 40 33% 97%;
 
-    --sidebar-background: 0 0% 100%;
-    --sidebar-foreground: 200 25% 25%;
-    --sidebar-primary: 183 45% 42%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 180 10% 96%;
-    --sidebar-accent-foreground: 200 25% 25%;
-    --sidebar-border: 180 10% 90%;
-    --sidebar-ring: 183 45% 42%;
+    /* WhatsApp brand green (untouched — third-party recognizability) */
+    --whatsapp: 142 70% 38%;
+    --whatsapp-light: 142 60% 95%;
+    --whatsapp-bubble: 142 60% 90%;
+
+    /* Brand gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(160 85% 16%), hsl(160 80% 26%));
+    --gradient-secondary: linear-gradient(135deg, hsl(43 54% 54%), hsl(38 60% 62%));
+    --gradient-hero: linear-gradient(140deg, hsl(160 85% 16%) 0%, hsl(160 70% 22%) 55%, hsl(43 54% 54%) 100%);
+    --gradient-subtle: linear-gradient(180deg, hsl(40 33% 97%) 0%, hsl(42 25% 94%) 100%);
+    --gradient-cream: linear-gradient(180deg, hsl(40 33% 97%) 0%, hsl(40 33% 97%) 100%);
+
+    /* Elegant shadows tuned to the emerald ink */
+    --shadow-sm: 0 1px 2px 0 hsl(160 30% 15% / 0.04);
+    --shadow-md: 0 4px 12px -2px hsl(160 30% 15% / 0.08);
+    --shadow-lg: 0 14px 32px -12px hsl(160 40% 15% / 0.14);
+    --shadow-xl: 0 24px 48px -16px hsl(160 40% 15% / 0.18);
+    --shadow-elegant: 0 20px 50px -20px hsl(160 85% 16% / 0.25);
+    --shadow-gold: 0 12px 32px -14px hsl(43 54% 54% / 0.45);
+
+    /* Sidebar (b2b) */
+    --sidebar-background: 40 33% 97%;
+    --sidebar-foreground: 158 30% 11%;
+    --sidebar-primary: 160 85% 16%;
+    --sidebar-primary-foreground: 40 33% 97%;
+    --sidebar-accent: 42 22% 93%;
+    --sidebar-accent-foreground: 158 30% 11%;
+    --sidebar-border: 42 20% 87%;
+    --sidebar-ring: 160 85% 16%;
   }
 
   .dark {
-    --background: 200 25% 8%;
-    --foreground: 180 10% 96%;
+    --background: 160 30% 6%;
+    --foreground: 40 30% 94%;
 
-    --card: 200 25% 11%;
-    --card-foreground: 180 10% 96%;
+    --card: 160 28% 9%;
+    --card-foreground: 40 30% 94%;
 
-    --popover: 200 25% 11%;
-    --popover-foreground: 180 10% 96%;
+    --popover: 160 28% 9%;
+    --popover-foreground: 40 30% 94%;
 
-    --primary: 183 45% 50%;
-    --primary-foreground: 0 0% 100%;
+    --primary: 160 55% 55%;
+    --primary-foreground: 160 30% 6%;
 
-    --secondary: 36 91% 60%;
-    --secondary-foreground: 0 0% 100%;
+    --accent: 43 54% 60%;
+    --accent-foreground: 160 30% 6%;
 
-    --muted: 200 25% 15%;
-    --muted-foreground: 180 12% 70%;
+    --secondary: 43 54% 54%;
+    --secondary-foreground: 160 30% 6%;
 
-    --accent: 183 40% 55%;
-    --accent-foreground: 0 0% 100%;
+    --muted: 160 20% 14%;
+    --muted-foreground: 40 15% 70%;
 
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 0 0% 100%;
+    --destructive: 358 68% 55%;
+    --destructive-foreground: 40 30% 94%;
 
-    --border: 200 25% 18%;
-    --input: 200 25% 18%;
-    --ring: 183 45% 50%;
+    --border: 160 20% 16%;
+    --input: 160 20% 16%;
+    --ring: 160 55% 55%;
 
     --whatsapp: 142 70% 50%;
-    --whatsapp-light: 142 70% 15%;
-    --whatsapp-bubble: 142 70% 20%;
-    
-    --sidebar-background: 200 25% 11%;
-    --sidebar-foreground: 180 10% 90%;
-    --sidebar-primary: 183 45% 50%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 200 25% 15%;
-    --sidebar-accent-foreground: 180 10% 90%;
-    --sidebar-border: 200 25% 18%;
-    --sidebar-ring: 183 45% 50%;
+    --whatsapp-light: 142 40% 18%;
+    --whatsapp-bubble: 142 40% 22%;
+
+    --sidebar-background: 160 28% 9%;
+    --sidebar-foreground: 40 20% 88%;
+    --sidebar-primary: 160 55% 55%;
+    --sidebar-primary-foreground: 160 30% 6%;
+    --sidebar-accent: 160 20% 14%;
+    --sidebar-accent-foreground: 40 20% 88%;
+    --sidebar-border: 160 20% 16%;
+    --sidebar-ring: 160 55% 55%;
   }
 }
 
@@ -134,62 +141,79 @@
     @apply border-border;
   }
 
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
   body {
     @apply bg-background text-foreground antialiased;
+    font-feature-settings: "ss01", "cv11";
     padding-top: var(--safe-area-inset-top);
     padding-bottom: var(--safe-area-inset-bottom);
     padding-left: var(--safe-area-inset-left);
     padding-right: var(--safe-area-inset-right);
   }
+
+  /* Editorial serif for headlines */
+  .font-serif {
+    font-family: "Instrument Serif", "Cormorant Garamond", ui-serif, Georgia, serif;
+    font-feature-settings: "liga", "dlig";
+    letter-spacing: -0.01em;
+  }
 }
 
-/* Animation utilities */
 @layer utilities {
-  .animation-delay-100 {
-    animation-delay: 100ms;
-  }
-  .animation-delay-200 {
-    animation-delay: 200ms;
-  }
-  .animation-delay-300 {
-    animation-delay: 300ms;
-  }
-  .animation-delay-400 {
-    animation-delay: 400ms;
-  }
-  .animation-delay-500 {
-    animation-delay: 500ms;
-  }
+  .animation-delay-100 { animation-delay: 100ms; }
+  .animation-delay-200 { animation-delay: 200ms; }
+  .animation-delay-300 { animation-delay: 300ms; }
+  .animation-delay-400 { animation-delay: 400ms; }
+  .animation-delay-500 { animation-delay: 500ms; }
 
   .animate-gradient {
     background-size: 200% 200%;
     animation: gradient 6s ease infinite;
   }
 
-  /* Dot pattern background */
+  /* Subtle grain for warmth (SVG data URI, tiny) */
+  .grain {
+    position: relative;
+  }
+  .grain::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.035;
+    mix-blend-mode: multiply;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  }
+
   .dot-pattern {
-    background-image: radial-gradient(hsl(var(--muted-foreground) / 0.15) 1px, transparent 1px);
-    background-size: 24px 24px;
+    background-image: radial-gradient(hsl(var(--foreground) / 0.06) 1px, transparent 1px);
+    background-size: 22px 22px;
   }
 
-  /* Glass effect */
   .glass {
-    background: hsl(var(--card) / 0.8);
-    backdrop-filter: blur(12px);
-    border: 1px solid hsl(var(--border) / 0.5);
+    background: hsl(var(--card) / 0.75);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid hsl(var(--border) / 0.6);
   }
 
-  /* Floating animation */
   .animate-float {
-    animation: float 3s ease-in-out infinite;
+    animation: float 4s ease-in-out infinite;
   }
+
+  .shadow-elegant { box-shadow: var(--shadow-elegant); }
+  .shadow-gold { box-shadow: var(--shadow-gold); }
+
+  .bg-cream { background-color: hsl(40 33% 97%); }
+  .bg-cream-deep { background-color: hsl(42 30% 92%); }
 }
 
 @keyframes float {
-  0%, 100% {
-    transform: translateY(0px);
-  }
-  50% {
-    transform: translateY(-10px);
-  }
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-8px); }
 }
