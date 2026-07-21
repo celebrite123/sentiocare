@@ -55,7 +55,7 @@ const WaitlistManager = () => {
     setActionLoading(profileId);
     try {
       const now = new Date();
-      const trialEnds = new Date(now.getTime() + 5 * 24 * 60 * 60 * 1000);
+      const trialEnds = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 
       const { error } = await supabase
         .from("profiles")
