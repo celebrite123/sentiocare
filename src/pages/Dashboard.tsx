@@ -592,7 +592,7 @@ const Dashboard = () => {
               <Bell className={`h-4 w-4 ${stats.alertCount > 0 ? "text-destructive" : "text-muted-foreground"}`} />
             </CardHeader>
             <CardContent>
-              <div className={`font-serif text-2xl ${stats.alertCount > 0 ? "text-destructive" : "text-foreground"}`}>
+              <div className={`text-xl font-semibold ${stats.alertCount > 0 ? "text-destructive" : "text-foreground"}`}>
                 {stats.alertCount}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
