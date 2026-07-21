@@ -33,6 +33,12 @@ const CTASection = () => {
                 Join the waitlist
                 <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
               </Button>
+              <GoogleSignInButton
+                size="lg"
+                variant="secondary"
+                className="text-base h-14 px-8 rounded-full bg-primary-foreground text-primary hover:bg-primary-foreground/90 border-0"
+                label="Sign in with Google"
+              />
               <Button
                 size="lg"
                 variant="outline"
