@@ -13,7 +13,7 @@ const HeroSection = () => {
       <div className="absolute -top-32 -right-32 w-[560px] h-[560px] bg-primary/[0.06] rounded-full blur-3xl" aria-hidden="true" />
       <div className="absolute -bottom-40 -left-40 w-[520px] h-[520px] bg-secondary/[0.10] rounded-full blur-3xl" aria-hidden="true" />
 
-      <div className="container relative mx-auto px-4 pt-14 pb-20 md:pt-24 md:pb-28">
+      <div className="container relative mx-auto px-4 pt-10 pb-16 md:pt-20 md:pb-24">
         <div className="grid lg:grid-cols-[1.05fr_1fr] gap-12 lg:gap-16 items-center">
           {/* Left — editorial column */}
           <div className="space-y-8 text-center lg:text-left">
