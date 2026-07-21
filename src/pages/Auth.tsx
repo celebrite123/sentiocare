@@ -167,39 +167,6 @@ const Auth = () => {
     }
   };
 
-  const handleGoogleSignIn = async () => {
-    setGoogleLoading(true);
-    try {
-      const nextPath = getSafeNextPath();
-      const redirectBase = window.location.origin;
-      const redirectUri = nextPath
-        ? `${redirectBase}/auth?next=${encodeURIComponent(nextPath)}`
-        : redirectBase;
-      const result = await lovable.auth.signInWithOAuth("google", {
-        redirect_uri: redirectUri,
-      });
-
-      if (result.error) {
-        throw result.error;
-      }
-
-      if (result.redirected) {
-        // Browser will redirect to Google - just return
-        return;
-      }
-
-      // Tokens received and session set - user is authenticated
-      // The onAuthStateChange listener will handle redirect
-    } catch (error: any) {
-      toast({
-        title: "Google sign in failed",
-        description: error.message || "Something went wrong. Please try again.",
-        variant: "destructive",
-      });
-      setGoogleLoading(false);
-    }
-  };
-
   const handlePasswordReset = async (e: React.FormEvent) => {
     e.preventDefault();
     
