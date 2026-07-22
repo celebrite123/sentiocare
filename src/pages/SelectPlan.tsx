@@ -125,46 +125,46 @@ const SelectPlan = () => {
   return (
     <>
       <Navbar />
-      <div className="min-h-screen bg-muted/30 pt-16">
-        <div className="container mx-auto px-4 py-8 max-w-lg">
+      <div className="min-h-screen bg-muted/30 pt-16 flex flex-col">
+        <div className="container mx-auto px-4 py-6 md:py-10 max-w-md w-full flex-1 flex flex-col justify-center">
           <Button
             variant="ghost"
             size="sm"
             onClick={() => navigate("/elders")}
-            className="mb-4 -ml-2"
+            className="mb-4 -ml-2 w-fit"
           >
             <ArrowLeft className="h-4 w-4 mr-1" />
             Back
           </Button>
 
-          <div className="text-center mb-6">
-            <img src={sentioLogo} alt="Sentio" className="h-8 w-auto mx-auto mb-3" />
-            <h1 className="text-2xl font-bold">Continue with Sentio</h1>
-            <Badge variant="outline" className="border-destructive text-destructive mt-2">
+          <div className="text-center mb-5">
+            <img src={sentioLogo} alt="Sentio" className="h-7 w-auto mx-auto mb-3" />
+            <h1 className="text-xl md:text-2xl font-bold">Continue with Sentio</h1>
+            <Badge variant="outline" className="border-destructive text-destructive mt-2 text-xs">
               Trial ended
             </Badge>
           </div>
 
           <Card className="border-primary shadow-md">
-            <CardHeader className="text-center pb-2 pt-5">
+            <CardHeader className="text-center pb-2 pt-4">
               <div className="mx-auto mb-2 p-2 rounded-full bg-primary/10 w-fit">
                 <Phone className="h-5 w-5 text-primary" />
               </div>
-              <CardTitle className="text-lg">Premium</CardTitle>
+              <CardTitle className="text-base md:text-lg">Premium</CardTitle>
               <p className="text-xs text-muted-foreground">Voice + WhatsApp</p>
             </CardHeader>
 
-            <CardContent className="space-y-4 pt-0">
+            <CardContent className="space-y-3 pt-0">
               <div className="text-center">
-                <span className="text-2xl font-bold">₹699</span>
+                <span className="text-xl md:text-2xl font-bold">₹699</span>
                 <span className="text-muted-foreground text-sm">/mo</span>
                 <p className="text-xs text-muted-foreground">per elder</p>
               </div>
 
-              <ul className="space-y-1.5 text-sm">
+              <ul className="space-y-1 text-sm">
                 {features.map((feature, i) => (
                   <li key={i} className="flex items-center gap-2">
-                    <Check className="h-4 w-4 text-primary shrink-0" />
+                    <Check className="h-3.5 w-3.5 text-primary shrink-0" />
                     <span className="text-xs">{feature}</span>
                   </li>
                 ))}
@@ -188,8 +188,9 @@ const SelectPlan = () => {
           <div className="text-center mt-4">
             <Button
               variant="ghost"
+              size="sm"
               onClick={() => navigate("/elders")}
-              className="text-muted-foreground"
+              className="text-muted-foreground h-auto py-1"
             >
               Continue with limited access
             </Button>
