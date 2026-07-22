@@ -3,6 +3,27 @@
   Cache-Control: public, max-age=31536000, immutable
 
 # Cache images for 1 week
+/favicon.ico
+  Cache-Control: no-cache, max-age=0, must-revalidate
+
+/favicon-48x48.png
+  Cache-Control: no-cache, max-age=0, must-revalidate
+
+/favicon-96x96.png
+  Cache-Control: no-cache, max-age=0, must-revalidate
+
+/apple-touch-icon.png
+  Cache-Control: no-cache, max-age=0, must-revalidate
+
+/icon-192.png
+  Cache-Control: no-cache, max-age=0, must-revalidate
+
+/icon-512.png
+  Cache-Control: no-cache, max-age=0, must-revalidate
+
+/site.webmanifest
+  Cache-Control: no-cache, max-age=0, must-revalidate
+
 /*.png
   Cache-Control: public, max-age=604800
 
