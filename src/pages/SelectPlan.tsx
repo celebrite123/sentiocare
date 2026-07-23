@@ -105,7 +105,14 @@ const SelectPlan = () => {
               </CardContent>
             </Card>
 
-            <p className="text-xs text-muted-foreground text-center mt-6">
+            <div className="flex justify-center mt-6">
+              <Button variant="outline" size="sm" onClick={handleCheckStatus} disabled={checking} className="rounded-full">
+                {checking ? <Loader2 className="h-3.5 w-3.5 mr-2 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5 mr-2" />}
+                Check approval status
+              </Button>
+            </div>
+
+            <p className="text-xs text-muted-foreground text-center mt-4">
               Questions? Email <a href="mailto:hello@sentio.in.net" className="text-primary hover:underline">hello@sentio.in.net</a>
             </p>
           </div>
