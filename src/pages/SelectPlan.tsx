@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Check, Phone, Loader2, CreditCard, ArrowLeft, Clock, PartyPopper } from "lucide-react";
+import { Check, Phone, Loader2, CreditCard, ArrowLeft, Clock, PartyPopper, RefreshCw } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -22,8 +22,40 @@ const SelectPlan = () => {
   const { isTrialActive, trialDaysLeft, status, isWaitlisted, refetch } = useSubscription();
   const { initiatePayment, isLoading: paymentLoading } = useRazorpayPayment();
   const [loading, setLoading] = useState(false);
+  const [checking, setChecking] = useState(false);
 
   const isTrialExpired = !isTrialActive && status === "trial";
+
+  // Always refetch on mount so approvals reflect immediately (bypass hook cache)
+  useEffect(() => {
+    refetch();
+  }, []);
+
+  // Auto-redirect once trial activates
+  useEffect(() => {
+    if (isTrialActive) {
+      const t = setTimeout(() => navigate("/elders"), 1500);
+      return () => clearTimeout(t);
+    }
+  }, [isTrialActive, navigate]);
+
+  // Poll every 20s while waitlisted so approval flips the screen without a manual refresh
+  useEffect(() => {
+    if (!isWaitlisted) return;
+    const interval = setInterval(() => {
+      refetch();
+    }, 20000);
+    return () => clearInterval(interval);
+  }, [isWaitlisted, refetch]);
+
+  const handleCheckStatus = async () => {
+    setChecking(true);
+    try {
+      await refetch();
+    } finally {
+      setChecking(false);
+    }
+  };
 
   // Waitlisted users see a status page
   if (isWaitlisted) {
